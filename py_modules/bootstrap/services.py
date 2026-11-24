@@ -11,10 +11,11 @@ through a ``LateBinding`` when the two constructors form a cycle.
 from __future__ import annotations
 
 import os
+import sys
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-from domain.shortcut_data import RETRODECK_APP_ID
+from domain.shortcut_data import RETRODECK_APP_ID, ROM_LAUNCHER_NAME
 from lib.late_binding import LateBinding
 from services.achievements import AchievementsService, AchievementsServiceConfig
 from services.active_core_resolver import ActiveCoreResolver, ActiveCoreResolverConfig
@@ -201,7 +202,10 @@ def wire_services(cfg: WiringConfig) -> dict[str, Any]:
     launcher_backend_service = LauncherBackendService(
         config=LauncherBackendServiceConfig(
             registry=LauncherBackendRegistry(
-                [
+                # RetroDECK is a Linux Flatpak; on Windows only EmuDeck is offered.
+                [cfg.adapters.emudeck_launcher_backend_factory]
+                if sys.platform == "win32"
+                else [
                     cfg.adapters.retrodeck_launcher_backend_factory,
                     cfg.adapters.emudeck_launcher_backend_factory,
                 ]
@@ -395,6 +399,7 @@ def wire_services(cfg: WiringConfig) -> dict[str, Any]:
             m3u_support=cfg.callbacks.m3u_support,
             uow_factory=cfg.callbacks.uow_factory,
             rom_remover=rom_remover_binding.get,
+            vita_app_linker=cfg.adapters.vita_app_linker,
         ),
     )
 
@@ -597,7 +602,9 @@ def wire_services(cfg: WiringConfig) -> dict[str, Any]:
             sleeper=cfg.runtime.sleeper,
             logger=cfg.runtime.logger,
             log_debug=cfg.callbacks.log_debug,
-            flatpak_app_id=RETRODECK_APP_ID,
+            # On Windows a game instance is a rom-launcher.exe process tree, so
+            # the Windows adapter is keyed by the launcher's exe name instead.
+            flatpak_app_id=ROM_LAUNCHER_NAME if sys.platform == "win32" else RETRODECK_APP_ID,
         ),
     )
 

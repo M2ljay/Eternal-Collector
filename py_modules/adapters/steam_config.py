@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import contextlib
 import os
+import sys
 from typing import TYPE_CHECKING, Any
 
 from _vendor import vdf
@@ -16,6 +17,27 @@ from lib.errors import SteamGridDirMissingError
 
 if TYPE_CHECKING:
     import logging
+
+# Where a default Steam install lands on Windows when the registry is unreadable.
+_WINDOWS_DEFAULT_STEAM = r"C:\Program Files (x86)\Steam"
+
+
+def _windows_steam_root() -> str | None:
+    """Return the Steam install folder from ``HKCU\\Software\\Valve\\Steam``.
+
+    Steam records its own location as ``SteamPath`` (written with forward
+    slashes); a missing key falls back to the default install folder.
+    """
+    try:
+        import winreg
+
+        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, r"Software\Valve\Steam") as key:
+            value, _ = winreg.QueryValueEx(key, "SteamPath")
+        if isinstance(value, str) and value:
+            return os.path.normpath(value)
+    except OSError:
+        pass
+    return _WINDOWS_DEFAULT_STEAM if os.path.isdir(_WINDOWS_DEFAULT_STEAM) else None
 
 
 class SteamConfigAdapter:
@@ -29,10 +51,14 @@ class SteamConfigAdapter:
 
     def find_steam_user_dir(self) -> str | None:
         """Find the active Steam user's userdata directory."""
-        steam_paths = [
-            os.path.join(self._user_home, ".local", "share", "Steam", "userdata"),
-            os.path.join(self._user_home, ".steam", "steam", "userdata"),
-        ]
+        if sys.platform == "win32":
+            root = _windows_steam_root()
+            steam_paths = [os.path.join(root, "userdata")] if root else []
+        else:
+            steam_paths = [
+                os.path.join(self._user_home, ".local", "share", "Steam", "userdata"),
+                os.path.join(self._user_home, ".steam", "steam", "userdata"),
+            ]
         for base in steam_paths:
             if os.path.isdir(base):
                 users = [d for d in os.listdir(base) if d.isdigit()]
@@ -196,7 +222,7 @@ class SteamConfigAdapter:
         for candidate in candidates:
             cfg_path = os.path.expanduser(candidate)
             try:
-                with open(cfg_path) as f:
+                with open(cfg_path, encoding="utf-8") as f:
                     for line in f:
                         line = line.strip()
                         if line.startswith("input_driver"):
@@ -219,9 +245,9 @@ class SteamConfigAdapter:
             return {"success": False, "message": "No fix needed"}
         cfg_path = check["config_path"]
         try:
-            with open(cfg_path) as f:
+            with open(cfg_path, encoding="utf-8") as f:
                 lines = f.readlines()
-            with open(cfg_path, "w") as f:
+            with open(cfg_path, "w", encoding="utf-8") as f:
                 for line in lines:
                     if line.strip().startswith("input_driver"):
                         f.write('input_driver = "sdl2"\n')

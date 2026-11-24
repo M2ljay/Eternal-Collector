@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import os
 import re
+import sys
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
@@ -31,6 +32,21 @@ WINDOWS_PLATFORM_SLUG = "win"
 # stop-game path resolves live processes by, so it is public.
 RETRODECK_APP_ID = "net.retrodeck.retrodeck"
 RETRODECK_INVOCATION = f"flatpak run {RETRODECK_APP_ID}"
+
+# The launcher every RomM shortcut runs: a bash exec wrapper on Linux, and on
+# Windows (Decky under Playhub) a small native exe built from
+# native/rom-launcher-win. Both live in the plugin's bin/ folder.
+ROM_LAUNCHER_NAME = "rom-launcher.exe" if sys.platform == "win32" else "rom-launcher"
+
+
+def is_rom_launcher_exe(exe: str) -> bool:
+    """Whether a Steam shortcut's exe is this plugin's launcher, on either platform.
+
+    Steam stores the Windows path quoted and with backslashes, so separators
+    are normalized and the ``.exe`` form is accepted. Pure text.
+    """
+    normalized = exe.strip('"').replace("\\", "/")
+    return normalized.endswith("/bin/rom-launcher") or normalized.lower().endswith("/bin/rom-launcher.exe")
 
 # The leading ``%EMULATOR_<NAME>%`` binary token and the trailing ``%ROM%`` target
 # of an ES-DE ``<command>`` — stripped from a standalone command to recover the
@@ -372,7 +388,11 @@ def build_shortcuts_data(
     on the ``Rom`` aggregate. ``is_main_sibling`` sits under ``rom_user``; the
     lookup is guarded so a missing or ``null`` ``rom_user`` degrades to ``False``.
     """
-    exe = os.path.join(plugin_dir, "bin", "rom-launcher")
+    exe = os.path.join(plugin_dir, "bin", ROM_LAUNCHER_NAME)
+    if sys.platform == "win32":
+        # Steam on Windows runs a shortcut only when its exe is stored quoted,
+        # as Steam does for every shortcut it creates itself.
+        exe = f'"{exe}"'
     start_dir = os.path.join(plugin_dir, "bin")
     windows_launch_options = windows_launch_options or {}
     return [

@@ -52,6 +52,7 @@ if TYPE_CHECKING:
         SystemM3uSupportFn,
         SystemResolver,
         UnitOfWorkFactory,
+        VitaAppLinker,
     )
 
 _DOWNLOAD_QUEUE_MAX_TERMINAL = 50
@@ -126,6 +127,9 @@ class DownloadServiceConfig:
     # construction cycle, so the composition root binds it after both exist
     # (#1298 sibling supersede).
     rom_remover: RomRemoverProvider
+    # PS Vita: links an extracted app folder into Vita3K (None in tests and
+    # wherever no linker is wired; the generic multi-file path then applies).
+    vita_app_linker: VitaAppLinker | None = None
 
 
 class DownloadService:
@@ -146,6 +150,7 @@ class DownloadService:
         self._m3u_support = config.m3u_support
         self._uow_factory = config.uow_factory
         self._rom_remover = config.rom_remover
+        self._vita_app_linker = config.vita_app_linker
 
         # Owned state
         self._download_in_progress: set[int] = set()
@@ -572,6 +577,20 @@ class DownloadService:
         self._download_file_store.extract_zip(tmp_zip, extract_dir, roms_base, progress_callback=extract_cb)
         self._download_file_store.remove_file(tmp_zip)
         self._download_file_store.decode_url_encoded_names(extract_dir)
+        if system == "psvita" and self._vita_app_linker is not None:
+            # A Vita game is an installed-app folder Vita3K runs by title ID:
+            # no playlist, no ES-DE rename, and the launch file is the
+            # ``<TITLE_ID>.psvita`` the linker writes.
+            vita_launch = self._vita_app_linker.prepare(extract_dir)
+            if vita_launch is not None:
+                return self._install_recorder.do_record_install(
+                    rom_id=rom_id,
+                    rom_detail=rom_detail,
+                    file_path=vita_launch,
+                    rom_dir=extract_dir,
+                    system=system,
+                    cleanup=lambda: self._download_file_store.remove_tree(extract_dir),
+                )
         # Heal a folder-boot disc dump whose PS3_DISC.SFB ships .txt-suffixed,
         # before launch detection reads the layout (ADR-0019 / #1212).
         self._maybe_heal_ps3_sfb_io(extract_dir)

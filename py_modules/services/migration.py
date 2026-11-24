@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import sys
 import os
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
@@ -58,6 +59,7 @@ _KV_RETRODECK_HOME_PREVIOUS = "retrodeck_home_path_previous"
 _KV_RETRODECK_HOME_HOPS = "retrodeck_home_path_hops"
 _KV_SAVE_SORT = "save_sort_settings"
 _KV_SAVE_SORT_PREVIOUS = "save_sort_settings_previous"
+_KV_WINDOWS_SAVE_SORT_RESEEDED = "windows_save_sort_reseeded"
 
 
 @dataclass(frozen=True)
@@ -835,6 +837,17 @@ class MigrationService:
         marker and emits ``save_sort_changed`` so the frontend can offer the migration (#238).
         """
         current: SaveSortSettings = {"sort_by_content": layout.sort_by_content, "sort_by_core": layout.sort_by_core}
+        if sys.platform == "win32":
+            with self._uow_factory() as uow:
+                if not uow.kv_config.get(_KV_WINDOWS_SAVE_SORT_RESEEDED):
+                    # Windows builds before 0.33.0-win.6 could not read EmuDeck's
+                    # retroarch.cfg and recorded RetroDECK's default sorting. That
+                    # marker never described this machine, so replace it once
+                    # instead of treating the real layout as a user change.
+                    uow.kv_config.set(_KV_SAVE_SORT, json.dumps(current))
+                    uow.kv_config.delete(_KV_SAVE_SORT_PREVIOUS)
+                    uow.kv_config.set(_KV_WINDOWS_SAVE_SORT_RESEEDED, "1")
+                    return
         with self._uow_factory() as uow:
             stored = self._read_save_sort_settings(uow)
         if stored is None:

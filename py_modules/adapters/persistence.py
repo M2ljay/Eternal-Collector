@@ -8,16 +8,35 @@ feeds the settings fold. Migration logic lives in
 
 import contextlib
 import copy
-import fcntl
 import json
 import logging
 import os
+import sys
 from typing import Any, Protocol
+
+if sys.platform == "win32":
+    import msvcrt
+else:
+    import fcntl
 
 from adapters.system_clock import SystemClock
 
 _SETTINGS_VERSION = 13
 _LOCK_EXT = ".lock"
+
+
+def _lock_exclusive(lock_fd: int) -> None:
+    """Block until this process holds the exclusive settings lock on *lock_fd*.
+
+    POSIX uses ``flock``. Windows has no ``fcntl``; ``msvcrt.locking`` with
+    ``LK_LOCK`` locks the first byte and retries for about 10 seconds before
+    raising, which is ample for a settings write. The lock is released when
+    *lock_fd* is closed on both platforms.
+    """
+    if sys.platform == "win32":
+        msvcrt.locking(lock_fd, msvcrt.LK_LOCK, 1)
+    else:
+        fcntl.flock(lock_fd, fcntl.LOCK_EX)
 
 
 class _ClockPort(Protocol):
@@ -147,10 +166,10 @@ class PersistenceAdapter:
         tmp_path = path + ".tmp"
         lock_fd = os.open(path + _LOCK_EXT, os.O_WRONLY | os.O_CREAT, 0o600)
         try:
-            fcntl.flock(lock_fd, fcntl.LOCK_EX)
+            _lock_exclusive(lock_fd)
             fd = os.open(tmp_path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
             try:
-                with os.fdopen(fd, "w") as f:
+                with os.fdopen(fd, "w", encoding="utf-8") as f:
                     json.dump(data, f, indent=2)
                     f.flush()
                     os.fsync(f.fileno())
@@ -197,7 +216,7 @@ class PersistenceAdapter:
         """
         settings_path = os.path.join(self._settings_dir, "settings.json")
         try:
-            with open(settings_path) as f:
+            with open(settings_path, encoding="utf-8") as f:
                 settings = json.load(f)
         except FileNotFoundError:
             # Legitimate first run: no file, no backup, no reset flag.
@@ -217,8 +236,10 @@ class PersistenceAdapter:
         # Backfill version=0 to signal pre-versioning file to migration layer
         settings.setdefault("version", 0)
 
-        # Enforce 0600 on settings file (migrate from world-readable 0644)
-        if os.path.exists(settings_path):
+        # Enforce 0600 on settings file (migrate from world-readable 0644).
+        # POSIX only: Windows permission bits map just to the read-only flag,
+        # and the file already lives in the user's own profile.
+        if sys.platform != "win32" and os.path.exists(settings_path):
             current_mode = os.stat(settings_path).st_mode & 0o777
             if current_mode != 0o600:
                 os.chmod(settings_path, 0o600)
@@ -298,7 +319,7 @@ class PersistenceAdapter:
         """
         state_path = os.path.join(self._runtime_dir, "save_sync_state.json")
         try:
-            with open(state_path) as f:
+            with open(state_path, encoding="utf-8") as f:
                 loaded = json.load(f)
         except (FileNotFoundError, json.JSONDecodeError):
             return None

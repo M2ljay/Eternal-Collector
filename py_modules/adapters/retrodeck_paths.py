@@ -60,7 +60,7 @@ class RetroDeckPathsAdapter:
             return self._cached_config
         config_path = self.config_path()
         try:
-            with open(config_path) as f:
+            with open(config_path, encoding="utf-8") as f:
                 config = json.load(f)
             self._cached_config = config
             self._cache_time = now

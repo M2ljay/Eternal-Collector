@@ -37,6 +37,7 @@ from __future__ import annotations
 
 import ctypes
 import os
+import sys
 from typing import Any, Literal
 
 from domain.iso_time import parse_iso_to_epoch
@@ -47,9 +48,12 @@ from domain.sync_action import Conflict, Download, Skip, SyncAction, Upload
 # (not the plugin dir) locates the artifact identically in the installed
 # plugin (``<plugin>/py_modules/native/…``) and in the repo checkout tests
 # run from, so the no-fallback load succeeds in both.
-_BUNDLED_LIB_PATH = os.path.normpath(
-    os.path.join(os.path.dirname(__file__), os.pardir, "native", "libgavel-x86_64-linux.so")
-)
+# Windows (Decky under Playhub) loads the same C core compiled as a DLL from
+# the identical romm-gavel ``core/gavel.c``, with no C runtime dependency (see
+# ``native/README.md``). The C ABI uses only fixed-width types, so the ctypes
+# structures below fit both builds unchanged.
+_BUNDLED_LIB_NAME = "gavel-x86_64-windows.dll" if sys.platform == "win32" else "libgavel-x86_64-linux.so"
+_BUNDLED_LIB_PATH = os.path.normpath(os.path.join(os.path.dirname(__file__), os.pardir, "native", _BUNDLED_LIB_NAME))
 
 # ``gavel_action`` / ``gavel_skip_reason`` enumerator values (core/gavel.h).
 _ACTION_SKIP = 0

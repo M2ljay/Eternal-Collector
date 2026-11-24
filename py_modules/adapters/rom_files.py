@@ -12,9 +12,16 @@ from __future__ import annotations
 import contextlib
 import os
 import shutil
+import sys
 from typing import TYPE_CHECKING
 
-from adapters.descriptor_paths import claim_source, open_directory_fd, remove_claimed, staging_prefix
+from adapters.descriptor_paths import (
+    claim_source,
+    open_directory_fd,
+    remove_claimed,
+    require_directory,
+    staging_prefix,
+)
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -75,14 +82,23 @@ class RomFileAdapter:
         """
         parent = os.path.dirname(path)
         prefix = staging_prefix(os.path.basename(path))
-        try:
-            parent_fd = open_directory_fd(parent, safe_root)
-        except FileNotFoundError:
-            return _outcome(changed=False, message="Source was already absent")
-        try:
-            staged = sorted(name for name in os.listdir(parent_fd) if name.startswith(prefix))
-        finally:
-            os.close(parent_fd)
+        if sys.platform == "win32":
+            # No directory descriptors on Windows: verify the parent is a real,
+            # link-free directory under the safe root, then list it by path.
+            try:
+                require_directory(parent, safe_root)
+            except FileNotFoundError:
+                return _outcome(changed=False, message="Source was already absent")
+            staged = sorted(name for name in os.listdir(parent) if name.startswith(prefix))
+        else:
+            try:
+                parent_fd = open_directory_fd(parent, safe_root)
+            except FileNotFoundError:
+                return _outcome(changed=False, message="Source was already absent")
+            try:
+                staged = sorted(name for name in os.listdir(parent_fd) if name.startswith(prefix))
+            finally:
+                os.close(parent_fd)
         changed = False
         for name in staged:
             staged_path = os.path.join(parent, name)

@@ -13,10 +13,26 @@ from __future__ import annotations
 
 import json
 import os
+import sys
 from dataclasses import asdict, dataclass
 from typing import TYPE_CHECKING, Any
 
 from domain import firmware_paths
+
+# EmuDeck for Windows runs PS2 games on standalone PCSX2, whose BIOS folder is
+# the BIOS root itself (``Bios = C:\Emulation\bios`` in PCSX2.ini), not the
+# RetroArch-core subfolder the registry names. Registry paths under these
+# prefixes are flattened into the root on Windows; everything else keeps the
+# RetroArch system-folder layout, which is what EmuDeck's RetroArch reads.
+_WINDOWS_FLATTENED_FIRMWARE_PREFIXES = ("pcsx2/bios/",)
+
+
+def _platform_firmware_path(firmware_path: str) -> str:
+    if sys.platform == "win32":
+        for prefix in _WINDOWS_FLATTENED_FIRMWARE_PREFIXES:
+            if firmware_path.lower().startswith(prefix):
+                return firmware_path[len(prefix) :]
+    return firmware_path
 from domain.bios import collect_firmware_status, compute_bios_level, format_bios_status
 from domain.bios_file import BiosFile
 from domain.emulator_commands import label_to_invocation, options_to_payload, select_default_option
@@ -128,6 +144,9 @@ class FirmwareService:
         # in-memory registry so every consumer treats it identically —
         # see defaults/README.md.
         self._load_registry_file("xbox_bios_registry.json", merge=True)
+        # Same for standalone PCSX2: the vendored ps2 entries describe only the
+        # libretro core's folder, so real BIOS dumps never resolve without it.
+        self._load_registry_file("ps2_bios_registry.json", merge=True)
         self._bios_files_by_hash = {
             entry["md5"].lower(): entry for entry in self._bios_files_index.values() if entry.get("md5")
         }
@@ -156,7 +175,12 @@ class FirmwareService:
             data = self._firmware_file_store.read_bytes(registry_path)
             registry = json.loads(data)
             if merge:
-                self._bios_registry.setdefault("platforms", {}).update(registry.get("platforms", {}))
+                # File-level merge: a supplement may add entries to a platform
+                # the vendored registry already lists (ps2) without dropping
+                # that platform's libretro entries.
+                merged = self._bios_registry.setdefault("platforms", {})
+                for platform, files in registry.get("platforms", {}).items():
+                    merged.setdefault(platform, {}).update(files)
             else:
                 self._bios_registry = registry
             for platform, files in registry.get("platforms", {}).items():
@@ -229,7 +253,7 @@ class FirmwareService:
         file_name = firmware.get("file_name", "")
         reg_entry = self._resolve_index_entry(file_name, firmware.get("md5_hash", ""))
         if reg_entry and reg_entry.get("firmware_path"):
-            return safe_join(bios_base, reg_entry["firmware_path"])
+            return safe_join(bios_base, _platform_firmware_path(reg_entry["firmware_path"]))
         return safe_join(bios_base, file_name)
 
     def _safe_firmware_dest_path(self, firmware) -> str | None:
@@ -261,7 +285,7 @@ class FirmwareService:
         """
         bios_base = self._launcher_paths.bios_path()
         try:
-            return safe_join(bios_base, firmware_path)
+            return safe_join(bios_base, _platform_firmware_path(firmware_path))
         except PathTraversalError as e:
             self._logger.warning(f"Skipping registry firmware with unsafe path: {e}")
             return None

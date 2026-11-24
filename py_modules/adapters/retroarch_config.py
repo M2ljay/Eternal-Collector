@@ -21,6 +21,7 @@ needed.
 from __future__ import annotations
 
 import os
+import sys
 from typing import TYPE_CHECKING
 
 from domain.save_layout import ContentDir, InSaveDir, SaveLayout
@@ -55,6 +56,17 @@ class RetroArchConfigAdapter:
     def __init__(self, *, user_home: str, logger: logging.Logger) -> None:
         self._user_home = user_home
         self._logger = logger
+
+    def _cfg_paths(self) -> list[str]:
+        """Candidate ``retroarch.cfg`` paths for this platform, in priority order.
+
+        On Windows the only RetroArch RomM-Dock launches is EmuDeck's, at
+        ``%APPDATA%\\emudeck\\Emulators\\RetroArch\\retroarch.cfg``.
+        """
+        if sys.platform == "win32":
+            appdata = os.environ.get("APPDATA") or os.path.join(self._user_home, "AppData", "Roaming")
+            return [os.path.join(appdata, "emudeck", "Emulators", "RetroArch", self._RA_CFG)]
+        return [os.path.join(self._user_home, suffix) for suffix in self._RETROARCH_CFG_SUFFIXES]
 
     def get_save_layout(self) -> SaveLayout:
         """Read the RetroArch save-**file** layout from retroarch.cfg.
@@ -105,13 +117,12 @@ class RetroArchConfigAdapter:
         defaults, and falling through to the next candidate path would answer
         from a config this machine does not use.
         """
-        for suffix in self._RETROARCH_CFG_SUFFIXES:
-            cfg_path = os.path.join(self._user_home, suffix)
+        for cfg_path in self._cfg_paths():
             try:
                 in_content_dir = False
                 sort_by_content = default_sort_by_content
                 sort_by_core = False
-                with open(cfg_path) as f:
+                with open(cfg_path, encoding="utf-8") as f:
                     for line in f:
                         key, value = _setting(line)
                         if key == in_content_key:

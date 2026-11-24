@@ -107,6 +107,14 @@ class CoverArtFileStore(Protocol):
         ...
 
 
+class VitaAppLinker(Protocol):
+    """Makes a downloaded PS Vita app folder runnable by Vita3K (``adapters.vita3k_install``)."""
+
+    def prepare(self, rom_dir: str) -> str | None:
+        """Link the app in *rom_dir* into Vita3K and return its ``.psvita`` launch file, or ``None``."""
+        ...
+
+
 class DownloadFileStore(Protocol):
     """Filesystem seam for ROM download target operations.
 

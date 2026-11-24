@@ -1,0 +1,72 @@
+{
+  "_meta": {
+    "source": "romm-dock maintained (in-tree, not vendored) — standalone PCSX2 BIOS dumps, which the emu-atlas/libretro-derived bios_registry.json does not list",
+    "emulator": "pcsx2",
+    "version": "1.0.0",
+    "notes": "PCSX2 needs one BIOS; only the USA v2.00 dump EmuDeck's PCSX2 is set to is required, every other region and revision is optional. md5 is used for content-based identification, so a renamed dump still resolves. firmware_path sits under pcsx2/bios/, flattened into the BIOS root on Windows. See docs/user-guide/bios-management.md#playstation-2-standalone-pcsx2."
+  },
+  "platforms": {
+    "ps2": {
+      "SCPH-70012_BIOS_V12_USA_200.bin": {
+        "description": "PS2 BIOS USA v2.00 (SCPH-70012)",
+        "required": true,
+        "firmware_path": "pcsx2/bios/SCPH-70012_BIOS_V12_USA_200.bin",
+        "md5": "d333558cc14561c1fdc334c75d5f37b7"
+      },
+      "scph39001.bin": {
+        "description": "PS2 BIOS USA v1.60 (SCPH-39001)",
+        "required": false,
+        "firmware_path": "pcsx2/bios/scph39001.bin",
+        "md5": "d5ce2c7d119f563ce04bc04dbc3a323e"
+      },
+      "Sony PlayStation 2 BIOS (U)(v1.6)(2002-02-07)[SCPH39001].bin": {
+        "description": "PS2 BIOS USA v1.60 (SCPH-39001)",
+        "required": false,
+        "firmware_path": "pcsx2/bios/Sony PlayStation 2 BIOS (U)(v1.6)(2002-02-07)[SCPH39001].bin",
+        "md5": "d5ce2c7d119f563ce04bc04dbc3a323e"
+      },
+      "Sony PlayStation 2 BIOS (U)(v1.6)(2002-03-19)[SCPH39004].bin": {
+        "description": "PS2 BIOS USA v1.60 (SCPH-39004)",
+        "required": false,
+        "firmware_path": "pcsx2/bios/Sony PlayStation 2 BIOS (U)(v1.6)(2002-03-19)[SCPH39004].bin",
+        "md5": "7ec8eab84add32430017e1edbbad591e"
+      },
+      "Sony PlayStation 2 BIOS (E)(v1.6)(2001-10-04)[SCPH30004].bin": {
+        "description": "PS2 BIOS Europe v1.60 (SCPH-30004)",
+        "required": false,
+        "firmware_path": "pcsx2/bios/Sony PlayStation 2 BIOS (E)(v1.6)(2001-10-04)[SCPH30004].bin",
+        "md5": "28922c703cc7d2cf856f177f2985b3a9"
+      },
+      "Sony PlayStation 2 BIOS (E)(v2.0)(2004-06-14)[SCPH70004].bin": {
+        "description": "PS2 BIOS Europe v2.00 (SCPH-70004)",
+        "required": false,
+        "firmware_path": "pcsx2/bios/Sony PlayStation 2 BIOS (E)(v2.0)(2004-06-14)[SCPH70004].bin",
+        "md5": "dc752f160044f2ed5fc1f4964db2a095"
+      },
+      "Sony PlayStation 2 BIOS (E)(v2.0)(2004-06-14)[SCPH70008].bin": {
+        "description": "PS2 BIOS Europe v2.00 (SCPH-70008)",
+        "required": false,
+        "firmware_path": "pcsx2/bios/Sony PlayStation 2 BIOS (E)(v2.0)(2004-06-14)[SCPH70008].bin",
+        "md5": "d0c2ce6e5965d7ccfdb52b2e124f925c"
+      },
+      "Sony PlayStation 2 BIOS (E)(v2.0)(2004-11-04)[SCPH50003].bin": {
+        "description": "PS2 BIOS Europe v2.00 (SCPH-50003)",
+        "required": false,
+        "firmware_path": "pcsx2/bios/Sony PlayStation 2 BIOS (E)(v2.0)(2004-11-04)[SCPH50003].bin",
+        "md5": "4b59943913d9f9e950ffcbbf75cdb894"
+      },
+      "Sony PlayStation 2 BIOS (E)(v2.20)(2006-02-10)[SCPH-77008].bin": {
+        "description": "PS2 BIOS Europe v2.20 (SCPH-77008)",
+        "required": false,
+        "firmware_path": "pcsx2/bios/Sony PlayStation 2 BIOS (E)(v2.20)(2006-02-10)[SCPH-77008].bin",
+        "md5": "af60e6d1a939019d55e5b330d24b1c25"
+      },
+      "Sony PlayStation 2 BIOS (J)(v2.20)(2006-09-05)[SCPH-90006].bin": {
+        "description": "PS2 BIOS Japan v2.20 (SCPH-90006)",
+        "required": false,
+        "firmware_path": "pcsx2/bios/Sony PlayStation 2 BIOS (J)(v2.20)(2006-09-05)[SCPH-90006].bin",
+        "md5": "e5fc892f8a6c86bea656f16bed89fcc5"
+      }
+    }
+  }
+}

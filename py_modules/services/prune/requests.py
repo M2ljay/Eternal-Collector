@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 from typing import Any, Literal
 
+from domain.shortcut_data import is_rom_launcher_exe
 from services.prune._models import PruneOptions
 
 _MAX_PREVIEW_PAGE = 100
@@ -86,7 +87,7 @@ def valid_snapshot(snapshot: object, expected_app_id: int | None) -> bool:
         return False
     if any(not isinstance(snapshot.get(key), str) for key in ("name", "exe", "start_dir", "launch_options")):
         return False
-    if not snapshot["name"] or not snapshot["exe"].rstrip('"').endswith("/bin/rom-launcher"):
+    if not snapshot["name"] or not is_rom_launcher_exe(snapshot["exe"]):
         return False
     if any(
         key not in snapshot for key in ("minutes_playtime_forever", "minutes_playtime_last_two_weeks", "last_played")

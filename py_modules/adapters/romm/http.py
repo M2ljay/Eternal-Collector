@@ -111,7 +111,7 @@ class RommHttpAdapter:
         dev_path = os.path.join(self._plugin_dir, "defaults", "config.json")
         config_path = root_path if os.path.exists(root_path) else dev_path
         try:
-            with open(config_path) as f:
+            with open(config_path, encoding="utf-8") as f:
                 config = json.load(f)
         except (OSError, json.JSONDecodeError) as e:
             self._logger.warning("Failed to load platform_map from config.json: %s", e)

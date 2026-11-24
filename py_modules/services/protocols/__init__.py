@@ -80,6 +80,7 @@ from services.protocols.files import (
     SaveFileStore,
     SgdbArtworkCache,
     SteamRecoveryStore,
+    VitaAppLinker,
 )
 from services.protocols.infra import (
     ComputeSyncActionFn,
@@ -176,6 +177,7 @@ __all__ = [
     "DirectoryFileListerFn",
     "DiscResolver",
     "DownloadFileStore",
+    "VitaAppLinker",
     "DownloadQueueCleanup",
     "DownloadTargetGateFn",
     "EventEmitter",

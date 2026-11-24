@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import functools
 import os
+import sys
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
@@ -24,6 +25,7 @@ from adapters.cover_art_file_store import CoverArtFileStoreAdapter
 from adapters.debug_logger import SettingsAwareDebugLogger
 from adapters.download_file import DownloadFileAdapter
 from adapters.emudeck_launcher_backend import EmuDeckLauncherBackendFactory
+from adapters.emudeck_windows_launcher_backend import EmuDeckWindowsLauncherBackendFactory
 from adapters.es_de_config import CoreResolver
 from adapters.firmware_file import FirmwareFileAdapter
 from adapters.game_process import GameProcessAdapter
@@ -59,6 +61,7 @@ from adapters.steam_recovery import SteamRecoveryAdapter
 from adapters.steamgriddb import SteamGridDbAdapter
 from adapters.system_clock import SystemClock
 from adapters.system_uuid_gen import SystemUuidGen
+from adapters.vita3k_install import Vita3kAppLinker
 from adapters.xemu_config import XemuConfigAdapter
 from domain.state_migrations import fold_legacy_save_sync_settings, migrate_settings
 
@@ -68,6 +71,7 @@ if TYPE_CHECKING:
     from typing import Any
 
     from services.protocols import (
+        VitaAppLinker,
         AdoptionMoveStore,
         Clock,
         ComputeSyncActionFn,
@@ -144,6 +148,7 @@ class AdapterBundle:
     proton_locator: ProtonLocator
     retrodeck_launcher_backend_factory: LauncherBackendFactory
     emudeck_launcher_backend_factory: LauncherBackendFactory
+    vita_app_linker: VitaAppLinker | None = None
 
 
 @dataclass(frozen=True)
@@ -296,7 +301,13 @@ def bootstrap(
     # service config — the service cutover (#784) consumes it.
     uow_factory: UnitOfWorkFactory = functools.partial(SqliteUnitOfWork, db_path)
 
-    retrodeck_paths = RetroDeckPathsAdapter(user_home=user_home, logger=logger)
+    if sys.platform == "win32":
+        # No RetroDECK on Windows: answer BIOS/ROM/save locations from EmuDeck.
+        from adapters.emudeck_windows_launcher_backend import EmuDeckWindowsPathsAdapter
+
+        retrodeck_paths = EmuDeckWindowsPathsAdapter(user_home=user_home, logger=logger)
+    else:
+        retrodeck_paths = RetroDeckPathsAdapter(user_home=user_home, logger=logger)
     xemu_config = XemuConfigAdapter(user_home=user_home, logger=logger)
     retroarch_config = RetroArchConfigAdapter(user_home=user_home, logger=logger)
     retroarch_core_info = RetroArchCoreInfoAdapter(user_home=user_home, logger=logger)
@@ -354,11 +365,21 @@ def bootstrap(
     # Both share http_adapter.resolve_system, the same platform->system seam
     # CoreService's own bake resolves through.
     retrodeck_launcher_backend_factory = RetroDeckLauncherBackendFactory(paths=retrodeck_paths, core_info=core_resolver)
-    emudeck_launcher_backend_factory = EmuDeckLauncherBackendFactory(
-        user_home=user_home,
-        resolve_system=http_adapter.resolve_system,
-        logger=logger,
-    )
+    emudeck_launcher_backend_factory: LauncherBackendFactory
+    if sys.platform == "win32":
+        # Decky under Playhub on Windows: EmuDeck for Windows has its own layout
+        # (settings.ps1 + Steam ROM Manager parsers), read by a dedicated backend.
+        emudeck_launcher_backend_factory = EmuDeckWindowsLauncherBackendFactory(
+            user_home=user_home,
+            resolve_system=http_adapter.resolve_system,
+            logger=logger,
+        )
+    else:
+        emudeck_launcher_backend_factory = EmuDeckLauncherBackendFactory(
+            user_home=user_home,
+            resolve_system=http_adapter.resolve_system,
+            logger=logger,
+        )
     sgdb_adapter = SteamGridDbAdapter(settings=settings, logger=logger, user_agent=user_agent)
     cover_art_file_store = CoverArtFileStoreAdapter()
     sgdb_artwork_cache = SgdbArtworkCacheAdapter(runtime_dir=runtime_dir)
@@ -371,7 +392,13 @@ def bootstrap(
     path_probe = PathProbeAdapter()
     renderer_rss = RendererRssAdapter()
     renderer_gc = RendererGcAdapter(logger=logger)
-    game_process = GameProcessAdapter()
+    if sys.platform == "win32":
+        # Windows: games run under bin\rom-launcher.exe; stop = WM_CLOSE, then TerminateProcess.
+        from adapters.game_process_windows import WindowsGameProcessAdapter
+
+        game_process = WindowsGameProcessAdapter()
+    else:
+        game_process = GameProcessAdapter()
     # The compiled gavel core owns both save-sync decisions — the per-file sync
     # action and the upload-409 resolution. Loaded eagerly so a missing /
     # wrong-architecture artifact is fatal here (like the SQLite migration gate
@@ -409,6 +436,7 @@ def bootstrap(
         proton_locator=proton_locator,
         retrodeck_launcher_backend_factory=retrodeck_launcher_backend_factory,
         emudeck_launcher_backend_factory=emudeck_launcher_backend_factory,
+        vita_app_linker=Vita3kAppLinker(logger=logger),
     )
     stores = StateBundle(
         settings=settings,

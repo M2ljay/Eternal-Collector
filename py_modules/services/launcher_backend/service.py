@@ -203,7 +203,18 @@ class LauncherBackendService:
                 backend_id,
                 installation_id,
             )
-        return self._try_bind(RETRODECK_BACKEND_ID, RETRODECK_BACKEND_ID)
+        retrodeck = self._try_bind(RETRODECK_BACKEND_ID, RETRODECK_BACKEND_ID)
+        if retrodeck is not None or self._registry.get(RETRODECK_BACKEND_ID) is not None:
+            return retrodeck
+        # No RetroDECK registered at all (Windows): bind the first installation any
+        # registered backend detects, so a fresh install launches through EmuDeck
+        # without a trip to the settings page.
+        for factory in self._registry.factories():
+            for installation in factory.detect_installations():
+                backend = factory.bind(installation.installation_id)
+                if backend is not None:
+                    return backend
+        return None
 
     def _try_bind(self, backend_id: str, installation_id: str) -> LauncherBackend | None:
         factory = self._registry.get(backend_id)

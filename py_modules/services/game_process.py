@@ -144,7 +144,7 @@ class GameProcessService:
             return {
                 "success": False,
                 "reason": "game_not_running",
-                "message": "RetroDECK is running, but not this game — nothing was stopped.",
+                "message": "The emulator is running, but not this game — nothing was stopped.",
             }
 
         # ── The ladder: ONE stop request per process, grace window, then force ──

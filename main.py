@@ -8,6 +8,16 @@ plugin_dir = os.path.dirname(__file__)
 sys.path.insert(0, os.path.join(plugin_dir, "py_modules"))
 sys.path.insert(0, plugin_dir)
 
+if sys.platform == "win32":
+    # Decky's Windows build is a PyInstaller bundle that leaves out a few
+    # pure-Python standard modules this plugin imports (tomllib and
+    # glob). Copies from CPython 3.11 ship in _stdlib_compat; the folder is
+    # APPENDED, so any module the bundle does provide still wins.
+    import importlib.util
+
+    if any(importlib.util.find_spec(name) is None for name in ("tomllib", "glob")):
+        sys.path.append(os.path.join(plugin_dir, "py_modules", "_stdlib_compat"))
+
 import decky
 from bootstrap import (
     RuntimeBundle,

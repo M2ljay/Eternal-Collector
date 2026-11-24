@@ -43,7 +43,7 @@ class PluginMetadataAdapter:
     @staticmethod
     def _read(plugin_dir: str) -> dict[str, Any]:
         try:
-            with open(os.path.join(plugin_dir, "package.json")) as f:
+            with open(os.path.join(plugin_dir, "package.json"), encoding="utf-8") as f:
                 payload = json.load(f)
         except (OSError, json.JSONDecodeError):
             return {}

@@ -5,14 +5,21 @@ from __future__ import annotations
 import contextlib
 import ctypes
 import errno
-import fcntl
 import hashlib
 import os
 import signal
 import stat
 import struct
+import sys
 import threading
 from typing import TYPE_CHECKING
+
+# Linux-only: these helpers rely on dir_fd-relative calls, renameat2 and file
+# leases. On Windows the import must still succeed so the plugin can load;
+# the cleanup and save-move flows that call into this module get a Windows
+# implementation in a later phase and fail loudly until then.
+if sys.platform != "win32":
+    import fcntl
 
 from lib.errors import OperationAbortedError
 
@@ -1081,3 +1088,20 @@ def _validate_claimed_directory(
                     raise RuntimeError(f"Recovery source changed while it was consumed: {relative}")
         else:
             raise ValueError(f"Recovery source contains unsupported entry: {relative}")
+
+
+# Windows (Decky under Playhub): path-based implementations of the helpers ROM
+# removal and save-file moves use. The descriptor-only helpers above stay
+# Linux-only; see adapters.descriptor_paths_windows for what is covered.
+if sys.platform == "win32":
+    from adapters.descriptor_paths_windows import (  # noqa: E402, F811
+        claim_source,
+        ensure_directory,
+        identity_for_stat,
+        measure_tree,
+        missing_identity,
+        remove_claimed,
+        remove_current,
+        rename_claimed,
+        require_directory,
+    )
