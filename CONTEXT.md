@@ -334,6 +334,15 @@ silently adopts a foreign slot, and it never confirms a ROM onto the legacy `slo
 **retired as a confirmable target** (#1276 / ADR-0017): it survives only as a one-time migration **source** — the Slot
 Setup Wizard migrates those pre-slot saves into a named slot — and is never a ROM's active slot.
 
+### Standalone save set / save bundle
+
+The exact, ROM-derived list of save files a **standalone emulator** keeps for one game (`domain/standalone_saves.py`):
+melonDS `<stem>.sav`, DuckStation `<stem>_1.mcd` / `<stem>_2.mcd`, Vita3K the `<TITLE_ID>` folder. A ROM has one only
+when it launches with that emulator and the active launcher backend locates the emulator's save folder (EmuDeck for
+Windows today); otherwise its saves are RetroArch's. Never a scan or a pattern — a file not named exactly is not in the
+set. A **save bundle** is a save-set folder travelling as one deterministic zip (`<TITLE_ID>.vita3k.zip`): the folder is
+the save, the zip is derived from it and is what is hashed, tracked and uploaded.
+
 ### Baseline
 
 The last-synced reference point recorded for a tracked save file — captured in a `FileSyncState` value object

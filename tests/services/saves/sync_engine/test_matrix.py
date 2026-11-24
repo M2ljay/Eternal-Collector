@@ -2713,3 +2713,252 @@ class TestQuarantineBackupRetention:
 
         assert save.read_bytes() == b"keep"
         assert list(outside.iterdir()) == []
+
+
+# ---------------------------------------------------------------------------
+# Standalone emulators (EmuDeck for Windows): melonDS, DuckStation, Vita3K
+# ---------------------------------------------------------------------------
+
+
+def _uploads(fake) -> list[tuple[str, str]]:
+    """``(uploaded file path, emulator tag)`` for every upload the fake received."""
+    return [(args[1], args[2]) for name, args, _kw in fake.call_log if name == "upload_save"]
+
+
+def _vita_zip(entries: dict[str, bytes], compression: int = zipfile.ZIP_STORED) -> bytes:
+    import io
+
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w", compression=compression) as zf:
+        for name, data in entries.items():
+            zf.writestr(name, data)
+    return buffer.getvalue()
+
+
+def _seed_other_device(fake, filename: str, emulator: str, content: bytes) -> int:
+    """Another device's newer upload of *filename* into the ``autosave`` slot, tagged *emulator*."""
+    saved = fake.seed_foreign_save(
+        42, filename=filename, updated_at="2099-01-01T00:00:00Z", content=content, slot="autosave"
+    )
+    fake.saves[saved["id"]]["emulator"] = emulator
+    return saved["id"]
+
+
+class TestStandaloneMelonDS:
+    def _svc(self, tmp_path):
+        from tests.services.saves._helpers import make_standalone_service
+
+        return make_standalone_service(tmp_path, "melonds", system="nds", file_name="Mario Kart DS.nds")
+
+    def test_new_local_save_uploads_with_the_melonds_tag(self, tmp_path):
+        svc, fake, saves_dir = self._svc(tmp_path)
+        (saves_dir / "Mario Kart DS.sav").write_bytes(b"\x07" * 512)
+
+        uploaded, downloaded, errors, conflicts = _do_sync(svc, 42)
+
+        assert (uploaded, downloaded, errors, conflicts) == (1, 0, [], [])
+        assert _uploads(fake) == [(str(saves_dir / "Mario Kart DS.sav"), "melonds")]
+        state = _require_save_state(svc, 42)
+        assert set(state.files) == {"Mario Kart DS.sav"}
+        assert state.emulator == "melonds"
+        assert _do_sync(svc, 42) == (0, 0, [], [])  # converged
+
+    def test_server_save_downloads_into_an_empty_device(self, tmp_path):
+        svc, fake, saves_dir = self._svc(tmp_path)
+        _seed_other_device(fake, "Mario Kart DS [2099-01-01_00-00-00].sav", "melonds", b"from-other-pc")
+
+        uploaded, downloaded, errors, _ = _do_sync(svc, 42)
+
+        assert (uploaded, downloaded, errors) == (0, 1, [])
+        assert (saves_dir / "Mario Kart DS.sav").read_bytes() == b"from-other-pc"
+        assert not (tmp_path / "saves" / "nds" / "Mario Kart DS.sav").exists()
+
+    def test_a_retroarch_core_save_never_lands_in_melonds(self, tmp_path):
+        svc, fake, saves_dir = self._svc(tmp_path)
+        _seed_other_device(fake, "Mario Kart DS [2099-01-01_00-00-00].sav", "retroarch-melonds", b"core save")
+
+        assert _do_sync(svc, 42) == (0, 0, [], [])
+        assert not (saves_dir / "Mario Kart DS.sav").exists()
+
+
+class TestStandaloneDuckStation:
+    def _svc(self, tmp_path, stem="R4 - Ridge Racer Type 4 (USA)"):
+        from tests.services.saves._helpers import make_standalone_service
+
+        return make_standalone_service(tmp_path, "duckstation", system="psx", file_name=f"{stem}.chd")
+
+    def test_uploads_both_exact_cards_and_nothing_else(self, tmp_path):
+        svc, fake, saves_dir = self._svc(tmp_path)
+        (saves_dir / "R4 - Ridge Racer Type 4 (USA)_1.mcd").write_bytes(b"\x01" * 128)
+        (saves_dir / "R4 - Ridge Racer Type 4 (USA)_2.mcd").write_bytes(b"\x02" * 128)
+        (saves_dir / "R4 - Ridge Racer Type 4_1.mcd").write_bytes(b"db-title card")
+        (saves_dir / "Shared_1.mcd").write_bytes(b"shared")
+
+        uploaded, _downloaded, errors, _ = _do_sync(svc, 42)
+
+        assert (uploaded, errors) == (2, [])
+        assert sorted(_uploads(fake)) == [
+            (str(saves_dir / "R4 - Ridge Racer Type 4 (USA)_1.mcd"), "duckstation"),
+            (str(saves_dir / "R4 - Ridge Racer Type 4 (USA)_2.mcd"), "duckstation"),
+        ]
+        assert _do_sync(svc, 42) == (0, 0, [], [])
+
+    def test_card_downloads_into_an_empty_device(self, tmp_path):
+        svc, fake, saves_dir = self._svc(tmp_path, stem="Tekken 3")
+        _seed_other_device(fake, "Tekken 3_1 [2099-01-01_00-00-00].mcd", "duckstation", b"card one")
+
+        uploaded, downloaded, errors, _ = _do_sync(svc, 42)
+
+        assert (uploaded, downloaded, errors) == (0, 1, [])
+        assert (saves_dir / "Tekken 3_1.mcd").read_bytes() == b"card one"
+        assert not (saves_dir / "Tekken 3_2.mcd").exists()
+
+    def test_both_sides_changed_stays_a_conflict(self, tmp_path):
+        svc, fake, saves_dir = self._svc(tmp_path, stem="Tekken 3")
+        card = saves_dir / "Tekken 3_1.mcd"
+        card.write_bytes(b"v1")
+        assert _do_sync(svc, 42)[0] == 1
+        card.write_bytes(b"v2 local edit")
+        _seed_other_device(fake, "Tekken 3_1 [2099-01-01_00-00-00].mcd", "duckstation", b"v2 other pc")
+        uploads_before = len(_uploads(fake))
+
+        uploaded, downloaded, errors, conflicts = _do_sync(svc, 42)
+
+        assert (uploaded, downloaded, errors) == (0, 0, [])
+        assert [c["filename"] for c in conflicts] == ["Tekken 3_1.mcd"]
+        assert card.read_bytes() == b"v2 local edit"
+        assert len(_uploads(fake)) == uploads_before
+        assert not (saves_dir / ".romm-backup").exists()
+
+    def test_a_retroarch_psx_save_is_ignored(self, tmp_path):
+        svc, fake, saves_dir = self._svc(tmp_path, stem="Tekken 3")
+        _seed_other_device(fake, "Tekken 3 [2099-01-01_00-00-00].srm", "retroarch-swanstation", b"srm")
+        assert _do_sync(svc, 42) == (0, 0, [], [])
+        assert list(saves_dir.iterdir()) == []
+
+
+class TestStandaloneVita3K:
+    def _svc(self, tmp_path):
+        from tests.services.saves._helpers import make_standalone_service
+
+        return make_standalone_service(tmp_path, "vita3k", system="psvita", file_name="PCSE01274.psvita")
+
+    def _save(self, saves_dir, slot=b"slot-0"):
+        folder = saves_dir / "PCSE01274"
+        (folder / "game_dir").mkdir(parents=True, exist_ok=True)
+        (folder / "SlotParam_0.bin").write_bytes(slot)
+        (folder / "system.bin").write_bytes(b"system")
+        (folder / "game_dir" / "MK9PSET").write_bytes(b"settings")
+        return folder
+
+    def test_folder_uploads_as_one_bundle_and_converges(self, tmp_path):
+        svc, fake, saves_dir = self._svc(tmp_path)
+        self._save(saves_dir)
+        (saves_dir / "PCSE00023").mkdir()
+        (saves_dir / "PCSE00023" / "system.bin").write_bytes(b"other game")
+
+        uploaded, _d, errors, _c = _do_sync(svc, 42)
+
+        assert (uploaded, errors) == (1, [])
+        assert _uploads(fake) == [(str(saves_dir / "PCSE01274.vita3k.zip"), "vita3k")]
+        (save_id,) = fake.saves
+        with zipfile.ZipFile(__import__("io").BytesIO(fake._save_content[save_id])) as zf:
+            assert zf.namelist() == ["SlotParam_0.bin", "game_dir/MK9PSET", "system.bin"]
+        assert fake.saves[save_id]["file_name"].startswith("PCSE01274.vita3k [")
+        assert _do_sync(svc, 42) == (0, 0, [], [])  # stable hash: no change, no upload
+        assert len(_uploads(fake)) == 1
+
+    def test_bundle_downloads_into_an_empty_device(self, tmp_path):
+        svc, fake, saves_dir = self._svc(tmp_path)
+        bundle = _vita_zip({"SlotParam_0.bin": b"remote", "game_dir/MK9PSET": b"remote settings"})
+        _seed_other_device(fake, "PCSE01274.vita3k [2099-01-01_00-00-00].zip", "vita3k", bundle)
+
+        uploaded, downloaded, errors, _ = _do_sync(svc, 42)
+
+        assert (uploaded, downloaded, errors) == (0, 1, [])
+        assert (saves_dir / "PCSE01274" / "SlotParam_0.bin").read_bytes() == b"remote"
+        assert (saves_dir / "PCSE01274" / "game_dir" / "MK9PSET").read_bytes() == b"remote settings"
+        assert not (saves_dir / ".PCSE01274.romm-unpack").exists()
+        assert _do_sync(svc, 42) == (0, 0, [], [])
+
+    def test_a_differently_built_bundle_still_converges_after_download(self, tmp_path):
+        svc, fake, saves_dir = self._svc(tmp_path)
+        bundle = _vita_zip({"system.bin": b"s" * 4096, "SlotParam_0.bin": b"p" * 4096}, zipfile.ZIP_DEFLATED)
+        _seed_other_device(fake, "PCSE01274.vita3k [2099-01-01_00-00-00].zip", "vita3k", bundle)
+        assert _do_sync(svc, 42)[1] == 1
+
+        assert (saves_dir / "PCSE01274.vita3k.zip").read_bytes() == bundle  # downloaded copy, pre-repack
+        assert _do_sync(svc, 42) == (0, 0, [], [])  # repacked bytes differ, per-entry hash does not
+        assert len(_uploads(fake)) == 0
+
+    def test_replacing_the_folder_backs_the_old_one_up_first(self, tmp_path):
+        svc, fake, saves_dir = self._svc(tmp_path)
+        self._save(saves_dir, slot=b"local progress")
+        assert _do_sync(svc, 42)[0] == 1
+        bundle = _vita_zip({"SlotParam_0.bin": b"newer remote"})
+        _seed_other_device(fake, "PCSE01274.vita3k [2099-01-01_00-00-00].zip", "vita3k", bundle)
+
+        uploaded, downloaded, errors, _ = _do_sync(svc, 42)
+
+        assert (uploaded, downloaded, errors) == (0, 1, [])
+        assert sorted(p.name for p in (saves_dir / "PCSE01274").iterdir()) == ["SlotParam_0.bin"]
+        assert (saves_dir / "PCSE01274" / "SlotParam_0.bin").read_bytes() == b"newer remote"
+        (backup,) = (saves_dir / ".romm-backup").iterdir()
+        assert backup.name.startswith("PCSE01274_")
+        assert (backup / "SlotParam_0.bin").read_bytes() == b"local progress"
+        assert (backup / "game_dir" / "MK9PSET").read_bytes() == b"settings"
+
+    def test_both_sides_changed_stays_a_conflict(self, tmp_path):
+        svc, fake, saves_dir = self._svc(tmp_path)
+        folder = self._save(saves_dir)
+        assert _do_sync(svc, 42)[0] == 1
+        (folder / "SlotParam_0.bin").write_bytes(b"played offline")
+        _seed_other_device(
+            fake, "PCSE01274.vita3k [2099-01-01_00-00-00].zip", "vita3k", _vita_zip({"SlotParam_0.bin": b"other"})
+        )
+
+        uploaded, downloaded, errors, conflicts = _do_sync(svc, 42)
+
+        assert (uploaded, downloaded, errors) == (0, 0, [])
+        assert [c["filename"] for c in conflicts] == ["PCSE01274.vita3k.zip"]
+        assert (folder / "SlotParam_0.bin").read_bytes() == b"played offline"
+        assert not (saves_dir / ".romm-backup").exists()
+
+    @pytest.mark.parametrize("evil", ["../escape.bin", "/abs.bin", "C:\\x.bin", "a/../../escape.bin"])
+    def test_unsafe_bundle_fails_without_touching_the_save(self, tmp_path, evil):
+        svc, fake, saves_dir = self._svc(tmp_path)
+        folder = self._save(saves_dir, slot=b"keep me")
+        assert _do_sync(svc, 42)[0] == 1
+        _seed_other_device(
+            fake,
+            "PCSE01274.vita3k [2099-01-01_00-00-00].zip",
+            "vita3k",
+            _vita_zip({"SlotParam_0.bin": b"x", evil: b"payload"}),
+        )
+
+        _uploaded, downloaded, errors, _ = _do_sync(svc, 42)
+
+        assert downloaded == 0
+        assert len(errors) == 1 and errors[0].startswith("PCSE01274.vita3k.zip: ")
+        assert (folder / "SlotParam_0.bin").read_bytes() == b"keep me"
+        assert not (saves_dir / ".romm-backup").exists()
+        assert not (saves_dir / ".PCSE01274.romm-unpack").exists()
+        assert not (saves_dir / "escape.bin").exists()
+        assert not (tmp_path / "emu-saves" / "escape.bin").exists()
+
+    def test_folder_backup_retention_is_bounded(self, tmp_path):
+        svc, _fake, saves_dir = self._svc(tmp_path)
+        self._save(saves_dir)
+        backups = saves_dir / ".romm-backup"
+        for i in range(12):
+            stale = backups / f"PCSE01274_20250101_0000{i:02d}"
+            stale.mkdir(parents=True)
+            (stale / "f").write_bytes(b"old")
+        (backups / "Other.sav").write_bytes(b"file backup untouched")
+
+        assert svc._sync_engine.quarantine_local_file(str(saves_dir), "PCSE01274.vita3k.zip") is True
+
+        names = sorted(p.name for p in backups.iterdir())
+        assert len([n for n in names if n.startswith("PCSE01274_")]) == 10
+        assert "Other.sav" in names
+        assert not (saves_dir / "PCSE01274").exists()

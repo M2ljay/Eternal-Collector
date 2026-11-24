@@ -497,3 +497,210 @@ class TestMakeTempPath:
             assert os.path.isfile(path)
         finally:
             os.remove(path)
+
+
+def _vita_save(root) -> None:
+    """A Vita3K savedata folder shaped like the user's ``PCSE01274`` / ``PCSE00023`` saves."""
+    (root / "game_dir").mkdir(parents=True)
+    (root / "SlotParam_0.bin").write_bytes(b"\x01" * 64)
+    (root / "system.bin").write_bytes(b"\x02" * 32)
+    (root / "game_dir" / "MK9PSET").write_bytes(b"settings")
+    (root / "empty").mkdir()
+
+
+def _evil_zip(path, name: str, data: bytes = b"x") -> None:
+    with zipfile.ZipFile(path, "w") as zf:
+        zf.writestr(zipfile.ZipInfo(name), data)
+
+
+class TestPackSaveFolder:
+    def test_entries_are_sorted_relative_and_stored(self, save_files, tmp_path):
+        folder = tmp_path / "PCSE01274"
+        _vita_save(folder)
+        bundle = tmp_path / "PCSE01274.vita3k.zip"
+
+        save_files.pack_save_folder(str(folder), str(bundle))
+
+        with zipfile.ZipFile(bundle) as zf:
+            assert zf.namelist() == ["SlotParam_0.bin", "empty/", "game_dir/MK9PSET", "system.bin"]
+            assert {i.compress_type for i in zf.infolist()} == {zipfile.ZIP_STORED}
+            assert {i.date_time for i in zf.infolist()} == {(1980, 1, 1, 0, 0, 0)}
+            assert zf.read("game_dir/MK9PSET") == b"settings"
+
+    def test_unchanged_folder_gives_identical_bytes_and_hash(self, save_files, tmp_path):
+        folder = tmp_path / "PCSE01274"
+        _vita_save(folder)
+        first, second = tmp_path / "a.zip", tmp_path / "b.zip"
+        save_files.pack_save_folder(str(folder), str(first))
+        os.utime(folder / "system.bin", (2_000_000_000, 2_000_000_000))  # touch only — content unchanged
+        save_files.pack_save_folder(str(folder), str(second))
+
+        assert first.read_bytes() == second.read_bytes()
+        assert save_files.content_hash(str(first)) == save_files.content_hash(str(second))
+
+    def test_same_content_in_another_place_gives_identical_bytes(self, save_files, tmp_path):
+        a, b = tmp_path / "one" / "PCSE01274", tmp_path / "two" / "PCSE01274"
+        _vita_save(a)
+        _vita_save(b)
+        save_files.pack_save_folder(str(a), str(tmp_path / "a.zip"))
+        save_files.pack_save_folder(str(b), str(tmp_path / "b.zip"))
+        assert (tmp_path / "a.zip").read_bytes() == (tmp_path / "b.zip").read_bytes()
+
+    def test_unchanged_bytes_are_not_rewritten(self, save_files, tmp_path):
+        folder = tmp_path / "PCSE01274"
+        _vita_save(folder)
+        bundle = tmp_path / "PCSE01274.vita3k.zip"
+        save_files.pack_save_folder(str(folder), str(bundle))
+        os.utime(bundle, (1_000, 1_000))
+
+        save_files.pack_save_folder(str(folder), str(bundle))
+
+        assert os.path.getmtime(bundle) == 1_000
+
+    def test_changed_content_rewrites_and_stamps_newest_mtime(self, save_files, tmp_path):
+        folder = tmp_path / "PCSE01274"
+        _vita_save(folder)
+        bundle = tmp_path / "PCSE01274.vita3k.zip"
+        save_files.pack_save_folder(str(folder), str(bundle))
+        before = save_files.content_hash(str(bundle))
+
+        (folder / "game_dir" / "MK9PSET").write_bytes(b"new settings")
+        os.utime(folder / "game_dir" / "MK9PSET", (1_900_000_000, 1_900_000_000))
+        save_files.pack_save_folder(str(folder), str(bundle))
+
+        assert save_files.content_hash(str(bundle)) != before
+        assert os.path.getmtime(bundle) == 1_900_000_000
+        assert not (tmp_path / "PCSE01274.vita3k.zip.pack").exists()
+
+    def test_symlinks_inside_the_folder_are_not_followed(self, save_files, tmp_path):
+        outside = tmp_path / "outside"
+        outside.mkdir()
+        (outside / "secret").write_bytes(b"not a save")
+        folder = tmp_path / "PCSE01274"
+        folder.mkdir()
+        (folder / "real.bin").write_bytes(b"r")
+        os.symlink(outside, folder / "linkdir")
+        os.symlink(outside / "secret", folder / "linkfile")
+
+        save_files.pack_save_folder(str(folder), str(tmp_path / "b.zip"))
+
+        with zipfile.ZipFile(tmp_path / "b.zip") as zf:
+            assert zf.namelist() == ["real.bin"]
+
+
+class TestUnpackSaveBundle:
+    def test_round_trip_restores_the_folder(self, save_files, tmp_path):
+        folder = tmp_path / "PCSE01274"
+        _vita_save(folder)
+        bundle = tmp_path / "b.zip"
+        save_files.pack_save_folder(str(folder), str(bundle))
+        dest = tmp_path / "restored"
+
+        save_files.unpack_save_bundle(str(bundle), str(dest))
+
+        assert (dest / "SlotParam_0.bin").read_bytes() == b"\x01" * 64
+        assert (dest / "game_dir" / "MK9PSET").read_bytes() == b"settings"
+        assert (dest / "empty").is_dir()
+        repacked = tmp_path / "again.zip"
+        save_files.pack_save_folder(str(dest), str(repacked))
+        assert save_files.content_hash(str(repacked)) == save_files.content_hash(str(bundle))
+
+    @pytest.mark.parametrize(
+        "name",
+        ["../escape.bin", "a/../../escape.bin", "/abs.bin", "C:\\Windows\\x.bin", "C:x.bin", "dir\\x.bin"],
+    )
+    def test_unsafe_entry_is_rejected_before_anything_is_written(self, save_files, tmp_path, name):
+        from lib.path_safety import PathTraversalError
+
+        bundle = tmp_path / "evil.zip"
+        with zipfile.ZipFile(bundle, "w") as zf:
+            zf.writestr("ok.bin", b"fine")
+            zf.writestr(zipfile.ZipInfo(name), b"x")
+        dest = tmp_path / "dest" / "PCSE01274"
+
+        with pytest.raises(PathTraversalError):
+            save_files.unpack_save_bundle(str(bundle), str(dest))
+
+        assert not dest.exists()
+        assert not (tmp_path / "escape.bin").exists()
+        assert not (tmp_path / "dest" / "escape.bin").exists()
+
+    def test_duplicate_entry_is_rejected(self, save_files, tmp_path):
+        from lib.path_safety import PathTraversalError
+
+        bundle = tmp_path / "dup.zip"
+        with zipfile.ZipFile(bundle, "w") as zf:
+            zf.writestr("a.bin", b"1")
+            with pytest.warns(UserWarning):
+                zf.writestr("a.bin", b"2")
+        with pytest.raises(PathTraversalError):
+            save_files.unpack_save_bundle(str(bundle), str(tmp_path / "dest"))
+        assert not (tmp_path / "dest").exists()
+
+    def test_symlink_escape_inside_dest_is_refused_and_cleaned(self, save_files, tmp_path, monkeypatch):
+        import adapters.save_file as mod
+        from lib.path_safety import PathTraversalError
+
+        bundle = tmp_path / "b.zip"
+        _evil_zip(bundle, "inner/x.bin")
+        real_makedirs = os.makedirs
+        dest = tmp_path / "dest"
+        outside = tmp_path / "outside"
+        outside.mkdir()
+
+        def plant_link(path, *args, **kwargs):
+            real_makedirs(path, *args, **kwargs)
+            if os.path.realpath(path) == os.path.realpath(dest) and not (dest / "inner").exists():
+                os.symlink(outside, dest / "inner")
+
+        monkeypatch.setattr(mod.os, "makedirs", plant_link)
+        with pytest.raises(PathTraversalError):
+            save_files.unpack_save_bundle(str(bundle), str(dest))
+        assert not dest.exists()
+        assert not (outside / "x.bin").exists()
+
+    def test_existing_destination_is_refused(self, save_files, tmp_path):
+        bundle = tmp_path / "b.zip"
+        _evil_zip(bundle, "ok.bin")
+        dest = tmp_path / "dest"
+        dest.mkdir()
+        (dest / "keep").write_bytes(b"k")
+        with pytest.raises(FileExistsError):
+            save_files.unpack_save_bundle(str(bundle), str(dest))
+        assert (dest / "keep").read_bytes() == b"k"
+
+    def test_not_a_zip(self, save_files, tmp_path):
+        bundle = tmp_path / "b.zip"
+        bundle.write_bytes(b"not a zip")
+        with pytest.raises(zipfile.BadZipFile):
+            save_files.unpack_save_bundle(str(bundle), str(tmp_path / "dest"))
+        assert not (tmp_path / "dest").exists()
+
+
+class TestRemoveTree:
+    def test_removes_a_directory_inside_root(self, save_files, tmp_path):
+        target = tmp_path / "backup" / "PCSE01274_20260101_000000"
+        (target / "sub").mkdir(parents=True)
+        (target / "sub" / "f").write_bytes(b"x")
+        save_files.remove_tree(str(target), str(tmp_path / "backup"))
+        assert not target.exists()
+
+    def test_refuses_outside_root(self, save_files, tmp_path):
+        (tmp_path / "backup").mkdir()
+        other = tmp_path / "other"
+        other.mkdir()
+        with pytest.raises(ValueError):
+            save_files.remove_tree(str(other), str(tmp_path / "backup"))
+        assert other.exists()
+
+    def test_refuses_the_root_itself_a_symlink_and_a_file(self, save_files, tmp_path):
+        root = tmp_path / "backup"
+        root.mkdir()
+        outside = tmp_path / "outside"
+        outside.mkdir()
+        os.symlink(outside, root / "link")
+        (root / "file").write_bytes(b"f")
+        for path in (root, root / "link", root / "file"):
+            with pytest.raises(ValueError):
+                save_files.remove_tree(str(path), str(root))
+        assert outside.exists() and (root / "file").exists()

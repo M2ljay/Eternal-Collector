@@ -27,7 +27,7 @@ from domain.save_path import sanitize_save_filename
 from domain.save_slot import filter_saves_to_slot
 from lib.errors import DeviceNotRegisteredError, classify_error
 from lib.list_result import ErrorCode
-from services.saves._helpers import local_save_target
+from services.saves._helpers import save_target
 from services.saves._messages import DEVICE_NOT_REGISTERED, DEVICE_NOT_REGISTERED_REASON
 from services.saves._settings import resolve_default_slot
 
@@ -151,7 +151,9 @@ class RollbackOrchestrator:
             }
 
         active_slot = save_state.active_slot
-        server_in_slot = filter_saves_to_slot(server_saves, active_slot)
+        server_in_slot = [
+            s for s in filter_saves_to_slot(server_saves, active_slot) if save_target(s, info, save_state.files)
+        ]
         if not server_in_slot:
             return {"success": False, "reason": "no_server_save", "message": "No server save in active slot"}
         server = max(server_in_slot, key=lambda s: parse_iso_to_epoch(s.get("updated_at")) or 0.0)
@@ -183,7 +185,7 @@ class RollbackOrchestrator:
                     server,
                     saves_dir,
                     system,
-                    info["rom_name"],
+                    info,
                 )
             else:
                 # keep_local — resolve on-disk name via the same canonical
@@ -201,7 +203,7 @@ class RollbackOrchestrator:
                     server,
                     saves_dir,
                     system,
-                    info["rom_name"],
+                    info,
                 )
             await loop.run_in_executor(None, self._write_save_state, rom_id, save_state)
             self._logger.info(
@@ -259,16 +261,19 @@ class RollbackOrchestrator:
         server: dict[str, Any],
         saves_dir: str,
         system: str,
-        rom_name: str,
+        info: dict[str, Any],
     ) -> None:
         """Download *server* into the canonical local save file and update *save_state*.
 
-        The write path is always ``<rom_name>.<server.file_extension>`` — the
-        path RetroArch reads. Drives state-key consistency too:
-        ``update_file_sync_state`` receives the same target name the file
-        lands at. Mutates *save_state* in memory; ``resolve`` owns the write UoW.
+        The write path is always the :func:`save_target` name — for RetroArch
+        ``<rom_name>.<server.file_extension>``, the path RetroArch reads; for a
+        standalone emulator the save set's own file. Drives state-key
+        consistency too: ``update_file_sync_state`` receives the same target
+        name the file lands at. *server* is pre-filtered to records that map, so
+        the target is always set. Mutates *save_state* in memory; ``resolve``
+        owns the write UoW.
         """
-        target = local_save_target(server, rom_name)
+        target = _require_target(server, info, save_state)
         default_slot = resolve_default_slot(self._settings)
         self._matrix.do_download_save(server, saves_dir, target, save_state, device_id, system, default_slot)
 
@@ -281,14 +286,13 @@ class RollbackOrchestrator:
         server: dict[str, Any],
         saves_dir: str,
         system: str,
-        rom_name: str,
+        info: dict[str, Any],
     ) -> None:
         """Push the local file to *server* (POST overwrite=true). Adopt-without-upload
         when the local content already matches the server's content hash.
 
-        The on-disk name is resolved from the server save's ``file_extension``
-        via :func:`local_save_target` — the same canonical
-        ``<rom_name>.<server.file_extension>`` rule
+        The on-disk name is resolved via :func:`save_target` — for RetroArch the
+        same canonical ``<rom_name>.<server.file_extension>`` rule
         :meth:`_resolve_conflict_use_server` and every other download path uses.
         This keeps the two resolve paths symmetric: the state key and on-disk
         path are identical regardless of which side the user picked. If the
@@ -297,7 +301,7 @@ class RollbackOrchestrator:
         :class:`FileNotFoundError` is raised — we never silently rename across
         extensions. Mutates *save_state* in memory; ``resolve`` owns the write UoW.
         """
-        target = local_save_target(server, rom_name)
+        target = _require_target(server, info, save_state)
         local_path = os.path.join(saves_dir, target)
         if not self._save_file_store.is_file(local_path):
             raise FileNotFoundError(f"Local save not found: {local_path}")
@@ -345,3 +349,10 @@ class RollbackOrchestrator:
         self._matrix.do_upload_save(
             rom_id, local_path, target, save_state, device_id, system, core_so, None, default_slot, overwrite=True
         )
+
+
+def _require_target(server: dict[str, Any], info: dict[str, Any], save_state: RomSaveSyncState) -> str:
+    target = save_target(server, info, save_state.files)
+    if target is None:
+        raise ValueError(f"server save {server.get('id')} is not this ROM's save under its current emulator")
+    return target

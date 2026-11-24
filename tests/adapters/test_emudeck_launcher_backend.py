@@ -456,6 +456,11 @@ class TestPathDelegation:
         backend = _backend(tmp_path, _FakeInstallation())
         assert backend.states_path() == ""
 
+    def test_standalone_saves_path_is_always_empty(self, tmp_path):
+        # Standalone save sync is EmuDeck-for-Windows only.
+        backend = _backend(tmp_path, _FakeInstallation(saves="/emu/saves"))
+        assert [backend.standalone_saves_path(e) for e in ("melonds", "duckstation", "vita3k")] == ["", "", ""]
+
 
 class TestCoreInfoProvider:
     """The emulator-selection catalogue this backend exposes to the System-page

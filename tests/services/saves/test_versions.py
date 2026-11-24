@@ -1022,3 +1022,35 @@ class TestRollbackToVersionContentDirGate:
 
         assert result["status"] == "ok"
         assert "reason" not in result
+
+
+class TestStandaloneForeignEmulatorTarget:
+    """A standalone save set never takes another emulator's save as its content."""
+
+    def _setup(self, tmp_path):
+        from domain.rom_save_sync_state import RomSaveSyncState
+        from tests.services.saves._helpers import make_standalone_service
+
+        svc, fake, saves_dir = make_standalone_service(tmp_path, "duckstation", system="psx", file_name="Tekken 3.chd")
+        (saves_dir / "Tekken 3_1.mcd").write_bytes(b"card")
+        foreign = {
+            "id": 501,
+            "rom_id": 42,
+            "emulator": "retroarch-swanstation",
+            "file_name": "Tekken 3.srm",
+            "file_extension": "srm",
+            "slot": "autosave",
+            "updated_at": "2026-01-01T00:00:00Z",
+        }
+        state = RomSaveSyncState()
+        state.confirm_slot("autosave")
+        info = svc._rom_info.get_rom_save_info(42)
+        assert info is not None
+        return svc, fake, saves_dir, foreign, state, info
+
+    def test_rollback_refuses(self, tmp_path):
+        svc, fake, saves_dir, foreign, state, info = self._setup(tmp_path)
+        result = svc._versions._rollback_to_version_io(42, state, "dev-1", None, 501, info, [foreign])
+        assert result == {"status": "unsupported"}
+        assert not any(c[0] in ("download_save_content", "upload_save") for c in fake.call_log)
+        assert sorted(p.name for p in saves_dir.iterdir()) == ["Tekken 3_1.mcd"]

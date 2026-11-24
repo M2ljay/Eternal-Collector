@@ -91,6 +91,68 @@ decides on ambiguity" stance:
   formats), [#151](https://github.com/danielcopper/decky-romm-sync/issues/151) (Dreamcast VMU), and
   [#129](https://github.com/danielcopper/decky-romm-sync/issues/129) (standalone emulators) — all v2.0.
 
+## Standalone emulators (EmuDeck for Windows)
+
+On the `windows` branch, a ROM whose launch emulator (the per-game pick, else the per-platform pick, else EmuDeck's
+default — the same `ActiveCoreResolver` answer the shortcut is baked from) is one of three standalone emulators syncs
+that emulator's saves instead of RetroArch's. These three were chosen because their save can be tied to one game
+**exactly**, from the ROM file alone, without reading a disc image:
+
+| Emulator    | Systems  | Save set for a ROM whose file stem is `<stem>`                       | RomM `emulator` tag |
+| ----------- | -------- | -------------------------------------------------------------------- | ------------------- |
+| melonDS     | `nds`    | `<stem>.sav`                                                         | `melonds`           |
+| DuckStation | `psx`    | `<stem>_1.mcd`, `<stem>_2.mcd` (per-game memory cards)               | `duckstation`       |
+| Vita3K      | `psvita` | the `<TITLE_ID>` save folder, bundled as one `<TITLE_ID>.vita3k.zip` | `vita3k`            |
+
+The model is unchanged — still exact-name probing, still one per-file decision from the gavel core per name — only
+**where** the names live and **which** names they are come from the emulator. The seam is the ROM's _save set_:
+`RomInfoService.get_rom_save_info` adds a `save_set` (`domain/standalone_saves.py`) and points `saves_dir` at the
+emulator's folder; discovery probes only the set's names, and every flow that maps a server save back to a local file
+goes through one helper, `services/saves/_helpers.save_target`.
+
+**Gating.** A save set is used only when all of these hold, so RetroDECK and Linux EmuDeck behave exactly as before:
+
+- the active launcher backend answers a folder from `LauncherPaths.standalone_saves_path(emulator)` — only the EmuDeck
+  for Windows backend does, as `$savesPath\<melonds|duckstation|Vita3K>\saves` from EmuDeck's `settings.ps1` (the
+  folders EmuDeck links to each emulator's own save directory; they are read through the link). Every other backend
+  answers `""`, and the emulator is then not even resolved;
+- the launch emulator is a **standalone** one, recognised by the executable in its baked command (`melonDS.exe`,
+  `duckstation-*.exe`, `Vita3K.exe`). A psx game launched with a RetroArch core keeps the RetroArch behaviour;
+- the ROM yields a save set. For Vita3K that means the launch file is `<TITLE_ID>.psvita` (what the Vita install step
+  writes), so the stem is a valid title ID.
+
+**Emulators never cross.** Uploads carry the emulator's own tag (`RomInfoService.upload_emulator_tag`, the single place
+`MatrixExecutor.do_upload_save` takes it from). A standalone save set claims a server save only when its tag is its own
+**and** its name is one of the set's exact names: RomM's `[YYYY-MM-DD_HH-MM-SS]` slot tag is stripped from `file_name`
+(or `file_name_no_tags` + `file_extension` is used), and a save this device uploaded itself also stays mapped through its
+tracked id. Conversely the RetroArch mapping never claims a save tagged `melonds`, `duckstation` or `vita3k`, so a
+standalone save can never be downloaded into the RetroArch folder of a device that launches the same game with a core.
+Upstream never writes those tags, so on RetroDECK this changes nothing.
+
+**DuckStation's names.** DuckStation names a per-game card after the game's title in its own game database, which is
+usually — not always — the ROM stem (`R4 - Ridge Racer Type 4 (USA)_1.mcd` matches a ROM named
+`R4 - Ridge Racer Type 4 (USA).chd`; a card named after a different title does not). Only the exact `<stem>_1.mcd` /
+`<stem>_2.mcd` are synced; a card under any other name is left alone and does not sync. There is no fuzzy matching by
+design: a wrong match would upload or overwrite another game's card.
+
+**Folder saves travel as one file.** A Vita3K save is a folder (`SlotParam_0.bin`, `system.bin`, `game_dir/…`). Each
+time saves are discovered, `SaveFileStore.pack_save_folder` writes it as `<TITLE_ID>.vita3k.zip` beside the folder: the
+folder's files (and empty directories) as relative `/` paths, sorted, stored uncompressed, with one fixed timestamp and
+fixed attributes — so an unchanged folder always gives byte-identical bytes, and the file is only rewritten (and then
+stamped with the folder's newest mtime) when its content changes. That keeps both the RomM per-entry `content_hash` and
+the size/mtime baselines stable, so an untouched save never looks changed. The zip is a derived artifact; the folder is
+the save. On download the archive is unpacked into a staging folder first (`.<TITLE_ID>.romm-unpack`): every entry name
+is server-supplied, so absolute paths, drive letters, backslashes, `..` and duplicates are refused and each path is
+confined with `safe_join` before anything is written. Only after a clean unpack is the live folder moved into
+`.romm-backup/<TITLE_ID>_<ts>` (the same quarantine funnel and retention as file saves —
+`MatrixExecutor.quarantine_local_file` backs up the whole folder for a bundle name) and the staged folder renamed into place. A corrupt
+or unsafe archive fails that one file's sync with the existing save untouched.
+
+**Not covered.** Save states. The removed-game cleanup still projects only the RetroArch paths, so it never touches a
+standalone emulator's folder (those saves are left in place, not backed up into the recovery bundle). The setup wizard's
+legacy (`slot:null`) migration skips bundles — a bundle is only ever uploaded into a named slot. A conflict shows the
+bundle as one file. Dolphin, PPSSPP and PCSX2 need the game's disc code to identify a save and are the next phase.
+
 ## Evidence level, and where the audit has since disagreed
 
 The classification below was a desk audit: libretro documentation plus core source reading, one pass, no per-core

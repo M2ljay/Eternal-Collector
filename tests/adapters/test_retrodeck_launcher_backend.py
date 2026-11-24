@@ -74,6 +74,11 @@ class TestPathDelegation:
         backend = _backend(states="/custom/states")
         assert backend.states_path() == "/custom/states"
 
+    def test_standalone_saves_path_is_always_empty(self):
+        # RetroDECK save sync covers RetroArch saves only.
+        backend = _backend(saves="/custom/saves")
+        assert [backend.standalone_saves_path(e) for e in ("melonds", "duckstation", "vita3k")] == ["", "", ""]
+
 
 class TestCoreInfoDelegation:
     """RetroDECK's CoreInfoProvider methods delegate unchanged to the injected CoreResolver."""

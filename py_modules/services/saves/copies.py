@@ -21,7 +21,7 @@ from domain.save_layout import SAVE_SYNC_CONTENT_DIR_REASON
 from domain.save_slot import save_in_slot
 from domain.save_status import compute_multi_file_slot
 from lib.errors import RommConflictError, RommNotFoundError
-from services.saves._helpers import local_save_target
+from services.saves._helpers import save_target
 from services.saves._settings import resolve_default_slot
 
 if TYPE_CHECKING:
@@ -180,8 +180,9 @@ class SaveCopyService:
 
         saves_dir = info["saves_dir"]
         system = info["system"]
-        rom_name = info["rom_name"]
-        canonical = local_save_target(target_save, rom_name)
+        canonical = save_target(target_save, info, save_state.files)
+        if canonical is None:
+            return {"status": "unsupported"}
         local_path = os.path.join(saves_dir, canonical)
 
         # Make the target current BEFORE the upload: do_upload_save resolves the

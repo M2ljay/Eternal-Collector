@@ -10,8 +10,10 @@ GBC, GBA, Genesis, N64, PSX via RetroArch cores, Saturn, Dreamcast, PC Engine, a
 **set** is discovered and synced — the default `.srm` / `.rtc` / `.sav` plus system-specific extensions (e.g. Saturn
 `.bkr` / `.bcr` / `.smpc`, NDS `.dsv`, Sega CD `.brm`); the extension list lives in `domain/save_extensions.py`. Every
 file syncs **independently against the server save sharing its own canonical target**, so a multi-file set never
-cross-mixes extensions. Standalone emulator saves (PCSX2, DuckStation, Dolphin, PPSSPP, melonDS, etc.) are deferred to
-Phase 7.
+cross-mixes extensions. On the Windows (EmuDeck) build, melonDS, DuckStation and Vita3K saves also sync for games that
+launch with those emulators, through the same per-file model — see
+[Standalone emulators](save-sync-coverage.md#standalone-emulators-emudeck-for-windows). Other standalone emulators (PCSX2,
+Dolphin, PPSSPP, etc.) are not synced.
 
 ## RomM Save API
 
@@ -470,7 +472,9 @@ The `emulator` parameter on RomM save uploads determines the server-side folder 
 created before v2 have `emulator=retroarch` and will keep that tag. New saves created with slots get the correct
 `retroarch-{core}` tag.
 
-For future standalone emulator support (Phase 9): just the emulator name, e.g. `duckstation`.
+Standalone emulators use just the emulator name: `melonds`, `duckstation`, `vita3k` (EmuDeck for Windows only; see
+[Standalone emulators](save-sync-coverage.md#standalone-emulators-emudeck-for-windows)). The RetroArch mapping never
+claims a save carrying one of these tags, and a standalone save set claims only its own tag.
 
 ## Sync Decision Algorithm
 
@@ -1178,7 +1182,10 @@ slot switch — writes content to a path of the form:
 `Example Quest - Second Journey (USA).gba`); `<server_save.file_extension>` is the `file_extension` field on the chosen
 RomM save (e.g. `srm`).
 
-This is the **only** path used for local writes. The server's stored `file_name` (which may carry a timestamp tag like
+For a ROM that launches with a supported standalone emulator the target is instead one of that emulator's exact
+save-set names, chosen by `_helpers.save_target` — see
+[Standalone emulators](save-sync-coverage.md#standalone-emulators-emudeck-for-windows). Otherwise this is the **only**
+path used for local writes. The server's stored `file_name` (which may carry a timestamp tag like
 `[2026-03-24_15-18-50]` or come from a different client with an unrelated naming convention) and the server's
 `file_name_no_tags` are **not** consulted. RetroArch identifies SRAM purely by `<rom_basename>.<ext>` filename match —
 content is opaque bytes — so writing to anything else would leave the save invisible to the emulator.
@@ -2053,7 +2060,9 @@ optional Settings cleanup action can be added later. A backfill of the historica
 
 ### Standalone emulators not supported
 
-Phase 5 only covers RetroArch `.srm` saves. Standalone emulators store saves under
+Except for melonDS, DuckStation and Vita3K on the Windows (EmuDeck) build
+([Standalone emulators](save-sync-coverage.md#standalone-emulators-emudeck-for-windows)), only RetroArch saves are
+covered. Standalone emulators store saves under
 `<saves_path>/<platform>/<emulator_name>/` with emulator-specific formats:
 
 | Platform | Emulator    | Save Path                   | Format                          |

@@ -700,6 +700,29 @@ class SaveFileStore(Protocol):
         """Return the contents of *path* as raw bytes."""
         ...
 
+    def pack_save_folder(self, folder: str, bundle_path: str) -> None:
+        """Write the save folder *folder* as a deterministic zip at *bundle_path*.
+
+        An unchanged folder yields byte-identical output (sorted entries, fixed
+        timestamps and attributes, stored uncompressed), and the file is only
+        rewritten when its bytes change — so a bundled save's hash and mtime
+        stay put between syncs.
+        """
+        ...
+
+    def unpack_save_bundle(self, bundle_path: str, dest_dir: str) -> None:
+        """Extract a bundle into the not-yet-existing directory *dest_dir*.
+
+        Entry names are untrusted: any absolute, drive-qualified, ``..`` or
+        otherwise escaping name raises ``PathTraversalError`` before anything is
+        written. A failure leaves no *dest_dir* behind.
+        """
+        ...
+
+    def remove_tree(self, path: str, within: str) -> None:
+        """Delete directory *path* recursively; refuses a symlink or anything not strictly below *within*."""
+        ...
+
 
 class SgdbArtworkCache(Protocol):
     """Filesystem seam for the SteamGridDB artwork cache directory.

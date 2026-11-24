@@ -32,12 +32,16 @@ class FakeRetroDeckPaths:
         self.home = home
         self.config = config_path
         self.health = health
+        self.standalone_saves: dict[str, str] = {}
 
     def saves_path(self) -> str:
         return self.saves
 
     def states_path(self) -> str:
         return self.states
+
+    def standalone_saves_path(self, emulator_id: str) -> str:
+        return self.standalone_saves.get(emulator_id, "")
 
     def roms_path(self) -> str:
         return self.roms

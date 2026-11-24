@@ -42,6 +42,7 @@ class FakeLauncherBackend:
         self.states = states
         self.validation = validation if validation is not None else BackendValidation(ok=True)
         self.emulator_options: dict[str, dict[str, Any]] = emulator_options or {}
+        self.standalone_saves: dict[str, str] = {}
 
     def resolve_invocation(self, rom: dict[str, Any], emulator: Any) -> str:
         return resolve_emulator_invocation(rom, emulator)
@@ -60,6 +61,9 @@ class FakeLauncherBackend:
 
     def states_path(self) -> str:
         return self.states
+
+    def standalone_saves_path(self, emulator_id: str) -> str:
+        return self.standalone_saves.get(emulator_id, "")
 
     def validate(self) -> BackendValidation:
         return self.validation

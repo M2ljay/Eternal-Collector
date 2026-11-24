@@ -379,3 +379,39 @@ def _server_save_with_syncs(
         base["slot"] = slot
     base["device_syncs"] = device_syncs if device_syncs is not None else []
     return base
+
+
+STANDALONE_COMMANDS = {
+    "melonds": '"C:\\Emulation\\tools\\melonDS\\melonDS.exe"',
+    "duckstation": '"C:\\Emulation\\tools\\duckstation\\duckstation-qt-x64-ReleaseLTCG.exe"',
+    "vita3k": '--title-id-file "C:\\Users\\v\\AppData\\Roaming\\Vita3K\\Vita3K.exe" -F -r',
+}
+"""Baked launch commands as EmuDeck for Windows writes them, per standalone emulator."""
+
+
+def make_standalone_service(tmp_path, emulator_id: str, *, rom_id: int = 42, system: str, file_name: str):
+    """A SaveService whose ROM *rom_id* launches with standalone *emulator_id* under EmuDeck for Windows.
+
+    The fake launcher paths answer ``<tmp>/emu-saves/<emulator_id>`` as that
+    emulator's save folder (created), the active-core seam answers the
+    emulator's baked command for *rom_id*, sync is on, a device is
+    registered and the ROM's ``autosave`` slot is confirmed (as the setup
+    wizard leaves it). Returns ``(svc, fake_api, standalone_saves_dir)``.
+    """
+    from domain.shortcut_data import EmulatorInvocation
+
+    paths = FakeRetroDeckPaths(saves=str(tmp_path / "saves"), roms=str(tmp_path / "retrodeck" / "roms"))
+    saves_dir = tmp_path / "emu-saves" / emulator_id
+    saves_dir.mkdir(parents=True)
+    paths.standalone_saves[emulator_id] = str(saves_dir)
+    active = FakeActiveCoreResolver(
+        per_rom_emulator={rom_id: EmulatorInvocation.standalone(STANDALONE_COMMANDS[emulator_id], emulator_id)}
+    )
+    svc, fake = make_service(tmp_path, launcher_paths=paths, active_core=active)
+    _enable_sync_with_device(svc, "dev-1")
+    _install_rom(svc, tmp_path, rom_id=rom_id, system=system, file_name=file_name)
+    state = RomSaveSyncState()
+    state.confirm_slot("autosave")
+    with _uow(svc) as uow:
+        uow.rom_save_sync_states.save(rom_id, state)
+    return svc, fake, saves_dir

@@ -13,7 +13,9 @@ from __future__ import annotations
 
 import contextlib
 import hashlib
+import io
 import os
+import shutil
 import tempfile
 import zipfile
 import zlib
@@ -21,6 +23,8 @@ from typing import TYPE_CHECKING
 
 from adapters.descriptor_paths import claim_source, ensure_directory, rename_claimed
 from domain.save_hash import combine_zip_entry_hashes
+from domain.standalone_saves import BUNDLE_ENTRY_EPOCH, bundle_entries, bundle_entry_name
+from lib.path_safety import PathTraversalError, safe_join
 
 if TYPE_CHECKING:
     import logging
@@ -42,6 +46,13 @@ _MD5_CHUNK_SIZE = 8192
 # still surfaces, matching the non-zip branch and ``checksum_md5``;
 # ``LargeZipFile`` is excluded as an unreachable write-time ZIP64 guard.
 _ZIP_READ_ERRORS = (zipfile.BadZipFile, zlib.error, RuntimeError)
+
+# Stored, not deflated: zlib's output is not guaranteed identical across zlib
+# builds (CPython on Windows bundles its own), and a bundle must be byte-stable
+# for one folder on every device. Entry attributes are pinned for the same
+# reason — ``ZipInfo.create_system`` otherwise follows the host OS.
+_BUNDLE_FILE_ATTR = 0o100644 << 16
+_BUNDLE_DIR_ATTR = (0o040755 << 16) | 0x10
 
 
 class SaveFileAdapter:
@@ -237,3 +248,102 @@ class SaveFileAdapter:
         """Return the contents of *path* as raw bytes."""
         with open(path, "rb") as f:
             return f.read()
+
+    def pack_save_folder(self, folder: str, bundle_path: str) -> None:
+        """Write *folder* as a deterministic zip at *bundle_path*.
+
+        Entries are the folder's files and empty directories, relative and
+        ``/``-separated, in :func:`domain.standalone_saves.bundle_entries`
+        order, stored uncompressed with one fixed timestamp and fixed
+        attributes — so an unchanged folder always yields identical bytes.
+        Symlinks inside the folder are not followed or packed. The file is
+        rewritten (atomically, via a sibling temp) only when its bytes would
+        change, and then stamped with the newest mtime in the folder tree, so
+        an untouched save keeps both its hash and its mtime between syncs.
+        """
+        files: list[str] = []
+        empty_dirs: list[str] = []
+        newest = os.path.getmtime(folder)
+        for root, dirs, names in os.walk(folder):
+            dirs[:] = [d for d in dirs if not os.path.islink(os.path.join(root, d))]
+            rel_root = os.path.relpath(root, folder).replace(os.sep, "/")
+            prefix = "" if rel_root == "." else rel_root + "/"
+            regular = [n for n in names if _is_regular(os.path.join(root, n))]
+            for name in [*regular, *dirs]:
+                newest = max(newest, os.path.getmtime(os.path.join(root, name)))
+            files.extend(prefix + n for n in regular)
+            if prefix and not regular and not dirs:
+                empty_dirs.append(prefix)
+        buffer = io.BytesIO()
+        with zipfile.ZipFile(buffer, "w", compression=zipfile.ZIP_STORED) as zf:
+            for entry in bundle_entries(files, empty_dirs):
+                info = zipfile.ZipInfo(entry, date_time=BUNDLE_ENTRY_EPOCH)
+                info.create_system = 3
+                if entry.endswith("/"):
+                    info.external_attr = _BUNDLE_DIR_ATTR
+                    zf.writestr(info, b"")
+                else:
+                    info.external_attr = _BUNDLE_FILE_ATTR
+                    with open(os.path.join(folder, *entry.split("/")), "rb") as f:
+                        zf.writestr(info, f.read())
+        data = buffer.getvalue()
+        if os.path.isfile(bundle_path):
+            with open(bundle_path, "rb") as f:
+                if f.read() == data:
+                    return
+        tmp = bundle_path + ".pack"
+        with open(tmp, "wb") as f:
+            f.write(data)
+        os.utime(tmp, (newest, newest))
+        os.replace(tmp, bundle_path)
+
+    def unpack_save_bundle(self, bundle_path: str, dest_dir: str) -> None:
+        """Extract the bundle at *bundle_path* into the new directory *dest_dir*.
+
+        Every entry name is server-supplied: each must pass
+        :func:`domain.standalone_saves.bundle_entry_name` and then resolve
+        strictly inside *dest_dir* through :func:`lib.path_safety.safe_join`,
+        and no name may repeat — otherwise :class:`PathTraversalError` is raised
+        before anything is written. *dest_dir* must not exist yet; on any
+        failure it is removed again, so the caller never sees a partial folder.
+        Raises :class:`zipfile.BadZipFile` for a file that is not a readable zip.
+        """
+        if os.path.lexists(dest_dir):
+            raise FileExistsError(dest_dir)
+        with zipfile.ZipFile(bundle_path, "r") as zf:
+            infos = zf.infolist()
+            seen: set[str] = set()
+            for info in infos:
+                name = bundle_entry_name(info.filename)
+                if name is None or name.rstrip("/") in seen:
+                    raise PathTraversalError(f"unsafe or duplicate bundle entry: {info.filename!r}")
+                seen.add(name.rstrip("/"))
+            os.makedirs(dest_dir)
+            try:
+                for info in infos:
+                    target = safe_join(dest_dir, *info.filename.rstrip("/").split("/"))
+                    if info.filename.endswith("/"):
+                        os.makedirs(target, exist_ok=True)
+                        continue
+                    os.makedirs(os.path.dirname(target), exist_ok=True)
+                    with open(target, "wb") as f:
+                        f.write(zf.read(info))
+            except BaseException:
+                shutil.rmtree(dest_dir, ignore_errors=True)
+                raise
+
+    def remove_tree(self, path: str, within: str) -> None:
+        """Delete the directory *path* and everything under it, but only inside *within*.
+
+        Refuses (``ValueError``) a *path* that is a symlink, is not a
+        directory, or does not resolve strictly below *within* — the guard that
+        keeps backup retention from ever reaching outside its own folder.
+        """
+        if os.path.islink(path) or not os.path.isdir(path):
+            raise ValueError(f"not a removable directory: {path!r}")
+        safe_join(within, os.path.relpath(path, within))
+        shutil.rmtree(path)
+
+
+def _is_regular(path: str) -> bool:
+    return os.path.isfile(path) and not os.path.islink(path)

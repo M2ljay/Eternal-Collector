@@ -18,6 +18,7 @@ from domain.iso_time import epoch_to_iso, parse_iso_to_epoch
 from domain.rom_save_sync_state import RomSaveSyncState
 from domain.save_layout import SAVE_SYNC_CONTENT_DIR_REASON
 from domain.save_slot import save_in_slot
+from domain.standalone_saves import bundle_dir_for
 from lib.errors import RommNotFoundError, classify_error
 from services.saves._helpers import newest_server_saves_by_target
 from services.saves._messages import (
@@ -460,7 +461,6 @@ class SetupWizard:
         save files) and the ``finally`` clears them, so nothing durable is
         mutated before the apply phase begins.
         """
-        rom_name = info["rom_name"]
         saves_dir = info["saves_dir"]
         system = info["system"]
 
@@ -474,7 +474,15 @@ class SetupWizard:
         if not legacy_saves:
             return {"status": "no_op"}
 
-        targets = newest_server_saves_by_target(legacy_saves, rom_name)
+        # A bundle is a folder only ``MatrixExecutor.do_download_save`` knows how
+        # to place; this migration renames downloads into place itself, so it
+        # leaves bundles alone. Legacy saves are never bundles in practice — a
+        # bundle is only ever uploaded into a named slot.
+        targets = {
+            target: save
+            for target, save in newest_server_saves_by_target(legacy_saves, info).items()
+            if bundle_dir_for(target) is None
+        }
         core_so = self._resolve_core(rom_id)
         default_slot = resolve_default_slot(self._settings)
         cleanup_limit = autocleanup_limit(self._settings)

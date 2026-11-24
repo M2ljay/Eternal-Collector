@@ -165,6 +165,20 @@ class TestRenderingDelegation:
         assert service.active_backend_id() == "emudeck"
 
 
+class TestStandaloneSavesPathDelegation:
+    def test_delegates_to_active_backend(self):
+        service, _settings, _persister, _items = _service()
+        active = service._active
+        assert isinstance(active, FakeLauncherBackend)
+        active.standalone_saves["melonds"] = "/emu/saves/melonds/saves"
+        assert service.standalone_saves_path("melonds") == "/emu/saves/melonds/saves"
+        assert service.standalone_saves_path("vita3k") == ""
+
+    def test_no_active_backend_degrades_to_empty_string(self):
+        service, _settings, _persister, _items = _service(factories=[])
+        assert service.standalone_saves_path("melonds") == ""
+
+
 class TestListBackends:
     def test_one_entry_per_registered_factory(self):
         service, _settings, _persister, _items = _service(

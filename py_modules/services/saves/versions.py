@@ -21,7 +21,7 @@ from domain.save_layout import SAVE_SYNC_CONTENT_DIR_REASON
 from domain.save_slot import save_in_slot, slot_query_param
 from domain.save_status import compute_multi_file_slot
 from lib.errors import RommNotFoundError
-from services.saves._helpers import local_save_target
+from services.saves._helpers import save_target
 from services.saves._settings import resolve_default_slot
 
 if TYPE_CHECKING:
@@ -243,9 +243,10 @@ class VersionsService:
 
         saves_dir = info["saves_dir"]
         system = info["system"]
-        rom_name = info["rom_name"]
         default_slot = resolve_default_slot(self._settings)
-        target_filename = local_save_target(target_save, rom_name)
+        target_filename = save_target(target_save, info, save_state.files)
+        if target_filename is None:
+            return {"status": "unsupported"}
         local_path = os.path.join(saves_dir, target_filename)
 
         self._sync_engine.do_download_save(
@@ -314,6 +315,9 @@ class VersionsService:
           ``.smpc``). Per-version rollback would revert one component and
           leave the others — an incoherent save — so it is refused.
           Interim #908 guard; grouped atomic-set rollback is tracked there.
+          It is also returned, without a reason, when the chosen save is
+          not a file of the ROM's save set under its current emulator (a
+          standalone emulator's set never takes another emulator's save).
           The same status carries an additive
           ``"reason": "savefiles_in_content_dir"`` field when the refusal is
           instead because RetroArch writes saves to the content dir (#239):

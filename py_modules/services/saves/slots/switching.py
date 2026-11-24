@@ -262,7 +262,7 @@ class SlotSwitcher:
 
             # 7. Make the saves dir + tracking coherent with the new slot:
             default_slot = resolve_default_slot(self._settings)
-            targets = newest_server_saves_by_target(slot_saves, info["rom_name"])
+            targets = newest_server_saves_by_target(slot_saves, info)
             switch_errors = await self._loop.run_in_executor(
                 None, self._apply_slot_switch, rom_id, saves_dir, system, save_state, device_id, targets, default_slot
             )

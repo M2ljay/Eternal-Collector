@@ -19,20 +19,21 @@ from datetime import UTC, datetime
 from enum import Enum
 from typing import TYPE_CHECKING, Any
 
-from domain.emulator_tag import build_emulator_tag
 from domain.iso_time import parse_iso_to_epoch
 from domain.rom_save_sync_state import FileSyncState, RomSaveSyncState
 from domain.save_backup import BACKUP_DIR_NAME, backup_name, select_backups_to_prune
 from domain.save_slot import filter_saves_to_slot
+from domain.standalone_saves import bundle_dir_for
 from domain.sync_action import Conflict, Download, Skip, SyncAction, Upload
 from lib.errors import DeviceNotRegisteredError, RommApiError, RommConflictError, classify_error
-from services.saves._helpers import local_save_target
+from services.saves._helpers import save_target
 from services.saves._messages import DEVICE_NOT_REGISTERED
 
 if TYPE_CHECKING:
     import logging
     from collections.abc import Iterator
 
+    from domain.standalone_saves import StandaloneSaveSet
     from services.protocols import (
         Clock,
         ComputeSyncActionFn,
@@ -132,6 +133,7 @@ class RomDispatchContext:
     saves_dir: str
     system: str
     core_so: str | None
+    save_set: StandaloneSaveSet | None = None
 
 
 class MatrixExecutor:
@@ -284,8 +286,12 @@ class MatrixExecutor:
     ) -> None:
         """Download a save file from server. Backs up existing local file first.
 
-        Mutates *save_state* in memory (per-file baseline); the operation entry
-        owns the surrounding write Unit of Work.
+        A bundle (a save folder travelling as one zip) is unpacked into a
+        staging folder before anything local is touched — a corrupt archive or
+        an unsafe entry name fails the download with the current save intact —
+        and only then is the live folder quarantined and replaced. Mutates
+        *save_state* in memory (per-file baseline); the operation entry owns the
+        surrounding write Unit of Work.
         """
         local_path = os.path.join(saves_dir, filename)
         self._save_file_store.make_dirs(saves_dir)
@@ -300,9 +306,22 @@ class MatrixExecutor:
             ),
         )
 
-        # Back up the existing local save before the download overwrites it.
-        self.quarantine_local_file(saves_dir, filename)
+        bundle_dir = bundle_dir_for(filename)
+        staging = os.path.join(saves_dir, f".{bundle_dir}.romm-unpack") if bundle_dir else None
+        if staging is not None:
+            if self._save_file_store.is_dir(staging):
+                self._save_file_store.remove_tree(staging, saves_dir)
+            self._save_file_store.unpack_save_bundle(tmp_path, staging)
 
+        try:
+            # Back up the existing local save before the download overwrites it.
+            self.quarantine_local_file(saves_dir, filename)
+            if staging is not None and bundle_dir is not None:
+                self._save_file_store.rename(staging, os.path.join(saves_dir, bundle_dir))
+        except Exception:
+            if staging is not None and self._save_file_store.is_dir(staging):
+                self._save_file_store.remove_tree(staging, saves_dir)
+            raise
         self._save_file_store.rename(tmp_path, local_path)
         self.update_file_sync_state(save_state, filename, server_save, local_path, system, default_slot=default_slot)
         self._log_debug(f"Downloaded save: {filename}")
@@ -324,9 +343,16 @@ class MatrixExecutor:
         (``_BACKUP_RETENTION + 1``) — destroying the just-saved file to honour the
         cap would defeat the backup. Returns ``True`` when a file was moved,
         ``False`` when there was nothing at *filename* to back up.
+
+        For a bundle filename the real save is its folder: the whole folder is
+        moved to ``.romm-backup/<folder>_<ts>[_<n>]`` under the same retention.
+        The bundle zip itself is derived from that folder and is left in place.
         """
-        local_path = os.path.join(saves_dir, filename)
-        if not self._save_file_store.is_file(local_path):
+        bundle_dir = bundle_dir_for(filename)
+        name = bundle_dir or filename
+        local_path = os.path.join(saves_dir, name)
+        present = self._save_file_store.is_dir if bundle_dir else self._save_file_store.is_file
+        if not present(local_path) or (bundle_dir and self._save_file_store.is_symlink(local_path)):
             return False
         backup_dir = os.path.join(saves_dir, BACKUP_DIR_NAME)
         if self._save_file_store.is_symlink(backup_dir) or not self._save_file_store.is_within(backup_dir, saves_dir):
@@ -334,14 +360,17 @@ class MatrixExecutor:
         self._save_file_store.make_dirs(backup_dir)
         ts = self._clock.now().strftime("%Y%m%d_%H%M%S")
         existing = set(self._save_file_store.listdir(backup_dir))
-        backup = backup_name(filename, ts, existing)
+        backup = backup_name(name, ts, existing)
         self._save_file_store.rename(local_path, os.path.join(backup_dir, backup))
         # Bound the recovery net: keep only the newest N backups per save file (#974).
         existing.add(backup)
-        for stale in select_backups_to_prune(filename, list(existing), _BACKUP_RETENTION):
+        for stale in select_backups_to_prune(name, list(existing), _BACKUP_RETENTION):
             if stale == backup:
                 continue  # never prune the backup just created this call (#974 — would destroy the save)
-            self._save_file_store.remove_file(os.path.join(backup_dir, stale))
+            if bundle_dir:
+                self._save_file_store.remove_tree(os.path.join(backup_dir, stale), backup_dir)
+            else:
+                self._save_file_store.remove_file(os.path.join(backup_dir, stale))
         return True
 
     @staticmethod
@@ -447,7 +476,7 @@ class MatrixExecutor:
             raise DeviceNotRegisteredError(DEVICE_NOT_REGISTERED)
 
         save_id = server_save.get("id") if server_save else None
-        emulator = build_emulator_tag(core_so)
+        emulator = self._rom_info.upload_emulator_tag(int(rom_id), core_so)
 
         slot = self._resolve_upload_slot(save_state, default_slot)
 
@@ -669,7 +698,8 @@ class MatrixExecutor:
         """
         server_saves = self._retry.with_retry(lambda: self._romm_api.list_saves(ctx.rom_id, device_id=ctx.device_id))
         server_in_slot = filter_saves_to_slot(server_saves, ctx.save_state.active_slot)
-        group = [ss for ss in server_in_slot if local_save_target(ss, ctx.rom_name) == filename]
+        info = {"rom_name": ctx.rom_name, "save_set": ctx.save_set}
+        group = [ss for ss in server_in_slot if save_target(ss, info, ctx.save_state.files) == filename]
         if not group:
             self._logger.warning(
                 f"_handle_upload_409({ctx.rom_id}): {filename}: 409 on POST but no server save in slot on re-fetch"
@@ -798,10 +828,9 @@ class MatrixExecutor:
         status rendering. Pure compute — no I/O writes, no state mutation.
         Consumers drive their own side effects from the yielded outcomes.
         """
-        rom_name = info["rom_name"]
-
         files_state: dict[str, FileSyncState] = save_state.files if save_state else {}
         device_id_str = device_id or ""
+        targets = [(ss, save_target(ss, info, files_state)) for ss in server_in_slot]
 
         local_files = self._rom_info.find_save_files(rom_id)
 
@@ -827,7 +856,7 @@ class MatrixExecutor:
             # cross-contaminates extensions (#1006). Without this, a sibling
             # extension's newer server record would win max(updated_at) and the
             # file would be evaluated/dispatched against the wrong save.
-            group = [ss for ss in server_in_slot if local_save_target(ss, rom_name) == filename]
+            group = [ss for ss, target in targets if target == filename]
             action = self._compute_sync_action(
                 local_file=self._build_local_input(local_path, filename),
                 server_saves_in_slot=group,
@@ -850,9 +879,8 @@ class MatrixExecutor:
         # groups (no local file) get matrix-evaluated against their own group;
         # compute_sync_action picks newest-in-group internally.
         server_only_groups: dict[str, list[dict[str, Any]]] = {}
-        for ss in server_in_slot:
-            target = local_save_target(ss, rom_name)
-            if target in handled_filenames:
+        for ss, target in targets:
+            if target is None or target in handled_filenames:
                 continue
             server_only_groups.setdefault(target, []).append(ss)
 
@@ -937,6 +965,7 @@ class MatrixExecutor:
             saves_dir=saves_dir,
             system=system,
             core_so=core_so,
+            save_set=info.get("save_set"),
         )
         uploaded = 0
         downloaded = 0

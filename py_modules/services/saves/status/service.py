@@ -188,7 +188,9 @@ class StatusService:
         - No local file but the slot has server saves: surface the newest
           server save as a single "ready to download" row. The canonical
           local target is ``<rom_name>.<server.file_extension>`` — derived
-          purely from RetroArch's view of the ROM.
+          purely from RetroArch's view of the ROM — or, for a ROM that
+          launches with a supported standalone emulator, one of that
+          emulator's exact save-set names (``_helpers.save_target``).
         - ROM not installed (no rom_name available) → no entry. There is
           no server-derived filename fallback: without a deterministic
           local path we cannot tell the user where a download would land.

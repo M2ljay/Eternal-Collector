@@ -840,3 +840,77 @@ class TestResolveSyncConflictSeedsConfiguredDefaultSlot:
         # The tracked slot wins — the configured default is irrelevant here.
         assert upload_calls[0][2]["slot"] == "desktop"
         assert _require_save_state(svc, 42).active_slot == "desktop"
+
+
+class TestResolveStandaloneConflict:
+    """Conflict resolution on a standalone save set — Vita3K's bundled folder and DuckStation's cards."""
+
+    def _vita_conflict(self, tmp_path):
+        import io
+        import zipfile
+
+        from tests.services.saves._helpers import _do_sync, make_standalone_service
+
+        svc, fake, saves_dir = make_standalone_service(
+            tmp_path, "vita3k", system="psvita", file_name="PCSE01274.psvita"
+        )
+        folder = saves_dir / "PCSE01274"
+        folder.mkdir()
+        (folder / "SlotParam_0.bin").write_bytes(b"v1")
+        assert _do_sync(svc, 42)[0] == 1
+        (folder / "SlotParam_0.bin").write_bytes(b"local edit")
+        buffer = io.BytesIO()
+        with zipfile.ZipFile(buffer, "w") as zf:
+            zf.writestr("SlotParam_0.bin", b"remote edit")
+        seeded = fake.seed_foreign_save(
+            42,
+            filename="PCSE01274.vita3k [2099-01-01_00-00-00].zip",
+            updated_at="2099-01-01T00:00:00Z",
+            content=buffer.getvalue(),
+            slot="autosave",
+        )
+        fake.saves[seeded["id"]]["emulator"] = "vita3k"
+        _up, _down, _errors, conflicts = _do_sync(svc, 42)
+        assert [c["filename"] for c in conflicts] == ["PCSE01274.vita3k.zip"]
+        return svc, fake, saves_dir, seeded["id"]
+
+    @pytest.mark.asyncio
+    async def test_use_server_replaces_the_folder_after_backing_it_up(self, tmp_path):
+        svc, _fake, saves_dir, server_id = self._vita_conflict(tmp_path)
+
+        result = await svc.resolve_sync_conflict(42, "PCSE01274.vita3k.zip", server_id, "use_server")
+
+        assert result == {"success": True, "action": "use_server"}
+        assert (saves_dir / "PCSE01274" / "SlotParam_0.bin").read_bytes() == b"remote edit"
+        (backup,) = (saves_dir / ".romm-backup").iterdir()
+        assert (backup / "SlotParam_0.bin").read_bytes() == b"local edit"
+
+    @pytest.mark.asyncio
+    async def test_keep_local_uploads_the_bundle_with_the_vita3k_tag(self, tmp_path):
+        svc, fake, saves_dir, server_id = self._vita_conflict(tmp_path)
+
+        result = await svc.resolve_sync_conflict(42, "PCSE01274.vita3k.zip", server_id, "keep_local")
+
+        assert result == {"success": True, "action": "keep_local"}
+        last = [c for c in fake.call_log if c[0] == "upload_save"][-1]
+        assert last[1][1:] == (str(saves_dir / "PCSE01274.vita3k.zip"), "vita3k")
+        assert last[2]["overwrite"] is True
+        assert (saves_dir / "PCSE01274" / "SlotParam_0.bin").read_bytes() == b"local edit"
+
+    @pytest.mark.asyncio
+    async def test_other_emulators_head_is_not_resolvable(self, tmp_path):
+        from tests.services.saves._helpers import make_standalone_service
+
+        svc, fake, saves_dir = make_standalone_service(tmp_path, "duckstation", system="psx", file_name="Tekken 3.chd")
+        (saves_dir / "Tekken 3_1.mcd").write_bytes(b"card")
+        seeded = fake.seed_foreign_save(
+            42, filename="Tekken 3.srm", updated_at="2099-01-01T00:00:00Z", content=b"srm", slot="autosave"
+        )
+        fake.saves[seeded["id"]]["emulator"] = "retroarch-swanstation"
+
+        result = await svc.resolve_sync_conflict(42, "Tekken 3_1.mcd", seeded["id"], "use_server")
+
+        assert result["success"] is False
+        assert result["reason"] == "no_server_save"
+        assert (saves_dir / "Tekken 3_1.mcd").read_bytes() == b"card"
+        assert not (saves_dir / "Tekken 3.srm").exists()

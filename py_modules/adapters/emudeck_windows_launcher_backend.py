@@ -47,6 +47,7 @@ from typing import TYPE_CHECKING, Any
 
 from domain.emulator_commands import EmulatorOption, option_to_invocation, select_default_option
 from domain.launcher_backend import EMUDECK_BACKEND_ID, BackendValidation, DetectedInstallation
+from domain.standalone_saves import DUCKSTATION, MELONDS, VITA3K
 from lib.retrodeck_health import RetroDeckConfigHealth
 
 if TYPE_CHECKING:
@@ -77,6 +78,10 @@ _VITA3K_SCRIPT = "vita3k"
 # Understood by bin\rom-launcher.exe: replace the trailing quoted ROM path with
 # the title ID that file holds (see native/rom-launcher-win/rom-launcher.c).
 _TITLE_ID_FLAG = "--title-id-file"
+# EmuDeck for Windows links each emulator's per-game save folder to
+# ``$savesPath\<folder>\saves``: melonDS's save directory, DuckStation's
+# ``memcards`` and Vita3K's ``ux0\user\00\savedata``.
+_STANDALONE_SAVE_FOLDERS = {MELONDS: "melonds", DUCKSTATION: "duckstation", VITA3K: "Vita3K"}
 
 
 class _TemplateError(ValueError):
@@ -318,6 +323,12 @@ class EmuDeckWindowsLauncherBackend:
     def states_path(self) -> str:
         saves = self._settings.get("savesPath", "")
         return os.path.join(saves, "retroarch", "states") if saves else ""
+
+    def standalone_saves_path(self, emulator_id: str) -> str:
+        """``$savesPath\\<emulator folder>\\saves`` for a supported standalone emulator, else ``""``."""
+        saves = self._settings.get("savesPath", "")
+        folder = _STANDALONE_SAVE_FOLDERS.get(emulator_id)
+        return os.path.join(saves, folder, "saves") if saves and folder else ""
 
     def validate(self) -> BackendValidation:
         roms = self.roms_path()

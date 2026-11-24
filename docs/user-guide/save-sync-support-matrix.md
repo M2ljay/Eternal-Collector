@@ -41,6 +41,22 @@ The systems whose default core has been **watched writing a save on a stock Retr
 Advance, N64, Saturn, Neo Geo Pocket (Color) and Pokémon Mini. The rest of the ✅ rows follow the same standard `.srm`
 convention and are expected to behave identically, but haven't been observed one by one.
 
+## Standalone emulators on Windows (EmuDeck) ✅
+
+The tables on this page describe RetroArch cores. On the Windows build with EmuDeck, three **standalone** emulators also
+sync, for games that launch with them (your per-game or per-platform pick, or EmuDeck's default):
+
+| Emulator    | System      | What syncs                                                                                            |
+| ----------- | ----------- | ----------------------------------------------------------------------------------------------------- |
+| melonDS     | Nintendo DS | `<game>.sav`, named exactly after your ROM file.                                                      |
+| DuckStation | PlayStation | The per-game memory cards `<game>_1.mcd` and `<game>_2.mcd` — only when named exactly after your ROM. |
+| Vita3K      | PS Vita     | The game's whole save folder (`<TITLE_ID>`), uploaded as one file.                                    |
+
+Saves from different emulators are kept apart: a DuckStation card never replaces a RetroArch PlayStation save, or the
+other way round, even for the same game. Details, and the DuckStation naming caveat, are in
+[Windows (EmuDeck)](windows.md#save-sync). On the Steam Deck (RetroDECK) nothing changes: saves still sync from RetroArch
+only.
+
 ## Coming soon 🔜
 
 Per-game saves for these systems fit the sync model and are planned for a future release:

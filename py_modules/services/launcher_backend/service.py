@@ -116,6 +116,9 @@ class LauncherBackendService:
     def states_path(self) -> str:
         return self._active.states_path() if self._active is not None else ""
 
+    def standalone_saves_path(self, emulator_id: str) -> str:
+        return self._active.standalone_saves_path(emulator_id) if self._active is not None else ""
+
     # -- QAM surface --------------------------------------------------------
 
     def active_backend_id(self) -> str:

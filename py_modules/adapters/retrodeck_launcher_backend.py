@@ -78,6 +78,10 @@ class RetroDeckLauncherBackend:
     def states_path(self) -> str:
         return self._paths.states_path()
 
+    def standalone_saves_path(self, emulator_id: str) -> str:
+        del emulator_id  # RetroDECK save sync covers RetroArch saves only
+        return ""
+
     def validate(self) -> BackendValidation:
         """RetroDECK is switchable unless its config is known-broken.
 

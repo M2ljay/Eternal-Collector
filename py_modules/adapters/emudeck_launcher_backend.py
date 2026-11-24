@@ -114,6 +114,10 @@ class EmuDeckLauncherBackend:
         """EmuDeck has no flat savestate root — atlas resolves it per-content, not as a directory."""
         return ""
 
+    def standalone_saves_path(self, emulator_id: str) -> str:
+        del emulator_id  # standalone save sync is EmuDeck-for-Windows only
+        return ""
+
     def validate(self) -> BackendValidation:
         """EmuDeck is switchable only when its own health finding is clean.
 

@@ -2,7 +2,9 @@
 
 Resolves the on-disk save directory for an installed ROM (honouring
 RetroArch's ``sort_savefiles_*`` settings and the optional per-core
-subdirectory) and enumerates the matching local save files. Pure
+subdirectory, or — when the ROM launches with a standalone emulator whose
+saves the active launcher backend locates — that emulator's own save set)
+and enumerates the matching local save files. Pure
 filesystem + path-algebra responsibility — no RomM I/O, no state
 mutation. Shared by SlotsService, SyncEngine, and StatusService; reads
 about whether a save-sort migration is pending live here too because
@@ -17,9 +19,16 @@ import os
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
+from domain.emulator_tag import build_emulator_tag
 from domain.save_extensions import get_save_extensions
 from domain.save_layout import InSaveDir
 from domain.save_path import resolve_save_dir
+from domain.standalone_saves import (
+    STANDALONE_EMULATOR_TAGS,
+    StandaloneSaveSet,
+    identify_standalone_emulator,
+    standalone_save_set,
+)
 
 # kv_config keys for the cross-run save-sort markers MigrationService writes
 # (ADR-0003 Bucket 2): the last-seen observation and the pending pre-change
@@ -77,9 +86,57 @@ class RomInfoService:
     def get_rom_save_info(self, rom_id: int) -> dict[str, Any] | None:
         """Get save-related info for an installed ROM.
 
-        Returns dict with keys: system, rom_name, saves_dir, platform_slug, file_path
-        or None if not installed.
+        Returns dict with keys: system, rom_name, saves_dir, platform_slug,
+        file_path, save_set — or None if not installed. ``save_set`` is the
+        :class:`StandaloneSaveSet` when the ROM launches with a standalone
+        emulator whose saves the active backend locates; ``saves_dir`` is then
+        that emulator's save folder. Otherwise ``save_set`` is ``None`` and
+        ``saves_dir`` is the RetroArch save directory.
         """
+        info = self._retroarch_save_info(rom_id)
+        if info is None:
+            return None
+        standalone = self._standalone_save_set(int(rom_id), info["rom_name"])
+        if standalone is not None:
+            info["save_set"], info["saves_dir"] = standalone
+        return info
+
+    def _standalone_save_set(self, rom_id: int, rom_name: str) -> tuple[StandaloneSaveSet, str] | None:
+        """The ROM's standalone save set and its folder, or ``None`` for RetroArch handling.
+
+        Requires all of: the active backend offers a standalone save folder at
+        all (checked first, so a backend without one never pays for the emulator
+        resolution), the ROM's launch emulator is a standalone one this plugin
+        knows, the backend locates that emulator's folder, and the ROM yields an
+        identifiable save set.
+        """
+        if not any(_nonempty_str(self._launcher_paths.standalone_saves_path(e)) for e in STANDALONE_EMULATOR_TAGS):
+            return None
+        emulator = self._active_core.active_emulator_for_rom(rom_id)
+        if emulator is None or emulator.kind != "standalone":
+            return None
+        emulator_id = identify_standalone_emulator(emulator.command)
+        if emulator_id is None:
+            return None
+        root = self._launcher_paths.standalone_saves_path(emulator_id)
+        save_set = standalone_save_set(emulator_id, rom_name)
+        if not _nonempty_str(root) or save_set is None:
+            return None
+        return save_set, root
+
+    def upload_emulator_tag(self, rom_id: int, core_so: str | None) -> str:
+        """The RomM ``emulator`` tag an upload of this ROM's save carries.
+
+        The standalone emulator's own id for a standalone save set, so saves of
+        two emulators never share a server folder or a local file; otherwise the
+        ``retroarch-<core>`` tag of *core_so*.
+        """
+        info = self.get_rom_save_info(rom_id)
+        save_set = info.get("save_set") if info else None
+        return save_set.emulator_tag if save_set is not None else build_emulator_tag(core_so)
+
+    def _retroarch_save_info(self, rom_id: int) -> dict[str, Any] | None:
+        """The ROM's save info under RetroArch's layout, ignoring any standalone emulator."""
         with self._uow_factory() as uow:
             installed = uow.rom_installs.get(int(rom_id))
         if not installed:
@@ -138,6 +195,7 @@ class RomInfoService:
             "saves_dir": saves_dir,
             "platform_slug": platform_slug,
             "file_path": file_path,
+            "save_set": None,
         }
 
     def current_save_sorting(self) -> InSaveDir:
@@ -200,7 +258,10 @@ class RomInfoService:
     def find_save_files(self, rom_id: int) -> list[dict[str, str]]:
         """Find local save files for a ROM.
 
-        Returns list of ``{"path": str, "filename": str}``.
+        Returns list of ``{"path": str, "filename": str}``. For a standalone
+        save set only the set's exact names are probed; a bundled folder that
+        exists is (re)packed into its zip here, so every consumer of the
+        returned path sees the folder's current content as one file.
         """
         info = self.get_rom_save_info(rom_id)
         if not info:
@@ -210,6 +271,9 @@ class RomInfoService:
         system = info["system"]
         if not self._save_file_store.is_dir(saves_dir):
             return []
+        save_set: StandaloneSaveSet | None = info.get("save_set")
+        if save_set is not None:
+            return self._find_standalone_files(saves_dir, save_set)
         results = []
         for ext in get_save_extensions(system):
             save_path = os.path.join(saves_dir, rom_name + ext)
@@ -217,9 +281,28 @@ class RomInfoService:
                 results.append({"path": save_path, "filename": rom_name + ext})
         return results
 
+    def _find_standalone_files(self, saves_dir: str, save_set: StandaloneSaveSet) -> list[dict[str, str]]:
+        results = []
+        for entry in save_set.entries:
+            path = os.path.join(saves_dir, entry.filename)
+            if entry.bundle_dir is not None:
+                folder = os.path.join(saves_dir, entry.bundle_dir)
+                if not self._save_file_store.is_dir(folder) or self._save_file_store.is_symlink(folder):
+                    continue
+                self._save_file_store.pack_save_folder(folder, path)
+            elif not self._save_file_store.is_file(path):
+                continue
+            results.append({"path": path, "filename": entry.filename})
+        return results
+
     def expected_save_files(self, rom_id: int) -> list[dict[str, str]]:
-        """Project exact save paths for one installed ROM without broad scanning."""
-        info = self.get_rom_save_info(rom_id)
+        """Project exact RetroArch save paths for one installed ROM without broad scanning.
+
+        Always the RetroArch projection, even for a ROM whose saves sync from a
+        standalone emulator: the removed-game cleanup that consumes this never
+        reaches a standalone emulator's save folder.
+        """
+        info = self._retroarch_save_info(rom_id)
         if not info:
             return []
         return [
@@ -254,3 +337,7 @@ class RomInfoService:
     def is_save_sort_changed(self) -> bool:
         """Check if a save sort migration is pending (detected by MigrationService)."""
         return self.pending_sort_settings() is not None
+
+
+def _nonempty_str(value: object) -> bool:
+    return isinstance(value, str) and bool(value)

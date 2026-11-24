@@ -48,6 +48,9 @@ class LauncherBackend(CoreInfoProvider, Protocol):
     ``get_emulator_options``/``get_default_emulator``/``get_active_core``), not
     always RetroDECK's — the per-game/per-platform picker menu now follows the
     active backend exactly like rendering and file placement already do.
+
+    ``standalone_saves_path`` answers ``""`` on every backend that does not
+    sync standalone-emulator saves (see :class:`LauncherPaths`).
     """
 
     backend_id: str
@@ -64,6 +67,8 @@ class LauncherBackend(CoreInfoProvider, Protocol):
     def saves_path(self) -> str: ...
 
     def states_path(self) -> str: ...
+
+    def standalone_saves_path(self, emulator_id: str) -> str: ...
 
     def validate(self) -> BackendValidation: ...
 
@@ -110,6 +115,15 @@ class LauncherPaths(Protocol):
     def saves_path(self) -> str: ...
 
     def states_path(self) -> str: ...
+
+    def standalone_saves_path(self, emulator_id: str) -> str:
+        """Where the standalone emulator *emulator_id* keeps per-game saves, or ``""``.
+
+        *emulator_id* is a :mod:`domain.standalone_saves` id. ``""`` means this
+        backend offers no standalone save sync for that emulator, and the ROM's
+        saves are looked for exactly as for RetroArch.
+        """
+        ...
 
 
 class LauncherBackendFactory(Protocol):

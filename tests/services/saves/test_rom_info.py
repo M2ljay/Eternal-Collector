@@ -1,14 +1,20 @@
 """Tests for RomInfoService — per-ROM save path resolution and local save discovery."""
 
-from fakes.fake_active_core_resolver import FakeActiveCoreResolver
+import zipfile
 
+from fakes.fake_active_core_resolver import FakeActiveCoreResolver
+from fakes.fake_retrodeck_paths import FakeRetroDeckPaths
+
+from domain.shortcut_data import EmulatorInvocation
 from tests.services.saves._helpers import (
+    STANDALONE_COMMANDS,
     _create_save,
     _install_rom,
     _seed_install,
     _set_sort_settings,
     _set_sort_settings_previous,
     make_service,
+    make_standalone_service,
 )
 
 
@@ -404,3 +410,131 @@ class TestGetRomSaveInfo:
             get_core_name=lambda core_so: "",
         )
         assert svc._rom_info.resolve_retroarch_corename(42) == (None, "snes9x_libretro")
+
+
+class TestStandaloneSaveSetSelection:
+    """The ROM's save set comes from its launch emulator, gated on the backend locating the folder."""
+
+    def test_melonds_selects_its_folder_and_exact_name(self, tmp_path):
+        svc, _, saves_dir = make_standalone_service(tmp_path, "melonds", system="nds", file_name="Mario Kart DS.nds")
+        info = svc._rom_info.get_rom_save_info(42)
+        assert info is not None
+        assert info["saves_dir"] == str(saves_dir)
+        assert info["save_set"].emulator_tag == "melonds"
+        assert info["save_set"].filenames == ("Mario Kart DS.sav",)
+
+    def test_duckstation_selects_two_cards(self, tmp_path):
+        svc, _, _ = make_standalone_service(tmp_path, "duckstation", system="psx", file_name="Tekken 3.chd")
+        info = svc._rom_info.get_rom_save_info(42)
+        assert info is not None
+        assert info["save_set"].filenames == ("Tekken 3_1.mcd", "Tekken 3_2.mcd")
+
+    def test_vita3k_needs_a_title_id_launch_file(self, tmp_path):
+        svc, _, saves_dir = make_standalone_service(tmp_path, "vita3k", system="psvita", file_name="PCSE01274.psvita")
+        info = svc._rom_info.get_rom_save_info(42)
+        assert info is not None
+        assert info["saves_dir"] == str(saves_dir)
+        assert info["save_set"].filenames == ("PCSE01274.vita3k.zip",)
+
+    def test_vita3k_without_title_id_stem_keeps_retroarch_handling(self, tmp_path):
+        svc, _, _ = make_standalone_service(tmp_path, "vita3k", system="psvita", file_name="Persona 3.vpk")
+        info = svc._rom_info.get_rom_save_info(42)
+        assert info is not None
+        assert info["save_set"] is None
+        assert info["saves_dir"].startswith(str(tmp_path / "saves"))
+
+    def test_libretro_core_keeps_retroarch_handling(self, tmp_path):
+
+        paths = FakeRetroDeckPaths(saves=str(tmp_path / "saves"), roms=str(tmp_path / "retrodeck" / "roms"))
+        paths.standalone_saves["duckstation"] = str(tmp_path / "emu")
+        svc, _ = make_service(
+            tmp_path, launcher_paths=paths, active_core=FakeActiveCoreResolver(default=("swanstation_libretro", "SS"))
+        )
+        _install_rom(svc, tmp_path, system="psx", file_name="Tekken 3.chd")
+        info = svc._rom_info.get_rom_save_info(42)
+        assert info is not None
+        assert info["save_set"] is None
+        assert info["saves_dir"] == str(tmp_path / "saves" / "psx")
+
+    def test_backend_without_standalone_root_never_resolves_the_emulator(self, tmp_path):
+
+        active = FakeActiveCoreResolver(
+            default_emulator=EmulatorInvocation.standalone(STANDALONE_COMMANDS["melonds"], "melonDS")
+        )
+        svc, _ = make_service(tmp_path, active_core=active)
+        _install_rom(svc, tmp_path, system="nds", file_name="Mario Kart DS.nds")
+        info = svc._rom_info.get_rom_save_info(42)
+        assert info is not None
+        assert info["save_set"] is None
+        assert active.emulator_calls == []  # Linux/RetroDECK path: no extra resolution
+
+    def test_unrecognised_standalone_keeps_retroarch_handling(self, tmp_path):
+
+        paths = FakeRetroDeckPaths(saves=str(tmp_path / "saves"))
+        paths.standalone_saves["melonds"] = str(tmp_path / "emu")
+        active = FakeActiveCoreResolver(
+            default_emulator=EmulatorInvocation.standalone('"C:\\tools\\pcsx2\\pcsx2-qt.exe"', "PCSX2")
+        )
+        svc, _ = make_service(tmp_path, launcher_paths=paths, active_core=active)
+        _install_rom(svc, tmp_path, system="ps2", file_name="Game.iso")
+        info = svc._rom_info.get_rom_save_info(42)
+        assert info is not None
+        assert info["save_set"] is None
+
+
+class TestFindStandaloneSaveFiles:
+    def test_melonds_finds_only_the_exact_name(self, tmp_path):
+        svc, _, saves_dir = make_standalone_service(tmp_path, "melonds", system="nds", file_name="Mario Kart DS.nds")
+        (saves_dir / "Mario Kart DS.sav").write_bytes(b"s")
+        (saves_dir / "Mario Kart DS.dsv").write_bytes(b"d")
+        (saves_dir / "Mario Kart DS (USA).sav").write_bytes(b"o")
+
+        assert [f["filename"] for f in svc._rom_info.find_save_files(42)] == ["Mario Kart DS.sav"]
+
+    def test_duckstation_ignores_a_card_named_differently(self, tmp_path):
+        svc, _, saves_dir = make_standalone_service(
+            tmp_path, "duckstation", system="psx", file_name="R4 - Ridge Racer Type 4 (USA).chd"
+        )
+        (saves_dir / "R4 - Ridge Racer Type 4 (USA)_1.mcd").write_bytes(b"1")
+        (saves_dir / "R4 - Ridge Racer Type 4_2.mcd").write_bytes(b"x")
+        (saves_dir / "shared_card_1.mcd").write_bytes(b"x")
+
+        assert [f["filename"] for f in svc._rom_info.find_save_files(42)] == ["R4 - Ridge Racer Type 4 (USA)_1.mcd"]
+
+    def test_vita_folder_is_packed_into_its_bundle(self, tmp_path):
+        svc, _, saves_dir = make_standalone_service(tmp_path, "vita3k", system="psvita", file_name="PCSE01274.psvita")
+        (saves_dir / "PCSE01274").mkdir()
+        (saves_dir / "PCSE01274" / "SlotParam_0.bin").write_bytes(b"slot")
+        (saves_dir / "PCSE00023").mkdir()  # another game's save: never touched
+        (saves_dir / "PCSE00023" / "system.bin").write_bytes(b"other")
+
+        files = svc._rom_info.find_save_files(42)
+
+        assert files == [{"path": str(saves_dir / "PCSE01274.vita3k.zip"), "filename": "PCSE01274.vita3k.zip"}]
+        with zipfile.ZipFile(saves_dir / "PCSE01274.vita3k.zip") as zf:
+            assert zf.namelist() == ["SlotParam_0.bin"]
+        assert not (saves_dir / "PCSE00023.vita3k.zip").exists()
+
+    def test_vita_without_folder_has_no_local_save(self, tmp_path):
+        svc, _, saves_dir = make_standalone_service(tmp_path, "vita3k", system="psvita", file_name="PCSE01274.psvita")
+        (saves_dir / "PCSE01274.vita3k.zip").write_bytes(b"stale")  # derived leftover, folder gone
+        assert svc._rom_info.find_save_files(42) == []
+
+    def test_expected_save_files_stays_on_the_retroarch_projection(self, tmp_path):
+        svc, _, _ = make_standalone_service(tmp_path, "melonds", system="nds", file_name="Mario Kart DS.nds")
+        expected = svc._rom_info.expected_save_files(42)
+        assert expected
+        assert all(item["saves_dir"] == str(tmp_path / "saves" / "nds") for item in expected)
+
+
+class TestUploadEmulatorTag:
+    def test_standalone_tag(self, tmp_path):
+        svc, _, _ = make_standalone_service(tmp_path, "duckstation", system="psx", file_name="Tekken 3.chd")
+        assert svc._rom_info.upload_emulator_tag(42, None) == "duckstation"
+
+    def test_retroarch_tag(self, tmp_path):
+        svc, _ = make_service(tmp_path)
+        _install_rom(svc, tmp_path)
+        assert svc._rom_info.upload_emulator_tag(42, "mgba_libretro") == "retroarch-mgba"
+        assert svc._rom_info.upload_emulator_tag(42, None) == "retroarch"
+        assert svc._rom_info.upload_emulator_tag(999, "mgba_libretro") == "retroarch-mgba"
