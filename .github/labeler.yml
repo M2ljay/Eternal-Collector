@@ -34,7 +34,7 @@ area:sync:
 area:downloads:
   - changed-files:
       - any-glob-to-any-file:
-          - 'py_modules/services/downloads.py'
+          - 'py_modules/services/downloads/**'
           - 'py_modules/adapters/download_file.py'
 
 area:firmware:

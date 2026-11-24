@@ -13,7 +13,7 @@ real device. The hazard has bitten four sites across three issues (#1047,
 The established fix is to snapshot the rows a seam needs *inside* one short
 read UoW, close it, then resolve the seam *outside* any open UoW
 (``services/relaunch_options_resolver.py``, ``services/cores.py``,
-``services/disc.py``, ``services/downloads.py`` are the reference shape).
+``services/disc.py``, ``services/downloads/service.py`` are the reference shape).
 
 This check walks ``py_modules/services/`` and fails when a known
 UoW-opening seam is called lexically inside an open

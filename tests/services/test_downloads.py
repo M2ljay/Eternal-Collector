@@ -33,7 +33,8 @@ from domain.save_layout import InSaveDir
 from domain.version_metadata import VersionMetadata
 from lib.list_result import ErrorCode
 from services.active_core_resolver import ActiveCoreResolver, ActiveCoreResolverConfig
-from services.downloads import DownloadService, DownloadServiceConfig, _DownloadControl
+from services.downloads import DownloadService, DownloadServiceConfig
+from services.downloads.service import _DownloadControl
 from services.library import LibraryService, LibraryServiceConfig
 from services.rom_adoption import RomAdoptionService, RomAdoptionServiceConfig
 from services.rom_install_recorder import RomInstallRecorder, RomInstallRecorderConfig
@@ -1045,21 +1046,21 @@ class TestDetectLaunchFile:
         (tmp_path / "disc1.cue").write_text("cue data")
         (tmp_path / "disc1.bin").write_bytes(b"\x00" * 1000)
 
-        result = plugin._download_service._collect_and_detect_launch_file(str(tmp_path), True)
+        result = plugin._download_service._disc_layout._collect_and_detect_launch_file(str(tmp_path), True)
         assert result.endswith(".m3u")
 
     def test_falls_back_to_cue(self, plugin, tmp_path):
         (tmp_path / "disc1.cue").write_text("cue data")
         (tmp_path / "disc1.bin").write_bytes(b"\x00" * 1000)
 
-        result = plugin._download_service._collect_and_detect_launch_file(str(tmp_path), True)
+        result = plugin._download_service._disc_layout._collect_and_detect_launch_file(str(tmp_path), True)
         assert result.endswith(".cue")
 
     def test_falls_back_to_largest(self, plugin, tmp_path):
         (tmp_path / "small.bin").write_bytes(b"\x00" * 100)
         (tmp_path / "large.bin").write_bytes(b"\x00" * 10000)
 
-        result = plugin._download_service._collect_and_detect_launch_file(str(tmp_path), True)
+        result = plugin._download_service._disc_layout._collect_and_detect_launch_file(str(tmp_path), True)
         assert result.endswith("large.bin")
 
     def test_wiiu_rpx_in_code_subdir(self, plugin, tmp_path):
@@ -1069,26 +1070,26 @@ class TestDetectLaunchFile:
         (tmp_path / "meta" / "meta.xml").parent.mkdir()
         (tmp_path / "meta" / "meta.xml").write_text("<xml/>")
 
-        result = plugin._download_service._collect_and_detect_launch_file(str(tmp_path), True)
+        result = plugin._download_service._disc_layout._collect_and_detect_launch_file(str(tmp_path), True)
         assert result.endswith(".rpx")
 
     def test_wiiu_disc_image(self, plugin, tmp_path):
         (tmp_path / "game.wux").write_bytes(b"\x00" * 1000)
         (tmp_path / "readme.txt").write_text("info")
 
-        result = plugin._download_service._collect_and_detect_launch_file(str(tmp_path), True)
+        result = plugin._download_service._disc_layout._collect_and_detect_launch_file(str(tmp_path), True)
         assert result.endswith(".wux")
 
     def test_wiiu_wud_format(self, plugin, tmp_path):
         (tmp_path / "game.wud").write_bytes(b"\x00" * 1000)
 
-        result = plugin._download_service._collect_and_detect_launch_file(str(tmp_path), True)
+        result = plugin._download_service._disc_layout._collect_and_detect_launch_file(str(tmp_path), True)
         assert result.endswith(".wud")
 
     def test_wiiu_wua_format(self, plugin, tmp_path):
         (tmp_path / "game.wua").write_bytes(b"\x00" * 1000)
 
-        result = plugin._download_service._collect_and_detect_launch_file(str(tmp_path), True)
+        result = plugin._download_service._disc_layout._collect_and_detect_launch_file(str(tmp_path), True)
         assert result.endswith(".wua")
 
     def test_ps3_eboot_bin(self, plugin, tmp_path):
@@ -1097,21 +1098,21 @@ class TestDetectLaunchFile:
         (usrdir / "EBOOT.BIN").write_bytes(b"\x00" * 500)
         (tmp_path / "PS3_GAME" / "PARAM.SFO").write_bytes(b"\x00" * 100)
 
-        result = plugin._download_service._collect_and_detect_launch_file(str(tmp_path), True)
+        result = plugin._download_service._disc_layout._collect_and_detect_launch_file(str(tmp_path), True)
         assert result.endswith("EBOOT.BIN")
 
     def test_3ds_prefers_3ds_over_cia(self, plugin, tmp_path):
         (tmp_path / "game.3ds").write_bytes(b"\x00" * 500)
         (tmp_path / "game.cia").write_bytes(b"\x00" * 500)
 
-        result = plugin._download_service._collect_and_detect_launch_file(str(tmp_path), True)
+        result = plugin._download_service._disc_layout._collect_and_detect_launch_file(str(tmp_path), True)
         assert result.endswith(".3ds")
 
     def test_3ds_falls_back_to_cia(self, plugin, tmp_path):
         (tmp_path / "game.cia").write_bytes(b"\x00" * 500)
         (tmp_path / "game.cxi").write_bytes(b"\x00" * 500)
 
-        result = plugin._download_service._collect_and_detect_launch_file(str(tmp_path), True)
+        result = plugin._download_service._disc_layout._collect_and_detect_launch_file(str(tmp_path), True)
         assert result.endswith(".cia")
 
     def test_m3u_still_preferred_over_platform_specific(self, plugin, tmp_path):
@@ -1121,7 +1122,7 @@ class TestDetectLaunchFile:
         code_dir.mkdir()
         (code_dir / "game.rpx").write_bytes(b"\x00" * 500)
 
-        result = plugin._download_service._collect_and_detect_launch_file(str(tmp_path), True)
+        result = plugin._download_service._disc_layout._collect_and_detect_launch_file(str(tmp_path), True)
         assert result.endswith(".m3u")
 
     def test_bundled_m3u_ignored_when_platform_unsupported(self, plugin, tmp_path):
@@ -1133,7 +1134,7 @@ class TestDetectLaunchFile:
         (tmp_path / "Zelda.m3u").write_text("Zelda.nsp")
         (tmp_path / "Zelda.nsp").write_bytes(b"\x00" * 5000)
 
-        result = plugin._download_service._collect_and_detect_launch_file(str(tmp_path), False)
+        result = plugin._download_service._disc_layout._collect_and_detect_launch_file(str(tmp_path), False)
         assert result.endswith(".nsp")
 
     def test_bundled_m3u_ignored_unsupported_falls_back_to_cue(self, plugin, tmp_path):
@@ -1142,7 +1143,7 @@ class TestDetectLaunchFile:
         (tmp_path / "disc1.cue").write_text("cue data")
         (tmp_path / "disc1.bin").write_bytes(b"\x00" * 1000)
 
-        result = plugin._download_service._collect_and_detect_launch_file(str(tmp_path), False)
+        result = plugin._download_service._disc_layout._collect_and_detect_launch_file(str(tmp_path), False)
         assert result.endswith(".cue")
 
 
@@ -1348,7 +1349,7 @@ class TestMaybeGenerateM3u:
         (tmp_path / "Game - Disc 2.bin").write_bytes(b"\x00" * 1000)
 
         rom_detail = {"fs_name_no_ext": "Final Fantasy VII", "name": "Final Fantasy VII"}
-        plugin._download_service._maybe_generate_m3u_io(str(tmp_path), rom_detail, True)
+        plugin._download_service._disc_layout._maybe_generate_m3u_io(str(tmp_path), rom_detail, True)
 
         m3u_path = tmp_path / "Final Fantasy VII.m3u"
         assert m3u_path.exists()
@@ -1364,7 +1365,7 @@ class TestMaybeGenerateM3u:
         (tmp_path / "Game (Disc 2).chd").write_bytes(b"\x00" * 100)
 
         rom_detail = {"fs_name_no_ext": "Game", "name": "Game"}
-        plugin._download_service._maybe_generate_m3u_io(str(tmp_path), rom_detail, True)
+        plugin._download_service._disc_layout._maybe_generate_m3u_io(str(tmp_path), rom_detail, True)
 
         m3u_path = tmp_path / "Game.m3u"
         assert m3u_path.exists()
@@ -1378,7 +1379,7 @@ class TestMaybeGenerateM3u:
         (tmp_path / "disc2.cue").write_text("cue 2")
 
         rom_detail = {"fs_name_no_ext": "Game"}
-        plugin._download_service._maybe_generate_m3u_io(str(tmp_path), rom_detail, True)
+        plugin._download_service._disc_layout._maybe_generate_m3u_io(str(tmp_path), rom_detail, True)
 
         # Only the original M3U should exist, unchanged
         assert (tmp_path / "existing.m3u").read_text() == "original content"
@@ -1390,7 +1391,7 @@ class TestMaybeGenerateM3u:
         (tmp_path / "disc1.bin").write_bytes(b"\x00" * 1000)
 
         rom_detail = {"fs_name_no_ext": "Metal Gear Solid"}
-        plugin._download_service._maybe_generate_m3u_io(str(tmp_path), rom_detail, True)
+        plugin._download_service._disc_layout._maybe_generate_m3u_io(str(tmp_path), rom_detail, True)
 
         m3u = tmp_path / "Metal Gear Solid.m3u"
         assert m3u.exists()
@@ -1401,7 +1402,7 @@ class TestMaybeGenerateM3u:
         (tmp_path / "game.chd").write_bytes(b"\x00" * 1000)
 
         rom_detail = {"fs_name_no_ext": "Game"}
-        plugin._download_service._maybe_generate_m3u_io(str(tmp_path), rom_detail, True)
+        plugin._download_service._disc_layout._maybe_generate_m3u_io(str(tmp_path), rom_detail, True)
 
         assert not (tmp_path / "Game.m3u").exists()
 
@@ -1410,7 +1411,7 @@ class TestMaybeGenerateM3u:
         (tmp_path / "game.iso").write_bytes(b"\x00" * 1000)
 
         rom_detail = {"fs_name_no_ext": "Game"}
-        plugin._download_service._maybe_generate_m3u_io(str(tmp_path), rom_detail, True)
+        plugin._download_service._disc_layout._maybe_generate_m3u_io(str(tmp_path), rom_detail, True)
 
         assert not (tmp_path / "Game.m3u").exists()
 
@@ -1420,7 +1421,7 @@ class TestMaybeGenerateM3u:
         (tmp_path / "d2.chd").write_bytes(b"\x00" * 100)
 
         rom_detail = {"name": "My Game"}
-        plugin._download_service._maybe_generate_m3u_io(str(tmp_path), rom_detail, True)
+        plugin._download_service._disc_layout._maybe_generate_m3u_io(str(tmp_path), rom_detail, True)
 
         assert (tmp_path / "My Game.m3u").exists()
 
@@ -1431,7 +1432,7 @@ class TestMaybeGenerateM3u:
         (tmp_path / "Game - Disc 2.cue").write_text("cue 2")
 
         rom_detail = {"fs_name_no_ext": "Game", "name": "Game"}
-        plugin._download_service._maybe_generate_m3u_io(str(tmp_path), rom_detail, False)
+        plugin._download_service._disc_layout._maybe_generate_m3u_io(str(tmp_path), rom_detail, False)
 
         assert not (tmp_path / "Game.m3u").exists()
 
@@ -1447,7 +1448,7 @@ class TestMaybeGenerateM3u:
         (tmp_path / "PS3_GAME" / "USRDIR" / "part2.iso").write_bytes(b"\x00" * 100)
 
         rom_detail = {"fs_name_no_ext": "MyGame", "name": "MyGame"}
-        plugin._download_service._maybe_generate_m3u_io(str(tmp_path), rom_detail, True)
+        plugin._download_service._disc_layout._maybe_generate_m3u_io(str(tmp_path), rom_detail, True)
 
         assert not (tmp_path / "MyGame.m3u").exists()
         assert list(tmp_path.rglob("*.m3u")) == []
@@ -1458,7 +1459,7 @@ class TestMaybeGenerateM3u:
         (tmp_path / "Game (Disc 2).chd").write_bytes(b"\x00" * 100)
 
         rom_detail = {"fs_name_no_ext": "Game", "name": "Game"}
-        plugin._download_service._maybe_generate_m3u_io(str(tmp_path), rom_detail, True)
+        plugin._download_service._disc_layout._maybe_generate_m3u_io(str(tmp_path), rom_detail, True)
 
         assert (tmp_path / "Game.m3u").exists()
 
@@ -1477,7 +1478,7 @@ class TestMaybeHealPs3Sfb:
         root = self._seed_ps3_layout(tmp_path)
         (root / "PS3_DISC.SFB.txt").write_bytes(b"SFB-BYTES")
 
-        plugin._download_service._maybe_heal_ps3_sfb_io(str(root))
+        plugin._download_service._disc_layout._maybe_heal_ps3_sfb_io(str(root))
 
         sfb = root / "PS3_DISC.SFB"
         assert sfb.exists()
@@ -1494,7 +1495,7 @@ class TestMaybeHealPs3Sfb:
         eboot.write_bytes(b"\x00" * 16)
         (inner / "PS3_DISC.SFB.txt").write_bytes(b"SFB")
 
-        plugin._download_service._maybe_heal_ps3_sfb_io(str(tmp_path))
+        plugin._download_service._disc_layout._maybe_heal_ps3_sfb_io(str(tmp_path))
 
         assert (inner / "PS3_DISC.SFB").exists()
 
@@ -1503,14 +1504,14 @@ class TestMaybeHealPs3Sfb:
         (root / "PS3_DISC.SFB").write_bytes(b"REAL")
         (root / "PS3_DISC.SFB.txt").write_bytes(b"WRONG")
 
-        plugin._download_service._maybe_heal_ps3_sfb_io(str(root))
+        plugin._download_service._disc_layout._maybe_heal_ps3_sfb_io(str(root))
 
         assert (root / "PS3_DISC.SFB").read_bytes() == b"REAL"
 
     def test_no_sfb_txt_does_nothing(self, plugin, tmp_path):
         root = self._seed_ps3_layout(tmp_path)
 
-        plugin._download_service._maybe_heal_ps3_sfb_io(str(root))
+        plugin._download_service._disc_layout._maybe_heal_ps3_sfb_io(str(root))
 
         assert not (root / "PS3_DISC.SFB").exists()
 
@@ -1519,7 +1520,7 @@ class TestMaybeHealPs3Sfb:
         (tmp_path / "PS3_DISC.SFB.txt").write_bytes(b"SFB")
         (tmp_path / "game.iso").write_bytes(b"\x00" * 100)
 
-        plugin._download_service._maybe_heal_ps3_sfb_io(str(tmp_path))
+        plugin._download_service._disc_layout._maybe_heal_ps3_sfb_io(str(tmp_path))
 
         assert not (tmp_path / "PS3_DISC.SFB").exists()
 
@@ -2240,6 +2241,7 @@ class TestDoDownloadMultiFile:
         # The ZIP the fake "extracts": two members so total > any single member.
         fake.set_zip_members(tmp_zip, {"disc1.bin": b"\x00" * 600, "disc2.bin": b"\x00" * 400})
         plugin._download_service._download_file_store = fake
+        plugin._download_service._disc_layout._download_file_store = fake
 
         rom_detail = {
             "id": 55,
@@ -4116,7 +4118,7 @@ class TestMaybeGenerateM3uMixedFormats:
         (tmp_path / "disc2.chd").write_bytes(b"\x00" * 100)
 
         rom_detail = {"fs_name_no_ext": "Mixed Game", "name": "Mixed Game"}
-        plugin._download_service._maybe_generate_m3u_io(str(tmp_path), rom_detail, True)
+        plugin._download_service._disc_layout._maybe_generate_m3u_io(str(tmp_path), rom_detail, True)
 
         m3u_path = tmp_path / "Mixed Game.m3u"
         assert m3u_path.exists()
@@ -4141,7 +4143,7 @@ class TestMaybeGenerateM3uSpecialCharacters:
             (tmp_path / name).write_text("cue data")
 
         rom_detail = {"fs_name_no_ext": "Game", "name": "Game"}
-        plugin._download_service._maybe_generate_m3u_io(str(tmp_path), rom_detail, True)
+        plugin._download_service._disc_layout._maybe_generate_m3u_io(str(tmp_path), rom_detail, True)
 
         m3u_path = tmp_path / "Game.m3u"
         assert m3u_path.exists()
@@ -5682,7 +5684,7 @@ class TestCooperativeCancel:
 
 
 # Internal constants — re-declared so the test file doesn't reach into
-# the service module's private names. Keep in sync with services/downloads.py.
+# the service module's private names. Keep in sync with services/downloads/service.py.
 _ZIP_TMP_EXT_LITERAL = ".zip.tmp"
 _TMP_EXT_LITERAL = ".tmp"
 

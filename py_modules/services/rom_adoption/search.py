@@ -239,7 +239,7 @@ class CandidateSearch:
     def _platform_dir(self, system: str) -> str | None:
         """The folder *system*'s games live in, derived as the download derives it.
 
-        ``safe_join`` is the download's own derivation (``services/downloads.py``
+        ``safe_join`` is the download's own derivation (``services/downloads/``
         builds every target path with it), and it resolves symlinks. Both sides
         must use it or neither may: with the ROMs root behind a link — a library
         on removable storage — one side would describe a file under a path the

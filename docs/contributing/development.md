@@ -343,7 +343,7 @@ py_modules/
                                      #   persistence / paths / infra / files / cross_service
     library/                         # LibraryService façade — fetcher, sync_orchestrator, reporter, shared state box
     saves/                           # SaveService aggregate — state, sync_engine/, slots/, status/, versions
-    downloads.py                     # DownloadService — ROM downloads, ZIP/M3U, fcntl queue
+    downloads/                       # DownloadService (service.py) + DiscLayoutArranger (disc_layout.py) — ROM downloads, ZIP/M3U, fcntl queue
     firmware.py                      # FirmwareService — BIOS registry + downloads
     session_lifecycle.py             # SessionLifecycleService — post-exit orchestration
     migration.py                     # MigrationService — RetroDECK path + save-sort migration

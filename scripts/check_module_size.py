@@ -77,7 +77,7 @@ SCOPE_DIRS = (
 # Never taken silently: a number raised without that reasoning has retired the
 # gate, and that costs more than any module's size.
 ALLOWLIST = {
-    "py_modules/services/downloads.py": 1119,
+    "py_modules/services/downloads/service.py": 1052,
     "py_modules/services/library/fetcher.py": 1150,
 }
 

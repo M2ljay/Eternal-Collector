@@ -324,7 +324,7 @@ class DownloadFileStore(Protocol):
         *extract_dir* itself when the archive holds neither. The one place a
         ``DownloadFileStore`` method makes a domain-level decision rather than a
         raw I/O call — kept here (not in the download service) purely so
-        ``services/downloads.py`` stays under its module-size ceiling; the
+        ``services/downloads/service.py`` stays under its module-size ceiling; the
         decision itself is the same pure kernel every other native-Windows read
         resolves through.
         """
