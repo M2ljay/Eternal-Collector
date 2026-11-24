@@ -4,8 +4,10 @@ import {
   addShortcut,
   getExistingRomMShortcuts,
   getLiveRomMShortcutAppIds,
+  isRomMShortcutDetails,
   removeShortcutConfirmedOutcome,
   setLaunchOptionsConfirmed,
+  steamGameIdFor,
 } from "./steamShortcuts";
 import type { SyncAddItem } from "../types";
 
@@ -498,5 +500,109 @@ describe("addShortcut — overview-readiness poll + empty-launch-options skip", 
     // was polled via RegisterForAppDetails.
     expect(setLaunchOptions).toHaveBeenCalledWith(55, cmd);
     expect(registerForAppDetails).toHaveBeenCalledWith(55, expect.any(Function));
+  });
+});
+
+describe("isRomMShortcutDetails — launcher exe ownership on Linux and Windows", () => {
+  const WIN_LAUNCHER = "C:\\Users\\me\\homebrew\\plugins\\romm-dock\\bin\\rom-launcher.exe";
+
+  it.each([
+    ["the Linux wrapper", ROM_LAUNCHER],
+    ["the Windows wrapper (backslashes)", WIN_LAUNCHER],
+    ["the Windows wrapper, quoted as Steam stores it", `"${WIN_LAUNCHER}"`],
+    ["the Windows wrapper with an upper-case extension", WIN_LAUNCHER.replace(/\.exe$/, ".EXE")],
+    ["the Windows wrapper written with forward slashes", "C:/plugins/romm-dock/bin/rom-launcher.exe"],
+  ])("owns %s", (_label, exe) => {
+    expect(isRomMShortcutDetails({ strShortcutExe: exe })).toBe(true);
+  });
+
+  it.each([
+    ["another program", "C:\\Games\\other.exe"],
+    ["a launcher outside a bin folder", "C:\\plugins\\romm-dock\\rom-launcher.exe"],
+    ["a different extension", "C:\\plugins\\romm-dock\\bin\\rom-launcher.bat"],
+    ["a name that only ends like the launcher", "C:\\bin\\my-rom-launcher.exe"],
+    ["an empty exe", ""],
+  ])("does not own %s", (_label, exe) => {
+    expect(isRomMShortcutDetails({ strShortcutExe: exe })).toBe(false);
+  });
+
+  it("does not own details with no exe, or no details", () => {
+    expect(isRomMShortcutDetails({})).toBe(false);
+    expect(isRomMShortcutDetails(null)).toBe(false);
+  });
+});
+
+describe("steamGameIdFor", () => {
+  const stubOverview = (overview: unknown): void => {
+    vi.stubGlobal("appStore", { GetAppOverviewByAppID: vi.fn(() => overview) });
+  };
+
+  it("builds the 64-bit shortcut game id for a shortcut-range appId Steam reports nothing for", () => {
+    stubOverview(null);
+    // (0x80000001 << 32) | 0x02000000
+    expect(steamGameIdFor(0x80000001)).toBe("9223372041183297536");
+  });
+
+  it("builds the 64-bit id when the overview reports only the bare appId", () => {
+    stubOverview({ GetGameID: () => String(0xfedcba98) });
+    expect(steamGameIdFor(0xfedcba98)).toBe(((BigInt(0xfedcba98) << 32n) | 0x02000000n).toString());
+  });
+
+  it("prefers the game id Steam reports on the overview", () => {
+    stubOverview({ GetGameID: () => "12345678901234567890" });
+    expect(steamGameIdFor(0x80000001)).toBe("12345678901234567890");
+  });
+
+  it("reads m_gameid when the overview has no GetGameID", () => {
+    stubOverview({ m_gameid: "777" });
+    expect(steamGameIdFor(0x80000001)).toBe("777");
+  });
+
+  it("does not turn a null m_gameid into the string 'null'", () => {
+    stubOverview({ m_gameid: null });
+    expect(steamGameIdFor(0x80000001)).toBe("9223372041183297536");
+  });
+
+  it("returns a Steam-range appId as is", () => {
+    stubOverview(null);
+    expect(steamGameIdFor(440)).toBe("440");
+  });
+});
+
+describe("setLaunchOptionsConfirmed — Windows launcher exe quoting", () => {
+  beforeEach(() => {
+    vi.useRealTimers();
+  });
+
+  const run = async (exe: string): Promise<ReturnType<typeof vi.fn>> => {
+    const setShortcutExe = vi.fn();
+    const { fn } = makeRegisterForAppDetails(() => ({ strLaunchOptions: "cmd", strShortcutExe: exe }));
+    vi.stubGlobal("SteamClient", {
+      Apps: { SetAppLaunchOptions: vi.fn(), SetShortcutExe: setShortcutExe, RegisterForAppDetails: fn },
+    });
+    await expect(setLaunchOptionsConfirmed(4242, "cmd")).resolves.toBe(true);
+    return setShortcutExe;
+  };
+
+  it("quotes an unquoted Windows launcher exe on the shortcut", async () => {
+    const exe = "C:\\plugins\\romm-dock\\bin\\rom-launcher.exe";
+    const setShortcutExe = await run(exe);
+    expect(setShortcutExe).toHaveBeenCalledTimes(1);
+    expect(setShortcutExe).toHaveBeenCalledWith(4242, `"${exe}"`);
+  });
+
+  it("matches the exe extension case-insensitively", async () => {
+    const exe = "C:\\plugins\\romm-dock\\BIN\\Rom-Launcher.EXE";
+    const setShortcutExe = await run(exe);
+    expect(setShortcutExe).toHaveBeenCalledWith(4242, `"${exe}"`);
+  });
+
+  it.each([
+    ["an already quoted launcher exe", '"C:\\plugins\\romm-dock\\bin\\rom-launcher.exe"'],
+    ["the Linux wrapper", ROM_LAUNCHER],
+    ["a foreign exe", "C:\\Games\\other.exe"],
+  ])("leaves %s alone", async (_label, exe) => {
+    const setShortcutExe = await run(exe);
+    expect(setShortcutExe).not.toHaveBeenCalled();
   });
 });

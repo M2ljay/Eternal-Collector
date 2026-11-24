@@ -35,6 +35,8 @@ vi.mock("../api/backend", () => ({
   releaseOrphanedPruneLeases: vi.fn(() => Promise.resolve({ success: true, released: 0 })),
   releasePruneConflictLease: vi.fn(),
   renewPruneConflictLease: vi.fn(),
+  // The Windows exit interceptor's graceful stop.
+  stopRunningGame: vi.fn(),
   logInfo: vi.fn(),
   logError: vi.fn(),
   // Not called by launchInterceptor itself — the real connectionState store it
@@ -934,6 +936,166 @@ describe("launchInterceptor — full funnel watcher", () => {
       vi.mocked(backend.confirmSlotChoice).mockRejectedValueOnce(new Error("net"));
       expect(await ops.ensureTrackingConfigured()).toBe("proceed");
       expect(backend.logError).toHaveBeenCalledWith(expect.stringContaining("auto-adopt slot failed"));
+    });
+  });
+});
+
+describe("launchInterceptor — Windows exit interceptor (TerminateApp hook)", () => {
+  const WINDOWS_UA =
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Valve Steam Client";
+  const DECK_UA = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Valve Steam Client";
+  // appId 1234 maps to rom 42 in the sessionManager mock; Steam passes the 64-bit shortcut game id.
+  const ROMM_GAME_ID = ((1234n << 32n) | 0x02000000n).toString();
+
+  let originalTerminate: ReturnType<typeof vi.fn>;
+  let bringToFront: ReturnType<typeof vi.fn>;
+  let apps: Record<string, unknown>;
+
+  const terminate = (gameId: string | number, force: boolean, ...rest: unknown[]): void =>
+    (apps.TerminateApp as (...args: unknown[]) => void)(gameId, force, ...rest);
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.spyOn(navigator, "userAgent", "get").mockReturnValue(WINDOWS_UA);
+    originalTerminate = vi.fn();
+    bringToFront = vi.fn();
+    apps = {
+      RegisterForGameActionStart: vi.fn(() => ({ unregister: vi.fn() })),
+      TerminateApp: originalTerminate,
+    };
+    vi.stubGlobal("SteamClient", { Apps: apps, Window: { BringToFront: bringToFront } });
+    vi.mocked(sessionManager.getAppIdRomIdMapSnapshot).mockReturnValue({ "1234": 42 });
+  });
+
+  afterEach(() => {
+    unregisterLaunchInterceptor();
+    vi.restoreAllMocks();
+  });
+
+  describe("install / remove", () => {
+    it("replaces TerminateApp on Windows and restores Steam's own on unregister", () => {
+      register();
+      expect(apps.TerminateApp).not.toBe(originalTerminate);
+      expect(vi.mocked(backend.logInfo)).toHaveBeenCalledWith("Exit interceptor registered");
+
+      unregisterLaunchInterceptor();
+      expect(apps.TerminateApp).toBe(originalTerminate);
+    });
+
+    it("leaves TerminateApp alone off Windows", () => {
+      vi.spyOn(navigator, "userAgent", "get").mockReturnValue(DECK_UA);
+      register();
+      expect(apps.TerminateApp).toBe(originalTerminate);
+    });
+
+    it("installs once across repeated registers, so unregister still restores Steam's own", () => {
+      register();
+      const hooked = apps.TerminateApp;
+      register();
+      expect(apps.TerminateApp).toBe(hooked);
+
+      unregisterLaunchInterceptor();
+      expect(apps.TerminateApp).toBe(originalTerminate);
+    });
+
+    it("does nothing when Steam exposes no TerminateApp", () => {
+      delete apps.TerminateApp;
+      register();
+      expect(apps.TerminateApp).toBeUndefined();
+      unregisterLaunchInterceptor();
+      expect(apps.TerminateApp).toBeUndefined();
+    });
+
+    it("reports a read-only TerminateApp and leaves it untouched", () => {
+      Object.defineProperty(apps, "TerminateApp", { value: originalTerminate, writable: false, configurable: true });
+      register();
+      expect(apps.TerminateApp).toBe(originalTerminate);
+      expect(vi.mocked(backend.logInfo)).toHaveBeenCalledWith(
+        "Exit interceptor: SteamClient.Apps.TerminateApp is not writable — Steam's exit stays a hard close",
+      );
+      expect(vi.mocked(backend.logInfo)).not.toHaveBeenCalledWith("Exit interceptor registered");
+    });
+  });
+
+  describe("routing", () => {
+    beforeEach(() => {
+      register();
+    });
+
+    it("hands a game that is not a RomM shortcut straight to Steam", () => {
+      terminate("440", true, "extra");
+      expect(originalTerminate).toHaveBeenCalledWith("440", true, "extra");
+      expect(vi.mocked(backend.stopRunningGame)).not.toHaveBeenCalled();
+    });
+
+    it("hands an unparseable game id straight to Steam", () => {
+      terminate("not-a-number", true);
+      expect(originalTerminate).toHaveBeenCalledWith("not-a-number", true);
+      expect(vi.mocked(backend.stopRunningGame)).not.toHaveBeenCalled();
+    });
+
+    it("stops a RomM game gracefully, then lets Steam finish without force and refocuses", async () => {
+      vi.mocked(backend.stopRunningGame).mockResolvedValue({ success: true, stopped: 1 });
+      terminate(ROMM_GAME_ID, true, "extra");
+
+      expect(vi.mocked(backend.stopRunningGame)).toHaveBeenCalledWith(42);
+      expect(originalTerminate).not.toHaveBeenCalled();
+      await vi.waitFor(() => expect(originalTerminate).toHaveBeenCalledWith(ROMM_GAME_ID, false, "extra"));
+      expect(bringToFront).toHaveBeenCalledTimes(1);
+    });
+
+    it("resolves a bare RomM appId as well as the 64-bit game id", async () => {
+      vi.mocked(backend.stopRunningGame).mockResolvedValue({ success: true });
+      terminate(1234, true);
+      expect(vi.mocked(backend.stopRunningGame)).toHaveBeenCalledWith(42);
+      await vi.waitFor(() => expect(originalTerminate).toHaveBeenCalledWith(1234, false));
+    });
+
+    it("treats an emulator that already exited as a clean stop", async () => {
+      vi.mocked(backend.stopRunningGame).mockResolvedValue({ success: false, reason: "not_running" });
+      terminate(ROMM_GAME_ID, true);
+      await vi.waitFor(() => expect(originalTerminate).toHaveBeenCalledWith(ROMM_GAME_ID, false));
+    });
+
+    it("does nothing more while a stop is already in progress", async () => {
+      vi.mocked(backend.stopRunningGame).mockResolvedValue({ success: false, reason: "already_stopping" });
+      terminate(ROMM_GAME_ID, true);
+      await vi.waitFor(() => expect(vi.mocked(backend.stopRunningGame)).toHaveBeenCalled());
+      await Promise.resolve();
+      await Promise.resolve();
+      expect(originalTerminate).not.toHaveBeenCalled();
+      expect(bringToFront).not.toHaveBeenCalled();
+    });
+
+    it("hands a declined graceful stop back to Steam with the original force flag", async () => {
+      vi.mocked(backend.stopRunningGame).mockResolvedValue({ success: false, reason: "no_process" });
+      terminate(ROMM_GAME_ID, true);
+      await vi.waitFor(() => expect(originalTerminate).toHaveBeenCalledWith(ROMM_GAME_ID, true));
+      expect(vi.mocked(backend.logInfo)).toHaveBeenCalledWith(
+        "Exit interceptor: graceful stop declined (no_process) — handing back to Steam",
+      );
+    });
+
+    it("hands a failed graceful stop back to Steam and logs why", async () => {
+      vi.mocked(backend.stopRunningGame).mockRejectedValue(new Error("boom"));
+      terminate(ROMM_GAME_ID, true);
+      await vi.waitFor(() => expect(originalTerminate).toHaveBeenCalledWith(ROMM_GAME_ID, true));
+      expect(vi.mocked(backend.logError)).toHaveBeenCalledWith(
+        "Exit interceptor: graceful stop failed (Error: boom) — handing back to Steam",
+      );
+      expect(bringToFront).not.toHaveBeenCalled();
+    });
+
+    it("still refocuses when Steam's own exit throws after a clean stop", async () => {
+      vi.mocked(backend.stopRunningGame).mockResolvedValue({ success: true });
+      originalTerminate.mockImplementation(() => {
+        throw new Error("steam exit");
+      });
+      terminate(ROMM_GAME_ID, true);
+      await vi.waitFor(() => expect(bringToFront).toHaveBeenCalledTimes(1));
+      expect(vi.mocked(backend.logError)).toHaveBeenCalledWith(
+        "Exit interceptor: Steam exit after graceful stop failed: Error: steam exit",
+      );
     });
   });
 });

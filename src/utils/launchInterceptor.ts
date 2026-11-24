@@ -356,7 +356,7 @@ function installExitInterceptor(): void {
   const original = apps.TerminateApp;
   if (typeof original !== "function") return;
   originalTerminateApp = original;
-  apps.TerminateApp = function (gameId: string | number, force: boolean, ...rest: unknown[]) {
+  const hooked = function (gameId: string | number, force: boolean, ...rest: unknown[]) {
     const target = romIdForGameId(gameId);
     if (!target) return original.call(apps, gameId, force, ...rest);
     logInfo(
@@ -389,6 +389,12 @@ function installExitInterceptor(): void {
         original.call(apps, gameId, force, ...rest);
       });
   };
+  try {
+    apps.TerminateApp = hooked;
+  } catch {
+    // A module runs in strict mode, where writing a read-only property throws
+    // instead of being ignored; the check below reports it either way.
+  }
   if (apps.TerminateApp === original) {
     originalTerminateApp = null;
     logInfo("Exit interceptor: SteamClient.Apps.TerminateApp is not writable — Steam's exit stays a hard close");

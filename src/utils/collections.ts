@@ -128,7 +128,9 @@ function isRomMOnlyCollection(c: SteamCollection): boolean {
 
 /**
  * Under plain names, delete the old-style collections each new name replaces —
- * only once the new collection exists, so the games are never left without one.
+ * only once the new collection exists, so the games are never left without one,
+ * and only while the old one holds nothing but RomM shortcuts, so a game the
+ * user added by hand never loses its collection.
  */
 async function retireOldCollectionNames(pairs: Array<[string, string[]]>, signal?: AbortSignal): Promise<void> {
   if (!plainCollectionNames()) return;
@@ -137,6 +139,10 @@ async function retireOldCollectionNames(pairs: Array<[string, string[]]>, signal
     for (const oldName of oldNames) {
       const old = findCollection(oldName);
       if (!old || old.displayName.toLowerCase() === newName.toLowerCase()) continue;
+      if (!isRomMOnlyCollection(old)) {
+        logInfo(`Keeping old-style collection "${old.displayName}": it is not made up only of RomM shortcuts`);
+        continue;
+      }
       if (signal?.aborted) return;
       logInfo(`Removing old-style collection "${old.displayName}" (now "${newName}")`);
       await old.Delete();

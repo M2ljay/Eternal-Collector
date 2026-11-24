@@ -164,6 +164,110 @@ describe("applyArtwork", () => {
 
 type Art = { base64: string | null; no_api_key?: boolean };
 
+describe("applyArtwork — default logo position (ensureLogoPosition)", () => {
+  const KEY = "romm-logo-positioned";
+  let setLogoPosition: ReturnType<typeof vi.fn>;
+
+  /** SGDB answers with only a logo (type 2). */
+  const logoOnly = (): void => {
+    vi.mocked(backend.getSgdbArtworkBase64).mockImplementation(async (_romId: number, type: number) => ({
+      base64: type === 2 ? "LOGO==" : null,
+      no_api_key: false,
+    }));
+  };
+
+  beforeEach(() => {
+    vi.resetAllMocks();
+    localStorage.clear();
+    setLogoPosition = vi.fn();
+    vi.stubGlobal("SteamClient", {
+      Apps: {
+        SetCustomArtworkForApp: vi.fn().mockResolvedValue(undefined),
+        SetShortcutIcon: vi.fn(),
+        SetCustomLogoPositionForApp: setLogoPosition,
+      },
+    });
+  });
+
+  const storedIds = (): unknown => JSON.parse(localStorage.getItem(KEY) ?? "null");
+
+  it("gives a newly applied logo Steam's default bottom-left placement and records the appId", async () => {
+    logoOnly();
+    await expect(applyArtwork(42, 5000)).resolves.toBe(1);
+
+    expect(setLogoPosition).toHaveBeenCalledTimes(1);
+    const [appId, json] = setLogoPosition.mock.calls[0] as [number, string];
+    expect(appId).toBe(5000);
+    expect(JSON.parse(json)).toEqual({
+      nVersion: 1,
+      logoPosition: { pinnedPosition: "BottomLeft", nWidthPct: 50, nHeightPct: 50 },
+    });
+    expect(storedIds()).toEqual([5000]);
+  });
+
+  it("never overwrites the position again for an appId it already placed", async () => {
+    logoOnly();
+    await applyArtwork(42, 5000);
+    await applyArtwork(42, 5000);
+
+    expect(setLogoPosition).toHaveBeenCalledTimes(1);
+    expect(storedIds()).toEqual([5000]);
+  });
+
+  it("places each appId once, independently", async () => {
+    logoOnly();
+    await applyArtwork(42, 5000);
+    await applyArtwork(43, 6000);
+
+    expect(setLogoPosition.mock.calls.map((c) => c[0] as number)).toEqual([5000, 6000]);
+    expect(storedIds()).toEqual([5000, 6000]);
+  });
+
+  it("does not position anything when no logo was applied", async () => {
+    vi.mocked(backend.getSgdbArtworkBase64).mockImplementation(async (_romId: number, type: number) => ({
+      base64: type === 1 ? "HERO==" : null,
+      no_api_key: false,
+    }));
+    await expect(applyArtwork(42, 5000)).resolves.toBe(1);
+
+    expect(setLogoPosition).not.toHaveBeenCalled();
+    expect(localStorage.getItem(KEY)).toBeNull();
+  });
+
+  it("skips quietly on a Steam client without the logo-position API, leaving the appId unrecorded", async () => {
+    vi.stubGlobal("SteamClient", {
+      Apps: { SetCustomArtworkForApp: vi.fn().mockResolvedValue(undefined), SetShortcutIcon: vi.fn() },
+    });
+    logoOnly();
+
+    await expect(applyArtwork(42, 5000)).resolves.toBe(1);
+
+    expect(localStorage.getItem(KEY)).toBeNull();
+  });
+
+  it("keeps the applied logo and leaves the appId unrecorded when Steam rejects the position", async () => {
+    setLogoPosition.mockImplementation(() => {
+      throw new Error("bad position");
+    });
+    logoOnly();
+
+    await expect(applyArtwork(42, 5000)).resolves.toBe(1);
+
+    expect(setLogoPosition).toHaveBeenCalledTimes(1);
+    expect(localStorage.getItem(KEY)).toBeNull();
+  });
+
+  it("treats an unreadable record as empty and rewrites it", async () => {
+    localStorage.setItem(KEY, "{not json");
+    logoOnly();
+
+    await applyArtwork(42, 5000);
+
+    expect(setLogoPosition).toHaveBeenCalledTimes(1);
+    expect(storedIds()).toEqual([5000]);
+  });
+});
+
 function deferred<T>(): { promise: Promise<T>; resolve: (value: T) => void } {
   let resolve!: (value: T) => void;
   const promise = new Promise<T>((r) => {
