@@ -93,20 +93,40 @@ class CsoSource:
         return data[within : within + ISO_SECTOR_SIZE]
 
 
-def _vendored_zstd_decompress(data: bytes) -> bytes:
-    """One-shot zstd via the vendored ``backports_zstd``; raises :class:`DiscImageError` where it cannot load.
+def _load_zstd_decompress() -> Callable[[bytes], bytes] | None:
+    """The first zstd ``decompress`` this runtime can import, or ``None``.
 
-    The vendored package ships a compiled module for one CPython ABI and
-    platform only (``py_modules/_vendor/README.md``), so on any other runtime a
-    zstd-compressed hunk is simply unreadable.
+    Python 3.14 ships zstd in the standard library (``compression.zstd``) and
+    Decky Loader for Windows freezes a 3.14 runtime that includes it. The
+    vendored ``backports_zstd`` carries a compiled module for one CPython ABI
+    and platform only (``py_modules/_vendor/README.md``), so it serves the
+    Steam Deck's 3.11 and nothing else.
     """
     try:
-        from _vendor import backports_zstd
-    except (ImportError, OSError) as exc:
-        raise DiscImageError("zstd is not available on this runtime") from exc
+        from compression import zstd  # pyright: ignore[reportMissingImports]  # Python >= 3.14 only
+
+        return zstd.decompress
+    except ImportError:
+        pass
     try:
-        return backports_zstd.decompress(data)
-    except Exception as exc:  # the backport raises its own ZstdError type
+        from _vendor import backports_zstd
+    except (ImportError, OSError):
+        return None
+    return backports_zstd.decompress
+
+
+def _vendored_zstd_decompress(data: bytes) -> bytes:
+    """One-shot zstd via the runtime's own zstd or the vendored backport.
+
+    Raises :class:`DiscImageError` where neither loads, so a zstd-compressed
+    hunk is then simply unreadable.
+    """
+    decompress = _load_zstd_decompress()
+    if decompress is None:
+        raise DiscImageError("zstd is not available on this runtime")
+    try:
+        return decompress(data)
+    except Exception as exc:  # each implementation raises its own ZstdError type
         raise DiscImageError("zstd payload does not decompress") from exc
 
 

@@ -265,3 +265,70 @@ class TestChdSource:
         blob = build_chd(frames, hunk_bytes=2448 * 8, unit_bytes=2448, codecs=("cdzl",), metadata=[("CHT2", cht2(4))])
         with pytest.raises(DiscImageError):
             ChdSource(ChdReader(io.BytesIO(blob))).read_sector(16)
+
+
+class TestZstdProvider:
+    """Which zstd the default decompressor uses: the runtime's own before the vendored one."""
+
+    @staticmethod
+    def _module(name, decompress):
+        import types
+
+        module = types.ModuleType(name)
+        module.decompress = decompress
+        return module
+
+    def test_the_standard_library_zstd_is_preferred(self, monkeypatch):
+        import sys
+        import types
+
+        from adapters import disc_images
+
+        package = types.ModuleType("compression")
+        package.zstd = self._module("compression.zstd", lambda data: b"stdlib:" + data)
+        monkeypatch.setitem(sys.modules, "compression", package)
+        monkeypatch.setitem(sys.modules, "compression.zstd", package.zstd)
+
+        assert disc_images._vendored_zstd_decompress(b"x") == b"stdlib:x"
+
+    def test_the_vendored_backport_serves_when_the_runtime_has_none(self, monkeypatch):
+        import sys
+
+        from adapters import disc_images
+
+        monkeypatch.setitem(sys.modules, "compression", None)
+        monkeypatch.setitem(sys.modules, "compression.zstd", None)
+        monkeypatch.setitem(
+            sys.modules, "_vendor.backports_zstd", self._module("_vendor.backports_zstd", lambda d: b"vendored:" + d)
+        )
+
+        assert disc_images._vendored_zstd_decompress(b"x") == b"vendored:x"
+
+    def test_neither_available_is_unreadable(self, monkeypatch):
+        import sys
+
+        from adapters import disc_images
+
+        monkeypatch.setitem(sys.modules, "compression", None)
+        monkeypatch.setitem(sys.modules, "compression.zstd", None)
+        monkeypatch.setitem(sys.modules, "_vendor.backports_zstd", None)
+
+        with pytest.raises(DiscImageError, match="not available"):
+            disc_images._vendored_zstd_decompress(b"x")
+
+    def test_a_failing_decompress_is_reported_as_unreadable(self, monkeypatch):
+        import sys
+        import types
+
+        from adapters import disc_images
+
+        def broken(_data):
+            raise ValueError("bad frame")
+
+        package = types.ModuleType("compression")
+        package.zstd = self._module("compression.zstd", broken)
+        monkeypatch.setitem(sys.modules, "compression", package)
+        monkeypatch.setitem(sys.modules, "compression.zstd", package.zstd)
+
+        with pytest.raises(DiscImageError, match="does not decompress"):
+            disc_images._vendored_zstd_decompress(b"x")
