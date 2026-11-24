@@ -94,9 +94,10 @@ decides on ambiguity" stance:
 ## Standalone emulators (EmuDeck for Windows)
 
 On the `windows` branch, a ROM whose launch emulator (the per-game pick, else the per-platform pick, else EmuDeck's
-default — the same `ActiveCoreResolver` answer the shortcut is baked from) is one of three standalone emulators syncs
-that emulator's saves instead of RetroArch's. These three were chosen because their save can be tied to one game
-**exactly**, from the ROM file alone, without reading a disc image:
+default — the same `ActiveCoreResolver` answer the shortcut is baked from) is a supported standalone emulator syncs that
+emulator's saves instead of RetroArch's. Each was chosen because its save can be tied to one game **exactly**. For these
+three the ROM file name alone is enough; Dolphin, PPSSPP and PCSX2, which need the disc's own identifier, follow
+[below](#disc-code-emulators-dolphin-ppsspp-pcsx2):
 
 | Emulator    | Systems  | Save set for a ROM whose file stem is `<stem>`                       | RomM `emulator` tag |
 | ----------- | -------- | -------------------------------------------------------------------- | ------------------- |
@@ -114,18 +115,20 @@ goes through one helper, `services/saves/_helpers.save_target`.
 
 - the active launcher backend answers a folder from `LauncherPaths.standalone_saves_path(emulator)` — only the EmuDeck
   for Windows backend does, as `$savesPath\<melonds|duckstation|Vita3K>\saves` from EmuDeck's `settings.ps1` (the
-  folders EmuDeck links to each emulator's own save directory; they are read through the link). Every other backend
-  answers `""`, and the emulator is then not even resolved;
+  folders EmuDeck links to each emulator's own save directory; they are read through the link), or
+  `$savesPath\<dolphin|ppsspp|pcsx2>` for the disc-code emulators. Every other backend answers `""`, and the emulator
+  is then not even resolved;
 - the launch emulator is a **standalone** one, recognised by the executable in its baked command (`melonDS.exe`,
-  `duckstation-*.exe`, `Vita3K.exe`). A psx game launched with a RetroArch core keeps the RetroArch behaviour;
+  `duckstation-*.exe`, `Vita3K.exe`, `Dolphin.exe`, `PPSSPP*.exe`, `pcsx2*.exe`). A psx game launched with a
+  RetroArch core keeps the RetroArch behaviour;
 - the ROM yields a save set. For Vita3K that means the launch file is `<TITLE_ID>.psvita` (what the Vita install step
-  writes), so the stem is a valid title ID.
+  writes), so the stem is a valid title ID; for Dolphin, PPSSPP and PCSX2 that the installed image is read exactly.
 
 **Emulators never cross.** Uploads carry the emulator's own tag (`RomInfoService.upload_emulator_tag`, the single place
 `MatrixExecutor.do_upload_save` takes it from). A standalone save set claims a server save only when its tag is its own
 **and** its name is one of the set's exact names: RomM's `[YYYY-MM-DD_HH-MM-SS]` slot tag is stripped from `file_name`
 (or `file_name_no_tags` + `file_extension` is used), and a save this device uploaded itself also stays mapped through its
-tracked id. Conversely the RetroArch mapping never claims a save tagged `melonds`, `duckstation` or `vita3k`, so a
+tracked id. Conversely the RetroArch mapping never claims a save tagged with any standalone emulator's id, so a
 standalone save can never be downloaded into the RetroArch folder of a device that launches the same game with a core.
 Upstream never writes those tags, so on RetroDECK this changes nothing.
 
@@ -145,13 +148,82 @@ the save. On download the archive is unpacked into a staging folder first (`.<TI
 is server-supplied, so absolute paths, drive letters, backslashes, `..` and duplicates are refused and each path is
 confined with `safe_join` before anything is written. Only after a clean unpack is the live folder moved into
 `.romm-backup/<TITLE_ID>_<ts>` (the same quarantine funnel and retention as file saves —
-`MatrixExecutor.quarantine_local_file` backs up the whole folder for a bundle name) and the staged folder renamed into place. A corrupt
+`MatrixExecutor.quarantine_local_file` backs up the whole folder for a bundle name) and the staged folder moved into place. A corrupt
 or unsafe archive fails that one file's sync with the existing save untouched.
 
 **Not covered.** Save states. The removed-game cleanup still projects only the RetroArch paths, so it never touches a
 standalone emulator's folder (those saves are left in place, not backed up into the recovery bundle). The setup wizard's
 legacy (`slot:null`) migration skips bundles — a bundle is only ever uploaded into a named slot. A conflict shows the
-bundle as one file. Dolphin, PPSSPP and PCSX2 need the game's disc code to identify a save and are the next phase.
+bundle as one file.
+
+### Disc-code emulators: Dolphin, PPSSPP, PCSX2
+
+Three more emulators file a game's save under an identifier the **disc** carries, not under the ROM's name. For these the
+save set is derived from that identifier, read out of the installed image (`DiscCodeReader`, implemented by
+`adapters/disc_code_reader.py`; parsing in `domain/disc_ids.py`). Gating, emulator identification (`Dolphin.exe`,
+`PPSSPP*.exe`, `pcsx2*.exe`) and the RetroArch/Linux fallback are exactly as above. Their save sets are rooted at
+EmuDeck's per-emulator saves folder itself (`$savesPath\<dolphin|ppsspp|pcsx2>`), whose linked sub-folders are what the
+emulators read; the bundle zip and `.romm-backup` sit in that root, which none of them reads.
+
+| Emulator | Systems | Identifier read from the image                                    | Save set                                                                                    | Bundle                  | Tag       |
+| -------- | ------- | ----------------------------------------------------------------- | ------------------------------------------------------------------------------------------- | ----------------------- | --------- |
+| Dolphin  | `gc`    | ID6 from the disc header (`GALE01`)                               | every `.gci` in `GC\<region>\Card A` and `Card B` whose header carries the 4-char game code | `<ID6>.dolphin-gc.zip`  | `dolphin` |
+| Dolphin  | `wii`   | ID6 from the disc header (`SMOXE8`)                               | the `Wii\title\00010000\<ID4 as hex>\data` folder                                           | `<ID4>.dolphin-wii.zip` | `dolphin` |
+| PPSSPP   | `psp`   | `PSP_GAME/PARAM.SFO` `DISC_ID`, else `UMD_DATA.BIN` (`ULUS10234`) | every `saves\<GAME ID>*` save-data folder                                                   | `<GAME ID>.ppsspp.zip`  | `ppsspp`  |
+| PCSX2    | `ps2`   | `SYSTEM.CNF` `BOOT2` (`cdrom0:\SLUS_200.62;1` → `SLUS-20062`)     | every `saves\<folder card>\B?<SERIAL>*` folder                                              | `<SERIAL>.pcsx2.zip`    | `pcsx2`   |
+
+**Image formats read.** Only the bytes that identify the game are read — never the whole image:
+
+- GameCube/Wii: `.rvz` / `.wia` (the WIA file header stores the disc's first 0x80 bytes uncompressed — Dolphin
+  `docs/WiaAndRvz.md`; both header SHA-1s are verified and the disc-type field must agree with the header's magic word),
+  and plain `.iso` / `.gcm` (header at offset 0). The console comes from the header's magic word (Wii `0x5D1C9EA3` at
+  0x18, GameCube `0xC2339F3D` at 0x1C), never from the ID's first letter.
+- PSP: plain `.iso`, CSO v1 `.cso` (block index, raw-deflate blocks; CSO v2 refused) and `.chd`. An ISO 9660 walk
+  reaches `PARAM.SFO` / `UMD_DATA.BIN`.
+- PS2: plain `.iso` and `.chd` — a DVD image (2048-byte units) or a CD image (the first data track of
+  `MODE1`/`MODE1_RAW`/`MODE2`/`MODE2_FORM1`/`MODE2_RAW`, a stored pregap honoured, raw sectors checked for their sync
+  header). An ISO 9660 walk reaches `SYSTEM.CNF`.
+- CHD (`domain/chd_format.py` + `adapters/disc_images.py`, following libchdr): v5 only; both the raw map of an
+  uncompressed CHD and the Huffman/RLE-coded map `chdman` writes by default (map CRC verified); hunk codecs `zlib`,
+  `lzma` (raw LZMA, properties derived from the hunk size as MAME does), `huff`, `zstd`, and the CD codecs `cdzl`,
+  `cdlz`, `cdzs` (sector data and subcode decoded separately, stripped sync/ECC regenerated); uncompressed and
+  self-referencing hunks; every hunk's CRC-16 verified. `zstd`/`cdzs` go through the vendored `backports_zstd`, whose
+  compiled module loads only on the one CPython ABI/platform it was built for — elsewhere (including Windows) those hunks
+  are unreadable and the game does not sync. FLAC codecs, parent (delta) CHDs and CHD v1–v4 are refused.
+
+Anything else (`.wbfs`, `.gcz`, `.ciso`, `.pbp`, `.zso`, `.dax`, `.cue`/`.bin`, …), or an image that does not decode
+exactly, yields no identifier, and the game keeps the pre-existing RetroArch handling — no standalone save syncs for it.
+Results are cached per file (path, size, mtime), in memory only.
+
+**Dolphin GameCube region and cards.** The region folder (`USA`/`EUR`/`JAP`) follows Dolphin's `CountryCodeToRegion`
+for the country byte (`ID6[3]`); an `E` disc with revision ≥ 0x30 is NTSC-J, as in Dolphin. Dolphin itself decides a
+GameCube disc's region from `bi2.bin` (offset 0x458), which a compressed image's header does not carry, so the ambiguous
+codes `X`/`Y`/`Z` are left unidentified. Dolphin's config is not read: both `Card A` and `Card B` GCI folders are
+included whichever device each slot uses (a GCI file with this game's code is this game's save either way), and a
+custom `GCIFolderAPath` is not followed. Only `.gci` files whose own first four bytes are the game code are members —
+`SRAM.raw`, `MemoryCard*.raw` and other games' GCI files are never selected, uploaded or replaced, and a downloaded
+bundle carrying any of them is refused.
+
+**PCSX2 folder card.** PCSX2 must use a **folder** memory card in slot 1. The card is read from
+`<pcsx2 folder>\inis\PCSX2.ini` beside the executable in the baked command (PCSX2's portable layout, which EmuDeck
+installs): `[MemoryCards] Slot1_Enable = true`, `Slot1_Filename` a plain name, `[Folders] MemoryCards` the default
+`memcards` (linked by EmuDeck to `$savesPath\pcsx2\saves`), and that name must be a folder holding
+`_pcsx2_superblock`. If any of that fails — ini unreadable, slot 1 off, a file card such as `Mcd001.ps2`, a relocated
+memcards folder — the game does not sync. Per-game memory-card overrides in `gamesettings\*.ini` are not read. The
+card's `_pcsx2_superblock` / `_pcsx2_index`, the file cards and other games' folders are never touched; PCSX2 rebuilds
+its folder-card index from the save folders on load.
+
+**Member bundles.** A Vita3K or Wii save is one folder — a _folder bundle_, packed and restored as above. The GameCube,
+PPSSPP and PCSX2 sets are a game's share of directories other games use too — a _member bundle_ (`domain/save_bundles.py`):
+the layout names each source directory, the zip prefix its members are filed under (`Card A/…`), and the rule a member
+must meet (a folder name pattern, or a GCI header). Packing (`SaveFileStore.pack_member_bundle`) uses the same
+deterministic zip rules as a folder bundle; with no member present there is no local save. On download every entry must
+pass the name rules **and** belong to a member the layout owns (`unpack_member_bundle`), or the whole bundle is refused
+before anything is written. Only then are the game's current members moved into one `.romm-backup/<label>_<ts>` folder
+under their zip paths (the same funnel and retention) and the staged members moved into their directories, one by one;
+moves fall back to copy-and-delete when a linked folder is on another drive. The layout reaches the download and
+quarantine paths through the ROM's save set (`save_set=` on `do_download_save` / `quarantine_local_file`); a member
+bundle name without its save set raises rather than being treated as a plain file.
 
 ## Evidence level, and where the audit has since disagreed
 

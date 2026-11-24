@@ -27,7 +27,9 @@ if TYPE_CHECKING:
         SteamRecoverySnapshot,
     )
 
+    from domain.disc_ids import DiscCode
     from domain.prune import BundleReadmeContext
+    from domain.save_bundles import BundleLayout
 
 
 class DirectoryFileListerFn(Protocol):
@@ -721,6 +723,40 @@ class SaveFileStore(Protocol):
 
     def remove_tree(self, path: str, within: str) -> None:
         """Delete directory *path* recursively; refuses a symlink or anything not strictly below *within*."""
+        ...
+
+    def pack_member_bundle(self, root: str, layout: BundleLayout, bundle_path: str) -> bool:
+        """Write the entries a member bundle *layout* owns under *root* as a deterministic zip.
+
+        Same byte-stability and rewrite-only-on-change rules as
+        :meth:`pack_save_folder`. Returns ``False``, writing nothing, when the
+        layout owns no local entry.
+        """
+        ...
+
+    def list_bundle_members(self, root: str, layout: BundleLayout) -> list[tuple[str, str]]:
+        """Every local entry *layout* owns under *root*, as ``(path relative to root, zip name)``."""
+        ...
+
+    def unpack_member_bundle(self, bundle_path: str, dest_dir: str, layout: BundleLayout) -> None:
+        """Extract a member bundle into the not-yet-existing *dest_dir*, mirroring its zip layout.
+
+        Every entry must be safe (as for :meth:`unpack_save_bundle`) and belong
+        to a member *layout* owns — a GCI member's own header must name the
+        layout's game — else ``PathTraversalError`` before anything is written.
+        """
+        ...
+
+    def move_entry(self, src: str, dst: str) -> None:
+        """Move file or folder *src* to the not-yet-existing *dst*, across volumes if need be."""
+        ...
+
+
+class DiscCodeReader(Protocol):
+    """Reads the game identifier a disc image carries (``domain.disc_ids``)."""
+
+    def read_disc_code(self, path: str, family: str) -> DiscCode | None:
+        """The identifier of the image at *path* read as a *family* disc, or ``None`` when it cannot be read exactly."""
         ...
 
 

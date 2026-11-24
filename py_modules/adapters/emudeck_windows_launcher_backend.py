@@ -47,7 +47,7 @@ from typing import TYPE_CHECKING, Any
 
 from domain.emulator_commands import EmulatorOption, option_to_invocation, select_default_option
 from domain.launcher_backend import EMUDECK_BACKEND_ID, BackendValidation, DetectedInstallation
-from domain.standalone_saves import DUCKSTATION, MELONDS, VITA3K
+from domain.standalone_saves import DOLPHIN, DUCKSTATION, MELONDS, PCSX2, PPSSPP, VITA3K
 from lib.retrodeck_health import RetroDeckConfigHealth
 
 if TYPE_CHECKING:
@@ -82,6 +82,11 @@ _TITLE_ID_FLAG = "--title-id-file"
 # ``$savesPath\<folder>\saves``: melonDS's save directory, DuckStation's
 # ``memcards`` and Vita3K's ``ux0\user\00\savedata``.
 _STANDALONE_SAVE_FOLDERS = {MELONDS: "melonds", DUCKSTATION: "duckstation", VITA3K: "Vita3K"}
+# The disc-code emulators' saves sit in several linked folders under
+# ``$savesPath\<folder>`` — Dolphin's ``GC`` and ``Wii``, PPSSPP's ``saves``
+# (``memstick\PSP\SAVEDATA``), PCSX2's ``saves`` (``memcards``) — so their
+# save sets are rooted at that folder itself, which none of them reads.
+_STANDALONE_SAVE_ROOTS = {DOLPHIN: "dolphin", PPSSPP: "ppsspp", PCSX2: "pcsx2"}
 
 
 class _TemplateError(ValueError):
@@ -325,15 +330,26 @@ class EmuDeckWindowsLauncherBackend:
         return os.path.join(saves, "retroarch", "states") if saves else ""
 
     def standalone_saves_path(self, emulator_id: str) -> str:
-        """``$savesPath\\<emulator folder>\\saves`` for a supported standalone emulator, else ``""``."""
+        """Where a supported standalone emulator's save set is rooted, else ``""``.
+
+        ``$savesPath\\<folder>\\saves`` for melonDS, DuckStation and Vita3K;
+        ``$savesPath\\<folder>`` for Dolphin, PPSSPP and PCSX2.
+        """
         saves = self._settings.get("savesPath", "")
+        if not saves:
+            return ""
         folder = _STANDALONE_SAVE_FOLDERS.get(emulator_id)
-        return os.path.join(saves, folder, "saves") if saves and folder else ""
+        if folder:
+            return os.path.join(saves, folder, "saves")
+        root = _STANDALONE_SAVE_ROOTS.get(emulator_id)
+        return os.path.join(saves, root) if root else ""
 
     def validate(self) -> BackendValidation:
         roms = self.roms_path()
         if not roms or not os.path.isdir(roms):
-            return BackendValidation(ok=False, reason="roms_missing", message=f"EmuDeck ROMs folder not found: {roms!r}")
+            return BackendValidation(
+                ok=False, reason="roms_missing", message=f"EmuDeck ROMs folder not found: {roms!r}"
+            )
         if not self._catalogue().available:
             return BackendValidation(
                 ok=False,
@@ -519,7 +535,9 @@ class EmuDeckWindowsLauncherBackend:
                 label=label, kind="standalone", core_so=None, command="", status="needs_setup", reason="not_installed"
             )
         command = f"{_TITLE_ID_FLAG} {quote_windows_arg(exe, always=True)} -F -r"
-        return EmulatorOption(label=label, kind="standalone", core_so=None, command=command, status="bakeable", reason=None)
+        return EmulatorOption(
+            label=label, kind="standalone", core_so=None, command=command, status="bakeable", reason=None
+        )
 
     def _emulator_for_script(self, script: str) -> str | None:
         """The ``$emulatorFile`` a launcher script names, expanded, or ``None``."""

@@ -72,6 +72,7 @@ if TYPE_CHECKING:
     from collections.abc import Iterator
 
     from domain.save_layout import SaveLayout
+    from domain.standalone_saves import StandaloneSaveSet
     from services.protocols import (
         ActiveCoreReader,
         Clock,
@@ -316,13 +317,18 @@ class SyncEngine:
         device_id: str | None,
         system: str,
         default_slot: str | None = None,
+        save_set: StandaloneSaveSet | None = None,
     ) -> None:
         """Download a save file from server (delegate to :class:`MatrixExecutor`)."""
-        self._matrix.do_download_save(server_save, saves_dir, filename, save_state, device_id, system, default_slot)
+        self._matrix.do_download_save(
+            server_save, saves_dir, filename, save_state, device_id, system, default_slot, save_set=save_set
+        )
 
-    def quarantine_local_file(self, saves_dir: str, filename: str) -> bool:
+    def quarantine_local_file(
+        self, saves_dir: str, filename: str, *, save_set: StandaloneSaveSet | None = None
+    ) -> bool:
         """Back up a local save into ``.romm-backup`` (delegate to :class:`MatrixExecutor`)."""
-        return self._matrix.quarantine_local_file(saves_dir, filename)
+        return self._matrix.quarantine_local_file(saves_dir, filename, save_set=save_set)
 
     def do_upload_save(
         self,

@@ -35,14 +35,22 @@ class TestStandaloneSavesPath:
         backend = _backend({"savesPath": "/mnt/d/Emu/saves"})
         assert backend.standalone_saves_path("melonds") == os.path.join("/mnt/d/Emu/saves", "melonds", "saves")
 
+    @pytest.mark.parametrize(
+        ("emulator_id", "folder"), [("dolphin", "dolphin"), ("ppsspp", "ppsspp"), ("pcsx2", "pcsx2")]
+    )
+    def test_disc_code_emulators_are_rooted_at_their_saves_folder(self, emulator_id, folder):
+        backend = _backend({"savesPath": "C:\\Emulation\\saves"})
+        assert backend.standalone_saves_path(emulator_id) == os.path.join("C:\\Emulation\\saves", folder)
+
     def test_unknown_emulator_is_empty(self):
         backend = _backend({"savesPath": "C:\\Emulation\\saves"})
-        assert backend.standalone_saves_path("pcsx2") == ""
+        assert backend.standalone_saves_path("rpcs3") == ""
         assert backend.standalone_saves_path("") == ""
 
     def test_no_saves_root_is_empty(self):
         assert _backend({}).standalone_saves_path("melonds") == ""
         assert _backend({"savesPath": ""}).standalone_saves_path("vita3k") == ""
+        assert _backend({}).standalone_saves_path("dolphin") == ""
 
     def test_retroarch_saves_path_unchanged(self):
         backend = _backend({"savesPath": "C:\\Emulation\\saves"})

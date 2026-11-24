@@ -23,6 +23,7 @@ from adapters.adoption_move import AdoptionMoveAdapter
 from adapters.asyncio_sleeper import AsyncioSleeper
 from adapters.cover_art_file_store import CoverArtFileStoreAdapter
 from adapters.debug_logger import SettingsAwareDebugLogger
+from adapters.disc_code_reader import DiscCodeReaderAdapter
 from adapters.download_file import DownloadFileAdapter
 from adapters.emudeck_launcher_backend import EmuDeckLauncherBackendFactory
 from adapters.emudeck_windows_launcher_backend import EmuDeckWindowsLauncherBackendFactory
@@ -71,7 +72,6 @@ if TYPE_CHECKING:
     from typing import Any
 
     from services.protocols import (
-        VitaAppLinker,
         AdoptionMoveStore,
         Clock,
         ComputeSyncActionFn,
@@ -79,6 +79,7 @@ if TYPE_CHECKING:
         CoverArtFileStore,
         DebugLogger,
         DirectoryFileListerFn,
+        DiscCodeReader,
         DownloadFileStore,
         EventEmitter,
         FirmwareFileStore,
@@ -112,6 +113,7 @@ if TYPE_CHECKING:
         SystemSupportedExtensionsFn,
         UnitOfWorkFactory,
         UuidGen,
+        VitaAppLinker,
         XemuConfigReader,
     )
 
@@ -136,6 +138,7 @@ class AdapterBundle:
     migration_file_store: MigrationFileStore
     rom_file_store: RomFileStore
     save_file_store: SaveFileStore
+    disc_codes: DiscCodeReader
     path_probe: PathExistsReader
     renderer_rss: RendererRssFn
     renderer_gc: RendererGcFn
@@ -389,6 +392,7 @@ def bootstrap(
     migration_file_store = MigrationFileAdapter()
     rom_file_store = RomFileAdapter()
     save_file_store = SaveFileAdapter(logger=logger)
+    disc_codes = DiscCodeReaderAdapter(logger=logger)
     path_probe = PathProbeAdapter()
     renderer_rss = RendererRssAdapter()
     renderer_gc = RendererGcAdapter(logger=logger)
@@ -424,6 +428,7 @@ def bootstrap(
         migration_file_store=migration_file_store,
         rom_file_store=rom_file_store,
         save_file_store=save_file_store,
+        disc_codes=disc_codes,
         path_probe=path_probe,
         renderer_rss=renderer_rss,
         renderer_gc=renderer_gc,

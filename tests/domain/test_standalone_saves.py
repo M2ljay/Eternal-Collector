@@ -2,17 +2,25 @@
 
 import pytest
 
+from domain.disc_ids import GAMECUBE, PS2, PSP, WII, DiscCode
+from domain.save_bundles import DIR_MEMBERS, GCI_MEMBERS
 from domain.standalone_saves import (
     BUNDLE_SUFFIX,
+    DOLPHIN,
     DUCKSTATION,
     MELONDS,
+    PCSX2,
+    PPSSPP,
     STANDALONE_EMULATOR_TAGS,
     VITA3K,
     SaveSetEntry,
     bundle_dir_for,
-    bundle_entries,
-    bundle_entry_name,
+    bundle_layout,
+    disc_save_set,
+    emulator_executable,
     identify_standalone_emulator,
+    is_bundle_filename,
+    pcsx2_slot1_card,
     standalone_save_set,
     standalone_target_for,
     strip_romm_timestamp_tag,
@@ -27,6 +35,9 @@ class TestIdentifyStandaloneEmulator:
             ('"C:\\Emulation\\tools\\duckstation\\duckstation-qt-x64-ReleaseLTCG.exe" -batch', DUCKSTATION),
             ('--title-id-file "C:\\Users\\v\\AppData\\Roaming\\Vita3K\\Vita3K.exe" -F -r', VITA3K),
             ('"/opt/emus/melonDS.exe"', MELONDS),
+            ('"C:\\Emulation\\tools\\pcsx2\\pcsx2-qtx64-avx2.exe"', PCSX2),
+            ('"C:\\tools\\ppsspp\\PPSSPPWindows64.exe"', PPSSPP),
+            ('"C:\\Users\\v\\AppData\\Roaming\\EmuDeck\\Emulators\\Dolphin-x64\\Dolphin.exe" -b -e', DOLPHIN),
         ],
     )
     def test_known_emulators(self, command, expected):
@@ -39,8 +50,8 @@ class TestIdentifyStandaloneEmulator:
             "",
             "%EMULATOR_MELONDS% %ROM%",  # RetroDECK form: no quoted executable
             '"C:\\RetroArch\\retroarch.exe" -L "cores\\melonds_libretro.dll"',
-            '"C:\\Emulation\\tools\\pcsx2\\pcsx2-qt.exe"',
-            '"C:\\tools\\ppsspp\\PPSSPPWindows64.exe"',
+            '"C:\\Emulation\\tools\\rpcs3\\rpcs3.exe"',
+            '"C:\\tools\\cemu\\Cemu.exe"',
         ],
     )
     def test_anything_else_is_none(self, command):
@@ -77,7 +88,7 @@ class TestStandaloneSaveSet:
         assert standalone_save_set(MELONDS, "") is None
 
     def test_tags_are_the_emulator_ids(self):
-        assert {MELONDS, DUCKSTATION, VITA3K} == STANDALONE_EMULATOR_TAGS
+        assert {MELONDS, DUCKSTATION, VITA3K, DOLPHIN, PPSSPP, PCSX2} == STANDALONE_EMULATOR_TAGS
 
 
 class TestBundleNames:
@@ -170,50 +181,122 @@ class TestStandaloneTargetFor:
         assert standalone_target_for(other, save_set) is None
 
 
-class TestBundleEntryName:
-    @pytest.mark.parametrize(
-        ("name", "expected"),
-        [
-            ("SlotParam_0.bin", "SlotParam_0.bin"),
-            ("game_dir/MK9PSET", "game_dir/MK9PSET"),
-            ("empty/", "empty/"),
-            ("a/b/c.dat", "a/b/c.dat"),
-        ],
-    )
-    def test_accepts_plain_relative_names(self, name, expected):
-        assert bundle_entry_name(name) == expected
-
-    @pytest.mark.parametrize(
-        "name",
-        [
-            "",
-            "/etc/passwd",
-            "../escape",
-            "a/../../escape",
-            "a/./b",
-            "a//b",
-            "C:\\Windows\\x",
-            "C:x",
-            "D:/x",
-            "dir\\file",
-            "nul\x00byte",
-            "..",
-            ".",
-            "a/..",
-        ],
-    )
-    def test_rejects_anything_that_could_escape(self, name):
-        assert bundle_entry_name(name) is None
-
-
-class TestBundleEntries:
-    def test_sorted_with_only_empty_dirs_listed(self):
-        assert bundle_entries(["system.bin", "game_dir/MK9PSET", "SlotParam_0.bin"], ["empty"]) == [
-            "SlotParam_0.bin",
-            "empty/",
-            "game_dir/MK9PSET",
-            "system.bin",
+class TestDiscSaveSet:
+    def test_dolphin_gamecube(self):
+        save_set = disc_save_set(DOLPHIN, DiscCode(GAMECUBE, "GALE01"))
+        assert save_set is not None
+        assert save_set.emulator_tag == DOLPHIN
+        assert save_set.filenames == ("GALE01.dolphin-gc.zip",)
+        layout = save_set.layout_for("GALE01.dolphin-gc.zip")
+        assert layout is not None
+        assert layout.label == "GALE01.dolphin-gc"
+        assert [(s.directory, s.prefix, s.kind, s.pattern) for s in layout.sources] == [
+            ("GC/USA/Card A", "Card A/", GCI_MEMBERS, "GALE"),
+            ("GC/USA/Card B", "Card B/", GCI_MEMBERS, "GALE"),
         ]
 
-    def test_order_independent_of_input_order(self):
-        assert bundle_entries(["b", "a"], []) == bundle_entries(["a", "b"], [])
+    @pytest.mark.parametrize(("id6", "region"), [("GRSPAF", "EUR"), ("GRSJAF", "JAP")])
+    def test_dolphin_gamecube_region_folder(self, id6, region):
+        save_set = disc_save_set(DOLPHIN, DiscCode(GAMECUBE, id6))
+        assert save_set is not None
+        layout = save_set.entries[0].layout
+        assert layout is not None
+        assert layout.sources[0].directory == f"GC/{region}/Card A"
+
+    def test_dolphin_gamecube_unknown_region_has_no_set(self):
+        assert disc_save_set(DOLPHIN, DiscCode(GAMECUBE, "GALX01")) is None
+
+    def test_dolphin_wii(self):
+        save_set = disc_save_set(DOLPHIN, DiscCode(WII, "SMOXE8"))
+        assert save_set is not None
+        assert save_set.filenames == ("SMOX.dolphin-wii.zip",)
+        layout = save_set.layout_for("SMOX.dolphin-wii.zip")
+        assert layout is not None
+        assert layout.folder == "Wii/title/00010000/534d4f58/data"
+        assert layout.label == "SMOX.dolphin-wii"
+
+    def test_ppsspp(self):
+        save_set = disc_save_set(PPSSPP, DiscCode(PSP, "ULUS10234"))
+        assert save_set is not None
+        assert save_set.filenames == ("ULUS10234.ppsspp.zip",)
+        layout = save_set.entries[0].layout
+        assert layout is not None
+        (source,) = layout.sources
+        assert (source.directory, source.prefix, source.kind) == ("saves", "", DIR_MEMBERS)
+        assert source.owns_name("ULUS10234DATA00") and source.owns_name("ULUS10234SYS")
+        assert not source.owns_name("ULUS10235DATA00")
+
+    def test_pcsx2(self):
+        save_set = disc_save_set(PCSX2, DiscCode(PS2, "SLUS-20062"), "memcard.ps2")
+        assert save_set is not None
+        assert save_set.filenames == ("SLUS-20062.pcsx2.zip",)
+        layout = save_set.entries[0].layout
+        assert layout is not None
+        (source,) = layout.sources
+        assert source.directory == "saves/memcard.ps2"
+        assert source.owns_name("BASLUS-20062GTA30000")
+        assert source.owns_name("BESLUS-20062X")
+        for other in ("BASLUS-21645SD8_0", "_pcsx2_superblock", "_pcsx2_index", "Mcd001.ps2", "BASLUS-2006"):
+            assert not source.owns_name(other)
+
+    @pytest.mark.parametrize("card", [None, "", "..", "a/b", "C:\\x"])
+    def test_pcsx2_needs_a_plain_card_name(self, card):
+        assert disc_save_set(PCSX2, DiscCode(PS2, "SLUS-20062"), card) is None
+
+    def test_platform_mismatch(self):
+        assert disc_save_set(PPSSPP, DiscCode(PS2, "SLUS-20062")) is None
+        assert disc_save_set(DOLPHIN, DiscCode(PSP, "ULUS10234")) is None
+        assert disc_save_set(MELONDS, DiscCode(GAMECUBE, "GALE01")) is None
+
+
+class TestPcsx2Slot1Card:
+    _INI = "[Folders]\nMemoryCards = memcards\n\n[MemoryCards]\nSlot1_Enable = true\nSlot1_Filename = memcard.ps2\n"
+
+    def test_folder_card_name(self):
+        assert pcsx2_slot1_card(self._INI) == "memcard.ps2"
+
+    def test_memcards_folder_defaults_when_absent(self):
+        assert pcsx2_slot1_card("[MemoryCards]\nSlot1_Enable = true\nSlot1_Filename = Mcd001.ps2\n") == "Mcd001.ps2"
+
+    def test_disabled_slot(self):
+        assert pcsx2_slot1_card(self._INI.replace("Slot1_Enable = true", "Slot1_Enable = false")) is None
+
+    def test_relocated_memcards_folder(self):
+        assert pcsx2_slot1_card(self._INI.replace("= memcards", "= D:\\cards")) is None
+
+    @pytest.mark.parametrize("name", ["", "..\\x", "a/b"])
+    def test_unsafe_filename(self, name):
+        assert pcsx2_slot1_card(self._INI.replace("memcard.ps2", name)) is None
+
+    def test_slot2_is_ignored(self):
+        assert pcsx2_slot1_card("[MemoryCards]\nSlot2_Enable = true\nSlot2_Filename = x.ps2\n") is None
+
+
+class TestBundleLayoutLookup:
+    def test_from_save_set(self):
+        save_set = disc_save_set(PPSSPP, DiscCode(PSP, "ULUS10234"))
+        assert save_set is not None
+        assert bundle_layout("ULUS10234.ppsspp.zip", save_set) == save_set.entries[0].layout
+
+    def test_vita_name_alone(self):
+        layout = bundle_layout("PCSE01274.vita3k.zip", None)
+        assert layout is not None
+        assert (layout.label, layout.folder) == ("PCSE01274", "PCSE01274")
+
+    def test_plain_file(self):
+        assert bundle_layout("Game.srm", None) is None
+
+    @pytest.mark.parametrize("name", ["ULUS10234.ppsspp.zip", "GALE01.dolphin-gc.zip", "SLUS-20062.pcsx2.zip"])
+    def test_bundle_without_its_set_raises(self, name):
+        with pytest.raises(ValueError, match="no save set"):
+            bundle_layout(name, None)
+
+    def test_is_bundle_filename(self):
+        assert is_bundle_filename("SMOX.dolphin-wii.zip")
+        assert is_bundle_filename("PCSE01274.vita3k.zip")
+        assert not is_bundle_filename("Game_1.mcd")
+
+    def test_emulator_executable(self):
+        assert emulator_executable('"C:\\PCSX2\\pcsx2-qt.exe" -batch') == "C:\\PCSX2\\pcsx2-qt.exe"
+        assert emulator_executable("%EMULATOR% %ROM%") is None
+        assert emulator_executable(None) is None

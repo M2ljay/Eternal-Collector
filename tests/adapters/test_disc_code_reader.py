@@ -1,0 +1,164 @@
+"""Tests for adapters.disc_code_reader — identifying real-format disc image files."""
+
+import logging
+import os
+import struct
+
+import pytest
+from fakes.disc_images import (
+    build_chd,
+    build_cso,
+    build_iso,
+    build_wia_header,
+    cd_frames_from_iso,
+    cht2,
+    gamecube_header,
+    param_sfo,
+)
+
+from adapters.disc_code_reader import DiscCodeReaderAdapter
+from domain.disc_ids import GAMECUBE, NINTENDO_OPTICAL, PS2, PSP, WII, DiscCode
+
+_PS2_ISO = build_iso({"SYSTEM.CNF": b"BOOT2 = cdrom0:\\SLUS_200.62;1\r\nVER = 1.00\r\n"}, pad_sectors=8)
+_PSP_ISO = build_iso(
+    {"UMD_DATA.BIN": b"ULUS-10234|0001|G|", "PSP_GAME/PARAM.SFO": param_sfo({"DISC_ID": "ULUS10234"})},
+    pad_sectors=8,
+)
+
+
+@pytest.fixture
+def reader():
+    return DiscCodeReaderAdapter(logger=logging.getLogger("test"))
+
+
+def _write(tmp_path, name, data):
+    path = tmp_path / name
+    path.write_bytes(data)
+    return str(path)
+
+
+class TestNintendo:
+    @pytest.mark.parametrize("magic", [b"RVZ\x01", b"WIA\x01"])
+    def test_rvz_and_wia_header(self, reader, tmp_path, magic):
+        path = _write(
+            tmp_path, "Soulcalibur II.rvz", build_wia_header(gamecube_header(b"GRSEAF"), magic=magic) + b"\x00" * 64
+        )
+        assert reader.read_disc_code(path, NINTENDO_OPTICAL) == DiscCode(GAMECUBE, "GRSEAF")
+
+    def test_rvz_wii(self, reader, tmp_path):
+        path = _write(tmp_path, "g.rvz", build_wia_header(gamecube_header(b"SMOXE8", wii=True), disc_type=2))
+        assert reader.read_disc_code(path, NINTENDO_OPTICAL) == DiscCode(WII, "SMOXE8")
+
+    def test_rvz_disc_type_must_agree_with_magic(self, reader, tmp_path):
+        path = _write(tmp_path, "g.rvz", build_wia_header(gamecube_header(b"SMOXE8", wii=True), disc_type=1))
+        assert reader.read_disc_code(path, NINTENDO_OPTICAL) is None
+
+    def test_rvz_header_hash_mismatch(self, reader, tmp_path):
+        blob = bytearray(build_wia_header(gamecube_header(b"GRSEAF")))
+        blob[0x30] ^= 1
+        assert reader.read_disc_code(_write(tmp_path, "g.rvz", bytes(blob)), NINTENDO_OPTICAL) is None
+
+    def test_rvz_disc_struct_hash_mismatch(self, reader, tmp_path):
+        blob = bytearray(build_wia_header(gamecube_header(b"GRSEAF")))
+        blob[0x48 + 0x10] = ord("X")
+        assert reader.read_disc_code(_write(tmp_path, "g.rvz", bytes(blob)), NINTENDO_OPTICAL) is None
+
+    @pytest.mark.parametrize("ext", ["iso", "gcm"])
+    def test_plain_gamecube_image(self, reader, tmp_path, ext):
+        path = _write(tmp_path, f"g.{ext}", gamecube_header(b"GALE01") + bytes(4096))
+        assert reader.read_disc_code(path, NINTENDO_OPTICAL) == DiscCode(GAMECUBE, "GALE01")
+
+    @pytest.mark.parametrize("ext", ["wbfs", "gcz", "ciso", "nkit"])
+    def test_unsupported_containers(self, reader, tmp_path, ext):
+        path = _write(tmp_path, f"g.{ext}", gamecube_header(b"GALE01"))
+        assert reader.read_disc_code(path, NINTENDO_OPTICAL) is None
+
+    def test_rvz_named_file_that_is_not_one(self, reader, tmp_path):
+        assert reader.read_disc_code(_write(tmp_path, "g.rvz", b"garbage" * 40), NINTENDO_OPTICAL) is None
+
+
+class TestPsp:
+    def test_iso(self, reader, tmp_path):
+        assert reader.read_disc_code(_write(tmp_path, "g.iso", _PSP_ISO), PSP) == DiscCode(PSP, "ULUS10234")
+
+    def test_cso(self, reader, tmp_path):
+        path = _write(tmp_path, "g.cso", build_cso(_PSP_ISO, block_size=2048))
+        assert reader.read_disc_code(path, PSP) == DiscCode(PSP, "ULUS10234")
+
+    def test_umd_data_when_param_sfo_lacks_disc_id(self, reader, tmp_path):
+        iso = build_iso({"UMD_DATA.BIN": b"ULES-01234|0001|G|", "PSP_GAME/PARAM.SFO": param_sfo({"TITLE": "x"})})
+        assert reader.read_disc_code(_write(tmp_path, "g.iso", iso), PSP) == DiscCode(PSP, "ULES01234")
+
+    def test_chd(self, reader, tmp_path):
+        path = _write(tmp_path, "g.chd", build_chd(_PSP_ISO, hunk_bytes=4096, unit_bytes=2048, codecs=("lzma",)))
+        assert reader.read_disc_code(path, PSP) == DiscCode(PSP, "ULUS10234")
+
+    def test_iso_without_ids(self, reader, tmp_path):
+        assert reader.read_disc_code(_write(tmp_path, "g.iso", build_iso({"README.TXT": b"x"})), PSP) is None
+
+    @pytest.mark.parametrize("ext", ["pbp", "zso", "dax"])
+    def test_unsupported_containers(self, reader, tmp_path, ext):
+        assert reader.read_disc_code(_write(tmp_path, f"g.{ext}", _PSP_ISO), PSP) is None
+
+
+class TestPs2:
+    def test_iso(self, reader, tmp_path):
+        assert reader.read_disc_code(_write(tmp_path, "g.iso", _PS2_ISO), PS2) == DiscCode(PS2, "SLUS-20062")
+
+    def test_dvd_chd(self, reader, tmp_path):
+        path = _write(
+            tmp_path, "g.chd", build_chd(_PS2_ISO, hunk_bytes=2048 * 2, unit_bytes=2048, codecs=("lzma", "zlib"))
+        )
+        assert reader.read_disc_code(path, PS2) == DiscCode(PS2, "SLUS-20062")
+
+    def test_cd_chd(self, reader, tmp_path):
+        frames = cd_frames_from_iso(_PS2_ISO, mode=2)
+        sectors = len(_PS2_ISO) // 2048
+        blob = build_chd(
+            frames,
+            hunk_bytes=2448 * 8,
+            unit_bytes=2448,
+            codecs=("cdlz", "cdzl"),
+            metadata=[("CHT2", cht2(sectors, "MODE2_RAW"))],
+        )
+        assert reader.read_disc_code(_write(tmp_path, "g.chd", blob), PS2) == DiscCode(PS2, "SLUS-20062")
+
+    def test_ps1_disc_is_not_a_ps2_game(self, reader, tmp_path):
+        iso = build_iso({"SYSTEM.CNF": b"BOOT = cdrom:\\SLUS_001.23;1\n"})
+        assert reader.read_disc_code(_write(tmp_path, "g.iso", iso), PS2) is None
+
+    def test_corrupt_chd(self, reader, tmp_path):
+        blob = bytearray(build_chd(_PS2_ISO, hunk_bytes=4096, unit_bytes=2048, codecs=("zlib",)))
+        (map_offset,) = struct.unpack_from(">Q", blob, 40)
+        blob[map_offset + 10] ^= 0xFF  # the map's CRC-16
+        assert reader.read_disc_code(_write(tmp_path, "g.chd", bytes(blob)), PS2) is None
+
+
+class TestCaching:
+    def test_reads_once_per_unchanged_file(self, reader, tmp_path, monkeypatch):
+        path = _write(tmp_path, "g.iso", _PS2_ISO)
+        assert reader.read_disc_code(path, PS2) is not None
+        monkeypatch.setattr("builtins.open", lambda *a, **k: (_ for _ in ()).throw(AssertionError("re-read")))
+        assert reader.read_disc_code(path, PS2) == DiscCode(PS2, "SLUS-20062")
+
+    def test_rereads_a_changed_file(self, reader, tmp_path):
+        path = _write(tmp_path, "g.iso", _PS2_ISO)
+        assert reader.read_disc_code(path, PS2).code == "SLUS-20062"
+        other = build_iso({"SYSTEM.CNF": b"BOOT2 = cdrom0:\\SLES_500.01;1\n"}, pad_sectors=9)
+        with open(path, "wb") as f:
+            f.write(other)
+        os.utime(path, ns=(1, 1))
+        assert reader.read_disc_code(path, PS2).code == "SLES-50001"
+
+    def test_missing_file(self, reader, tmp_path):
+        assert reader.read_disc_code(str(tmp_path / "nope.iso"), PS2) is None
+
+    def test_unknown_family(self, reader, tmp_path):
+        assert reader.read_disc_code(_write(tmp_path, "g.iso", _PS2_ISO), "n64") is None
+
+
+def test_wia_disc_size_bounds(tmp_path):
+    blob = bytearray(build_wia_header(gamecube_header(b"GALE01")))
+    struct.pack_into(">I", blob, 12, 0x10)
+    reader = DiscCodeReaderAdapter(logger=logging.getLogger("test"))
+    assert reader.read_disc_code(_write(tmp_path, "g.rvz", bytes(blob)), NINTENDO_OPTICAL) is None

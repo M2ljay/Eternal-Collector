@@ -13,7 +13,6 @@ from __future__ import annotations
 
 import contextlib
 import hashlib
-import io
 import os
 import shutil
 import tempfile
@@ -21,16 +20,18 @@ import zipfile
 import zlib
 from typing import TYPE_CHECKING
 
+from adapters import save_bundle_io
 from adapters.descriptor_paths import claim_source, ensure_directory, rename_claimed
 from domain.save_hash import combine_zip_entry_hashes
-from domain.standalone_saves import BUNDLE_ENTRY_EPOCH, bundle_entries, bundle_entry_name
-from lib.path_safety import PathTraversalError, safe_join
+from lib.path_safety import safe_join
 
 if TYPE_CHECKING:
     import logging
     from collections.abc import Iterator
 
     from models.prune import MutationOutcome, SourceClaim
+
+    from domain.save_bundles import BundleLayout
 
 _MD5_CHUNK_SIZE = 8192
 
@@ -46,13 +47,6 @@ _MD5_CHUNK_SIZE = 8192
 # still surfaces, matching the non-zip branch and ``checksum_md5``;
 # ``LargeZipFile`` is excluded as an unreachable write-time ZIP64 guard.
 _ZIP_READ_ERRORS = (zipfile.BadZipFile, zlib.error, RuntimeError)
-
-# Stored, not deflated: zlib's output is not guaranteed identical across zlib
-# builds (CPython on Windows bundles its own), and a bundle must be byte-stable
-# for one folder on every device. Entry attributes are pinned for the same
-# reason — ``ZipInfo.create_system`` otherwise follows the host OS.
-_BUNDLE_FILE_ATTR = 0o100644 << 16
-_BUNDLE_DIR_ATTR = (0o040755 << 16) | 0x10
 
 
 class SaveFileAdapter:
@@ -253,7 +247,7 @@ class SaveFileAdapter:
         """Write *folder* as a deterministic zip at *bundle_path*.
 
         Entries are the folder's files and empty directories, relative and
-        ``/``-separated, in :func:`domain.standalone_saves.bundle_entries`
+        ``/``-separated, in :func:`domain.save_bundles.bundle_entries`
         order, stored uncompressed with one fixed timestamp and fixed
         attributes — so an unchanged folder always yields identical bytes.
         Symlinks inside the folder are not followed or packed. The file is
@@ -261,76 +255,36 @@ class SaveFileAdapter:
         change, and then stamped with the newest mtime in the folder tree, so
         an untouched save keeps both its hash and its mtime between syncs.
         """
-        files: list[str] = []
-        empty_dirs: list[str] = []
-        newest = os.path.getmtime(folder)
-        for root, dirs, names in os.walk(folder):
-            dirs[:] = [d for d in dirs if not os.path.islink(os.path.join(root, d))]
-            rel_root = os.path.relpath(root, folder).replace(os.sep, "/")
-            prefix = "" if rel_root == "." else rel_root + "/"
-            regular = [n for n in names if _is_regular(os.path.join(root, n))]
-            for name in [*regular, *dirs]:
-                newest = max(newest, os.path.getmtime(os.path.join(root, name)))
-            files.extend(prefix + n for n in regular)
-            if prefix and not regular and not dirs:
-                empty_dirs.append(prefix)
-        buffer = io.BytesIO()
-        with zipfile.ZipFile(buffer, "w", compression=zipfile.ZIP_STORED) as zf:
-            for entry in bundle_entries(files, empty_dirs):
-                info = zipfile.ZipInfo(entry, date_time=BUNDLE_ENTRY_EPOCH)
-                info.create_system = 3
-                if entry.endswith("/"):
-                    info.external_attr = _BUNDLE_DIR_ATTR
-                    zf.writestr(info, b"")
-                else:
-                    info.external_attr = _BUNDLE_FILE_ATTR
-                    with open(os.path.join(folder, *entry.split("/")), "rb") as f:
-                        zf.writestr(info, f.read())
-        data = buffer.getvalue()
-        if os.path.isfile(bundle_path):
-            with open(bundle_path, "rb") as f:
-                if f.read() == data:
-                    return
-        tmp = bundle_path + ".pack"
-        with open(tmp, "wb") as f:
-            f.write(data)
-        os.utime(tmp, (newest, newest))
-        os.replace(tmp, bundle_path)
+        save_bundle_io.pack_folder(folder, bundle_path)
+
+    def pack_member_bundle(self, root: str, layout: BundleLayout, bundle_path: str) -> bool:
+        """Write the members *layout* owns under *root* as a deterministic zip; ``False`` when there are none."""
+        return save_bundle_io.pack_members(root, layout, bundle_path)
+
+    def list_bundle_members(self, root: str, layout: BundleLayout) -> list[tuple[str, str]]:
+        """Every local entry *layout* owns under *root*, as ``(path relative to root, zip name)``."""
+        return save_bundle_io.list_members(root, layout)
 
     def unpack_save_bundle(self, bundle_path: str, dest_dir: str) -> None:
         """Extract the bundle at *bundle_path* into the new directory *dest_dir*.
 
         Every entry name is server-supplied: each must pass
-        :func:`domain.standalone_saves.bundle_entry_name` and then resolve
+        :func:`domain.save_bundles.bundle_entry_name` and then resolve
         strictly inside *dest_dir* through :func:`lib.path_safety.safe_join`,
         and no name may repeat — otherwise :class:`PathTraversalError` is raised
         before anything is written. *dest_dir* must not exist yet; on any
         failure it is removed again, so the caller never sees a partial folder.
         Raises :class:`zipfile.BadZipFile` for a file that is not a readable zip.
         """
-        if os.path.lexists(dest_dir):
-            raise FileExistsError(dest_dir)
-        with zipfile.ZipFile(bundle_path, "r") as zf:
-            infos = zf.infolist()
-            seen: set[str] = set()
-            for info in infos:
-                name = bundle_entry_name(info.filename)
-                if name is None or name.rstrip("/") in seen:
-                    raise PathTraversalError(f"unsafe or duplicate bundle entry: {info.filename!r}")
-                seen.add(name.rstrip("/"))
-            os.makedirs(dest_dir)
-            try:
-                for info in infos:
-                    target = safe_join(dest_dir, *info.filename.rstrip("/").split("/"))
-                    if info.filename.endswith("/"):
-                        os.makedirs(target, exist_ok=True)
-                        continue
-                    os.makedirs(os.path.dirname(target), exist_ok=True)
-                    with open(target, "wb") as f:
-                        f.write(zf.read(info))
-            except BaseException:
-                shutil.rmtree(dest_dir, ignore_errors=True)
-                raise
+        save_bundle_io.unpack_folder(bundle_path, dest_dir)
+
+    def unpack_member_bundle(self, bundle_path: str, dest_dir: str, layout: BundleLayout) -> None:
+        """Extract a member bundle into the new *dest_dir*; every entry must be a member *layout* owns."""
+        save_bundle_io.unpack_members(bundle_path, dest_dir, layout)
+
+    def move_entry(self, src: str, dst: str) -> None:
+        """Move file or folder *src* to the not-yet-existing *dst*, across volumes if need be."""
+        save_bundle_io.move_entry(src, dst)
 
     def remove_tree(self, path: str, within: str) -> None:
         """Delete the directory *path* and everything under it, but only inside *within*.
@@ -343,7 +297,3 @@ class SaveFileAdapter:
             raise ValueError(f"not a removable directory: {path!r}")
         safe_join(within, os.path.relpath(path, within))
         shutil.rmtree(path)
-
-
-def _is_regular(path: str) -> bool:
-    return os.path.isfile(path) and not os.path.islink(path)

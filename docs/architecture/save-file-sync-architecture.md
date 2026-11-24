@@ -10,10 +10,10 @@ GBC, GBA, Genesis, N64, PSX via RetroArch cores, Saturn, Dreamcast, PC Engine, a
 **set** is discovered and synced — the default `.srm` / `.rtc` / `.sav` plus system-specific extensions (e.g. Saturn
 `.bkr` / `.bcr` / `.smpc`, NDS `.dsv`, Sega CD `.brm`); the extension list lives in `domain/save_extensions.py`. Every
 file syncs **independently against the server save sharing its own canonical target**, so a multi-file set never
-cross-mixes extensions. On the Windows (EmuDeck) build, melonDS, DuckStation and Vita3K saves also sync for games that
-launch with those emulators, through the same per-file model — see
-[Standalone emulators](save-sync-coverage.md#standalone-emulators-emudeck-for-windows). Other standalone emulators (PCSX2,
-Dolphin, PPSSPP, etc.) are not synced.
+cross-mixes extensions. On the Windows (EmuDeck) build, melonDS, DuckStation, Vita3K, Dolphin, PPSSPP and PCSX2 saves
+also sync for games that launch with those emulators, through the same per-file model — see
+[Standalone emulators](save-sync-coverage.md#standalone-emulators-emudeck-for-windows). Other standalone emulators are
+not synced.
 
 ## RomM Save API
 
@@ -472,7 +472,8 @@ The `emulator` parameter on RomM save uploads determines the server-side folder 
 created before v2 have `emulator=retroarch` and will keep that tag. New saves created with slots get the correct
 `retroarch-{core}` tag.
 
-Standalone emulators use just the emulator name: `melonds`, `duckstation`, `vita3k` (EmuDeck for Windows only; see
+Standalone emulators use just the emulator name: `melonds`, `duckstation`, `vita3k`, `dolphin`, `ppsspp`, `pcsx2`
+(EmuDeck for Windows only; see
 [Standalone emulators](save-sync-coverage.md#standalone-emulators-emudeck-for-windows)). The RetroArch mapping never
 claims a save carrying one of these tags, and a standalone save set claims only its own tag.
 
@@ -2060,7 +2061,7 @@ optional Settings cleanup action can be added later. A backfill of the historica
 
 ### Standalone emulators not supported
 
-Except for melonDS, DuckStation and Vita3K on the Windows (EmuDeck) build
+Except for melonDS, DuckStation, Vita3K, Dolphin, PPSSPP and PCSX2 on the Windows (EmuDeck) build
 ([Standalone emulators](save-sync-coverage.md#standalone-emulators-emudeck-for-windows)), only RetroArch saves are
 covered. Standalone emulators store saves under
 `<saves_path>/<platform>/<emulator_name>/` with emulator-specific formats:

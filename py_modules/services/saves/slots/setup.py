@@ -18,7 +18,7 @@ from domain.iso_time import epoch_to_iso, parse_iso_to_epoch
 from domain.rom_save_sync_state import RomSaveSyncState
 from domain.save_layout import SAVE_SYNC_CONTENT_DIR_REASON
 from domain.save_slot import save_in_slot
-from domain.standalone_saves import bundle_dir_for
+from domain.standalone_saves import is_bundle_filename
 from lib.errors import RommNotFoundError, classify_error
 from services.saves._helpers import newest_server_saves_by_target
 from services.saves._messages import (
@@ -481,7 +481,7 @@ class SetupWizard:
         targets = {
             target: save
             for target, save in newest_server_saves_by_target(legacy_saves, info).items()
-            if bundle_dir_for(target) is None
+            if not is_bundle_filename(target)
         }
         core_so = self._resolve_core(rom_id)
         default_slot = resolve_default_slot(self._settings)

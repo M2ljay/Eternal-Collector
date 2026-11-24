@@ -3,6 +3,7 @@
 import zipfile
 
 from fakes.fake_active_core_resolver import FakeActiveCoreResolver
+from fakes.fake_disc_code_reader import FakeDiscCodeReader
 from fakes.fake_retrodeck_paths import FakeRetroDeckPaths
 
 from domain.shortcut_data import EmulatorInvocation
@@ -538,3 +539,83 @@ class TestUploadEmulatorTag:
         assert svc._rom_info.upload_emulator_tag(42, "mgba_libretro") == "retroarch-mgba"
         assert svc._rom_info.upload_emulator_tag(42, None) == "retroarch"
         assert svc._rom_info.upload_emulator_tag(999, "mgba_libretro") == "retroarch-mgba"
+
+
+class TestDiscCodeSaveSetSelection:
+    """Dolphin, PPSSPP and PCSX2 save sets come from the installed image's disc code."""
+
+    def test_dolphin_reads_the_installed_image_as_a_nintendo_disc(self, tmp_path):
+        from domain.disc_ids import NINTENDO_OPTICAL, DiscCode
+
+        svc, _, saves_dir = make_standalone_service(
+            tmp_path, "dolphin", system="gc", file_name="Soulcalibur II.rvz", disc=DiscCode("gc", "GRSEAF")
+        )
+        info = svc._rom_info.get_rom_save_info(42)
+        assert info is not None
+        assert info["saves_dir"] == str(saves_dir)
+        assert info["save_set"].filenames == ("GRSEAF.dolphin-gc.zip",)
+        reader = svc._rom_info._disc_codes
+        assert isinstance(reader, FakeDiscCodeReader)
+        assert reader.calls and reader.calls[-1] == (info["file_path"], NINTENDO_OPTICAL)
+        assert info["file_path"].endswith("Soulcalibur II.rvz")
+
+    def test_unidentified_disc_keeps_retroarch_handling(self, tmp_path):
+        svc, _, _ = make_standalone_service(tmp_path, "ppsspp", system="psp", file_name="Game.pbp")
+        info = svc._rom_info.get_rom_save_info(42)
+        assert info is not None
+        assert info["save_set"] is None
+        assert info["saves_dir"].startswith(str(tmp_path / "saves"))
+
+    def test_member_bundle_is_packed_by_find_save_files(self, tmp_path):
+        from domain.disc_ids import DiscCode
+
+        svc, _, saves_dir = make_standalone_service(
+            tmp_path, "ppsspp", system="psp", file_name="Game.cso", disc=DiscCode("psp", "ULUS10234")
+        )
+        assert svc._rom_info.find_save_files(42) == []
+        (saves_dir / "saves" / "ULUS10234DATA00").mkdir(parents=True)
+        (saves_dir / "saves" / "ULUS10234DATA00" / "DATA.BIN").write_bytes(b"d")
+        files = svc._rom_info.find_save_files(42)
+        assert files == [{"path": str(saves_dir / "ULUS10234.ppsspp.zip"), "filename": "ULUS10234.ppsspp.zip"}]
+        with zipfile.ZipFile(files[0]["path"]) as zf:
+            assert zf.namelist() == ["ULUS10234DATA00/DATA.BIN"]
+
+    def test_wii_data_folder_is_packed(self, tmp_path):
+        from domain.disc_ids import DiscCode
+
+        svc, _, saves_dir = make_standalone_service(
+            tmp_path, "dolphin", system="wii", file_name="g.rvz", disc=DiscCode("wii", "SMOXE8")
+        )
+        data = saves_dir / "Wii" / "title" / "00010000" / "534d4f58" / "data"
+        data.mkdir(parents=True)
+        (data / "save.bin").write_bytes(b"s")
+        assert [f["filename"] for f in svc._rom_info.find_save_files(42)] == ["SMOX.dolphin-wii.zip"]
+
+    def test_pcsx2_reads_the_card_from_the_ini_beside_the_executable(self, tmp_path):
+        from domain.disc_ids import DiscCode
+
+        exe_dir = tmp_path / "PCSX2"
+        (exe_dir / "inis").mkdir(parents=True)
+        (exe_dir / "inis" / "PCSX2.ini").write_text("[MemoryCards]\nSlot1_Enable = true\nSlot1_Filename = folder.ps2\n")
+        svc, _, saves_dir = make_standalone_service(
+            tmp_path,
+            "pcsx2",
+            system="ps2",
+            file_name="g.chd",
+            disc=DiscCode("ps2", "SLUS-20062"),
+            command=f'"{exe_dir / "pcsx2-qt.exe"}"',
+        )
+        (saves_dir / "saves" / "folder.ps2").mkdir(parents=True)
+        (saves_dir / "saves" / "folder.ps2" / "_pcsx2_superblock").write_bytes(b"sb")
+        info = svc._rom_info.get_rom_save_info(42)
+        assert info is not None
+        (source,) = info["save_set"].entries[0].layout.sources
+        assert source.directory == "saves/folder.ps2"
+
+    def test_upload_tag_is_the_emulator_id(self, tmp_path):
+        from domain.disc_ids import DiscCode
+
+        svc, _, _ = make_standalone_service(
+            tmp_path, "ppsspp", system="psp", file_name="Game.cso", disc=DiscCode("psp", "ULUS10234")
+        )
+        assert svc._rom_info.upload_emulator_tag(42, "ppsspp_libretro") == "ppsspp"

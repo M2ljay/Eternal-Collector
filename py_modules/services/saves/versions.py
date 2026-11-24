@@ -250,7 +250,14 @@ class VersionsService:
         local_path = os.path.join(saves_dir, target_filename)
 
         self._sync_engine.do_download_save(
-            target_save, saves_dir, target_filename, save_state, device_id, system, default_slot
+            target_save,
+            saves_dir,
+            target_filename,
+            save_state,
+            device_id,
+            system,
+            default_slot,
+            save_set=info.get("save_set"),
         )
 
         try:

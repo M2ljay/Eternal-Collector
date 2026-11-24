@@ -194,7 +194,14 @@ class SaveCopyService:
         # existing local file (the current slot's save) is quarantined into
         # ``.romm-backup`` first, so nothing that lives only on disk is lost.
         self._sync_engine.do_download_save(
-            target_save, saves_dir, canonical, save_state, device_id, system, default_slot
+            target_save,
+            saves_dir,
+            canonical,
+            save_state,
+            device_id,
+            system,
+            default_slot,
+            save_set=info.get("save_set"),
         )
 
         try:

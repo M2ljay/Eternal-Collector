@@ -24,9 +24,14 @@ from domain.save_extensions import get_save_extensions
 from domain.save_layout import InSaveDir
 from domain.save_path import resolve_save_dir
 from domain.standalone_saves import (
+    DISC_FAMILIES,
+    PCSX2,
     STANDALONE_EMULATOR_TAGS,
     StandaloneSaveSet,
+    disc_save_set,
+    emulator_executable,
     identify_standalone_emulator,
+    pcsx2_slot1_card,
     standalone_save_set,
 )
 
@@ -45,6 +50,7 @@ if TYPE_CHECKING:
     from services.protocols import (
         ActiveCoreReader,
         CoreNameProviderFn,
+        DiscCodeReader,
         LauncherPaths,
         SaveFileStore,
         UnitOfWorkFactory,
@@ -59,8 +65,9 @@ class RomInfoServiceConfig:
     source of truth for installed-ROM file records — WS3 — and ``kv_config``
     holds the save-sort markers), the Protocol-typed filesystem adapter, the
     active launcher backend's runtime-path accessor, the per-ROM active-core
-    resolver, the RetroArch core-name provider, and the standard-library
-    logger.
+    resolver, the RetroArch core-name provider, the disc-image identifier
+    reader (for emulators that file saves under a disc's code), and the
+    standard-library logger.
     """
 
     uow_factory: UnitOfWorkFactory
@@ -68,6 +75,7 @@ class RomInfoServiceConfig:
     launcher_paths: LauncherPaths
     active_core: ActiveCoreReader
     get_core_name: CoreNameProviderFn
+    disc_codes: DiscCodeReader
     logger: logging.Logger
 
 
@@ -81,6 +89,7 @@ class RomInfoService:
         self._launcher_paths = config.launcher_paths
         self._active_core = config.active_core
         self._get_core_name = config.get_core_name
+        self._disc_codes = config.disc_codes
         self._logger = config.logger
 
     def get_rom_save_info(self, rom_id: int) -> dict[str, Any] | None:
@@ -96,19 +105,20 @@ class RomInfoService:
         info = self._retroarch_save_info(rom_id)
         if info is None:
             return None
-        standalone = self._standalone_save_set(int(rom_id), info["rom_name"])
+        standalone = self._standalone_save_set(int(rom_id), info["rom_name"], info["file_path"])
         if standalone is not None:
             info["save_set"], info["saves_dir"] = standalone
         return info
 
-    def _standalone_save_set(self, rom_id: int, rom_name: str) -> tuple[StandaloneSaveSet, str] | None:
+    def _standalone_save_set(self, rom_id: int, rom_name: str, file_path: str) -> tuple[StandaloneSaveSet, str] | None:
         """The ROM's standalone save set and its folder, or ``None`` for RetroArch handling.
 
         Requires all of: the active backend offers a standalone save folder at
         all (checked first, so a backend without one never pays for the emulator
         resolution), the ROM's launch emulator is a standalone one this plugin
         knows, the backend locates that emulator's folder, and the ROM yields an
-        identifiable save set.
+        identifiable save set — for an emulator that files saves under the
+        disc's code, the installed image must be read exactly.
         """
         if not any(_nonempty_str(self._launcher_paths.standalone_saves_path(e)) for e in STANDALONE_EMULATOR_TAGS):
             return None
@@ -119,10 +129,49 @@ class RomInfoService:
         if emulator_id is None:
             return None
         root = self._launcher_paths.standalone_saves_path(emulator_id)
-        save_set = standalone_save_set(emulator_id, rom_name)
-        if not _nonempty_str(root) or save_set is None:
+        if not _nonempty_str(root):
             return None
-        return save_set, root
+        if emulator_id in DISC_FAMILIES:
+            save_set = self._disc_save_set(emulator_id, emulator.command, file_path, root)
+        else:
+            save_set = standalone_save_set(emulator_id, rom_name)
+        return (save_set, root) if save_set is not None else None
+
+    def _disc_save_set(
+        self, emulator_id: str, command: str | None, file_path: str, root: str
+    ) -> StandaloneSaveSet | None:
+        disc = self._disc_codes.read_disc_code(file_path, DISC_FAMILIES[emulator_id])
+        if disc is None:
+            return None
+        card = self._pcsx2_folder_card(command, root) if emulator_id == PCSX2 else None
+        return disc_save_set(emulator_id, disc, card)
+
+    def _pcsx2_folder_card(self, command: str | None, root: str) -> str | None:
+        """PCSX2's slot-1 card when it is a folder card in the EmuDeck-linked ``memcards`` folder, else ``None``.
+
+        Read from ``inis/PCSX2.ini`` beside the executable (PCSX2's portable
+        layout, which EmuDeck for Windows installs). An unreadable ini, a
+        disabled slot, a file card, or a card elsewhere all mean no PCSX2 save
+        is synced: which card the game writes to cannot be known exactly.
+        """
+        exe = emulator_executable(command)
+        if not exe:
+            return None
+        ini = os.path.join(os.path.dirname(exe), "inis", "PCSX2.ini")
+        if not self._save_file_store.is_file(ini):
+            return None
+        try:
+            card = pcsx2_slot1_card(self._save_file_store.read_bytes(ini).decode("utf-8", errors="replace"))
+        except OSError:
+            return None
+        if card is None:
+            return None
+        card_dir = os.path.join(root, "saves", card)
+        if not self._save_file_store.is_dir(card_dir) or not self._save_file_store.is_file(
+            os.path.join(card_dir, "_pcsx2_superblock")
+        ):
+            return None
+        return card
 
     def upload_emulator_tag(self, rom_id: int, core_so: str | None) -> str:
         """The RomM ``emulator`` tag an upload of this ROM's save carries.
@@ -259,9 +308,10 @@ class RomInfoService:
         """Find local save files for a ROM.
 
         Returns list of ``{"path": str, "filename": str}``. For a standalone
-        save set only the set's exact names are probed; a bundled folder that
-        exists is (re)packed into its zip here, so every consumer of the
-        returned path sees the folder's current content as one file.
+        save set only the set's exact names are probed; a bundled save (a
+        folder, or the entries a member layout owns) that exists is (re)packed
+        into its zip here, so every consumer of the returned path sees the
+        save's current content as one file.
         """
         info = self.get_rom_save_info(rom_id)
         if not info:
@@ -285,11 +335,15 @@ class RomInfoService:
         results = []
         for entry in save_set.entries:
             path = os.path.join(saves_dir, entry.filename)
-            if entry.bundle_dir is not None:
-                folder = os.path.join(saves_dir, entry.bundle_dir)
+            layout = entry.layout
+            if layout is not None and layout.folder is not None:
+                folder = os.path.join(saves_dir, *layout.folder.split("/"))
                 if not self._save_file_store.is_dir(folder) or self._save_file_store.is_symlink(folder):
                     continue
                 self._save_file_store.pack_save_folder(folder, path)
+            elif layout is not None:
+                if not self._save_file_store.pack_member_bundle(saves_dir, layout, path):
+                    continue
             elif not self._save_file_store.is_file(path):
                 continue
             results.append({"path": path, "filename": entry.filename})

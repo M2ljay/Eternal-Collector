@@ -1133,6 +1133,7 @@ class TestMainStartupOrdering:
                 migration_file_store=MagicMock(),
                 rom_file_store=MagicMock(),
                 save_file_store=MagicMock(),
+                disc_codes=MagicMock(),
                 path_probe=MagicMock(),
                 renderer_rss=FakeRendererRss(),
                 renderer_gc=FakeRendererGc(),

@@ -43,19 +43,25 @@ convention and are expected to behave identically, but haven't been observed one
 
 ## Standalone emulators on Windows (EmuDeck) ✅
 
-The tables on this page describe RetroArch cores. On the Windows build with EmuDeck, three **standalone** emulators also
+The tables on this page describe RetroArch cores. On the Windows build with EmuDeck, these **standalone** emulators also
 sync, for games that launch with them (your per-game or per-platform pick, or EmuDeck's default):
 
-| Emulator    | System      | What syncs                                                                                            |
-| ----------- | ----------- | ----------------------------------------------------------------------------------------------------- |
-| melonDS     | Nintendo DS | `<game>.sav`, named exactly after your ROM file.                                                      |
-| DuckStation | PlayStation | The per-game memory cards `<game>_1.mcd` and `<game>_2.mcd` — only when named exactly after your ROM. |
-| Vita3K      | PS Vita     | The game's whole save folder (`<TITLE_ID>`), uploaded as one file.                                    |
+| Emulator    | System        | What syncs                                                                                            |
+| ----------- | ------------- | ----------------------------------------------------------------------------------------------------- |
+| melonDS     | Nintendo DS   | `<game>.sav`, named exactly after your ROM file.                                                      |
+| DuckStation | PlayStation   | The per-game memory cards `<game>_1.mcd` and `<game>_2.mcd` — only when named exactly after your ROM. |
+| Vita3K      | PS Vita       | The game's whole save folder (`<TITLE_ID>`), uploaded as one file.                                    |
+| Dolphin     | GameCube      | The game's `.gci` saves in the GCI-folder memory cards, uploaded as one file.                         |
+| Dolphin     | Wii           | The game's save folder in Dolphin's Wii NAND, uploaded as one file.                                   |
+| PPSSPP      | PSP           | Every save-data folder of the game, uploaded as one file.                                             |
+| PCSX2       | PlayStation 2 | The game's saves on a **folder** memory card in slot 1, uploaded as one file.                         |
 
 Saves from different emulators are kept apart: a DuckStation card never replaces a RetroArch PlayStation save, or the
-other way round, even for the same game. Details, and the DuckStation naming caveat, are in
-[Windows (EmuDeck)](windows.md#save-sync). On the Steam Deck (RetroDECK) nothing changes: saves still sync from RetroArch
-only.
+other way round, even for the same game. Dolphin, PPSSPP and PCSX2 identify the game by reading its disc image, so only
+some image formats sync (GameCube/Wii `.rvz`, `.wia`, `.iso`, `.gcm`; PSP `.iso`, `.cso`, `.chd`; PS2 `.iso`, `.chd`) —
+a game in any other format does not sync its standalone saves. Details, the DuckStation naming caveat and the PCSX2
+memory-card requirement are in [Windows (EmuDeck)](windows.md#save-sync). On the Steam Deck (RetroDECK) nothing
+changes: saves still sync from RetroArch only.
 
 ## Coming soon 🔜
 

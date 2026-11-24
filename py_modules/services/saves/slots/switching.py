@@ -23,6 +23,7 @@ from services.saves._settings import resolve_default_slot, save_sync_enabled
 if TYPE_CHECKING:
     import asyncio
 
+    from domain.standalone_saves import StandaloneSaveSet
     from services.protocols import (
         Clock,
         DebugLogger,
@@ -264,7 +265,16 @@ class SlotSwitcher:
             default_slot = resolve_default_slot(self._settings)
             targets = newest_server_saves_by_target(slot_saves, info)
             switch_errors = await self._loop.run_in_executor(
-                None, self._apply_slot_switch, rom_id, saves_dir, system, save_state, device_id, targets, default_slot
+                None,
+                self._apply_slot_switch,
+                rom_id,
+                saves_dir,
+                system,
+                save_state,
+                device_id,
+                targets,
+                default_slot,
+                info.get("save_set"),
             )
 
             # 8. Persist the coherent state regardless of partial download failures.
@@ -292,6 +302,7 @@ class SlotSwitcher:
         device_id: str | None,
         targets: dict[str, dict[str, Any]],
         default_slot: str | None,
+        save_set: StandaloneSaveSet | None = None,
     ) -> list[str]:
         """Make the local saves dir + tracking match the new slot.
 
@@ -313,7 +324,7 @@ class SlotSwitcher:
         # Quarantine + untrack every local file the new slot does not provide.
         for lf in local_now:
             if lf["filename"] not in target_names:
-                moved = self._sync_engine.quarantine_local_file(saves_dir, lf["filename"])
+                moved = self._sync_engine.quarantine_local_file(saves_dir, lf["filename"], save_set=save_set)
                 save_state.delete_file_tracking(lf["filename"])
                 self._log_debug(f"switch_slot: quarantine {lf['filename']} moved={moved}")
 
@@ -331,7 +342,7 @@ class SlotSwitcher:
             )
             try:
                 self._sync_engine.do_download_save(
-                    server_save, saves_dir, target_name, save_state, device_id, system, default_slot
+                    server_save, saves_dir, target_name, save_state, device_id, system, default_slot, save_set=save_set
                 )
             except Exception as e:
                 self._log_debug(f"switch_slot: failed to download {target_name}: {e}")

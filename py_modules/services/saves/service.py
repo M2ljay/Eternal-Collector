@@ -93,6 +93,7 @@ class SaveService:
                 launcher_paths=config.launcher_paths,
                 active_core=config.active_core,
                 get_core_name=config.get_core_name,
+                disc_codes=config.disc_codes,
                 logger=config.logger,
             ),
         )

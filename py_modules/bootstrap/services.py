@@ -250,6 +250,7 @@ def wire_services(cfg: WiringConfig) -> dict[str, Any]:
         settings=cfg.stores.settings,
         settings_persister=cfg.callbacks.settings_persister,
         save_file_store=cfg.adapters.save_file_store,
+        disc_codes=cfg.adapters.disc_codes,
         loop=cfg.runtime.loop,
         logger=cfg.runtime.logger,
         clock=cfg.runtime.clock,

@@ -23,11 +23,12 @@ from domain.iso_time import parse_iso_to_epoch
 from domain.rom_save_sync_state import FileSyncState, RomSaveSyncState
 from domain.save_backup import BACKUP_DIR_NAME, backup_name, select_backups_to_prune
 from domain.save_slot import filter_saves_to_slot
-from domain.standalone_saves import bundle_dir_for
+from domain.standalone_saves import bundle_layout
 from domain.sync_action import Conflict, Download, Skip, SyncAction, Upload
 from lib.errors import DeviceNotRegisteredError, RommApiError, RommConflictError, classify_error
 from services.saves._helpers import save_target
 from services.saves._messages import DEVICE_NOT_REGISTERED
+from services.saves.sync_engine import bundle_restore
 
 if TYPE_CHECKING:
     import logging
@@ -283,13 +284,16 @@ class MatrixExecutor:
         device_id: str | None,
         system: str,
         default_slot: str | None = None,
+        save_set: StandaloneSaveSet | None = None,
     ) -> None:
         """Download a save file from server. Backs up existing local file first.
 
-        A bundle (a save folder travelling as one zip) is unpacked into a
-        staging folder before anything local is touched — a corrupt archive or
-        an unsafe entry name fails the download with the current save intact —
-        and only then is the live folder quarantined and replaced. Mutates
+        A bundle (a save folder or entry set travelling as one zip, its layout
+        taken from *save_set*) is unpacked into a staging folder before
+        anything local is touched — a corrupt archive, an unsafe entry name or
+        an entry the layout does not own fails the download with the current
+        save intact — and only then is the live save quarantined and replaced.
+        Mutates
         *save_state* in memory (per-file baseline); the operation entry owns the
         surrounding write Unit of Work.
         """
@@ -306,27 +310,24 @@ class MatrixExecutor:
             ),
         )
 
-        bundle_dir = bundle_dir_for(filename)
-        staging = os.path.join(saves_dir, f".{bundle_dir}.romm-unpack") if bundle_dir else None
-        if staging is not None:
-            if self._save_file_store.is_dir(staging):
-                self._save_file_store.remove_tree(staging, saves_dir)
-            self._save_file_store.unpack_save_bundle(tmp_path, staging)
-
+        layout = bundle_layout(filename, save_set)
+        staging = bundle_restore.stage(self._save_file_store, saves_dir, layout, tmp_path) if layout else None
         try:
             # Back up the existing local save before the download overwrites it.
-            self.quarantine_local_file(saves_dir, filename)
-            if staging is not None and bundle_dir is not None:
-                self._save_file_store.rename(staging, os.path.join(saves_dir, bundle_dir))
+            self.quarantine_local_file(saves_dir, filename, save_set=save_set)
+            if staging is not None and layout is not None:
+                bundle_restore.install(self._save_file_store, saves_dir, layout, staging)
         except Exception:
-            if staging is not None and self._save_file_store.is_dir(staging):
-                self._save_file_store.remove_tree(staging, saves_dir)
+            if staging is not None:
+                bundle_restore.discard(self._save_file_store, saves_dir, staging)
             raise
         self._save_file_store.rename(tmp_path, local_path)
         self.update_file_sync_state(save_state, filename, server_save, local_path, system, default_slot=default_slot)
         self._log_debug(f"Downloaded save: {filename}")
 
-    def quarantine_local_file(self, saves_dir: str, filename: str) -> bool:
+    def quarantine_local_file(
+        self, saves_dir: str, filename: str, *, save_set: StandaloneSaveSet | None = None
+    ) -> bool:
         """Move a local save file aside into ``.romm-backup`` before it is destroyed.
 
         The single source of truth for the save-file backup discipline: both the
@@ -344,33 +345,42 @@ class MatrixExecutor:
         cap would defeat the backup. Returns ``True`` when a file was moved,
         ``False`` when there was nothing at *filename* to back up.
 
-        For a bundle filename the real save is its folder: the whole folder is
-        moved to ``.romm-backup/<folder>_<ts>[_<n>]`` under the same retention.
-        The bundle zip itself is derived from that folder and is left in place.
+        For a bundle filename (layout from *save_set*) the real save is what the
+        layout selects: a folder bundle's folder is moved to
+        ``.romm-backup/<label>_<ts>[_<n>]``, a member bundle's entries into a
+        folder of that name under their zip paths, under the same retention.
+        Entries of other games in shared directories are never touched. The
+        bundle zip itself is derived from the save and is left in place.
         """
-        bundle_dir = bundle_dir_for(filename)
-        name = bundle_dir or filename
-        local_path = os.path.join(saves_dir, name)
-        present = self._save_file_store.is_dir if bundle_dir else self._save_file_store.is_file
-        if not present(local_path) or (bundle_dir and self._save_file_store.is_symlink(local_path)):
+        layout = bundle_layout(filename, save_set)
+        store = self._save_file_store
+        if layout is None:
+            name, local_path = filename, os.path.join(saves_dir, filename)
+            entries = [(local_path, "")] if store.is_file(local_path) else []
+        else:
+            name, entries = layout.label, bundle_restore.local_entries(store, saves_dir, layout)
+        if not entries:
             return False
         backup_dir = os.path.join(saves_dir, BACKUP_DIR_NAME)
-        if self._save_file_store.is_symlink(backup_dir) or not self._save_file_store.is_within(backup_dir, saves_dir):
+        if store.is_symlink(backup_dir) or not store.is_within(backup_dir, saves_dir):
             raise ValueError(f"Unsafe save backup directory: {backup_dir}")
-        self._save_file_store.make_dirs(backup_dir)
+        store.make_dirs(backup_dir)
         ts = self._clock.now().strftime("%Y%m%d_%H%M%S")
-        existing = set(self._save_file_store.listdir(backup_dir))
+        existing = set(store.listdir(backup_dir))
         backup = backup_name(name, ts, existing)
-        self._save_file_store.rename(local_path, os.path.join(backup_dir, backup))
+        if layout is None:
+            store.rename(entries[0][0], os.path.join(backup_dir, backup))
+        else:
+            bundle_restore.move_aside(store, entries, os.path.join(backup_dir, backup))
         # Bound the recovery net: keep only the newest N backups per save file (#974).
         existing.add(backup)
         for stale in select_backups_to_prune(name, list(existing), _BACKUP_RETENTION):
             if stale == backup:
                 continue  # never prune the backup just created this call (#974 — would destroy the save)
-            if bundle_dir:
-                self._save_file_store.remove_tree(os.path.join(backup_dir, stale), backup_dir)
+            if layout is not None:
+                store.remove_tree(os.path.join(backup_dir, stale), backup_dir)
             else:
-                self._save_file_store.remove_file(os.path.join(backup_dir, stale))
+                store.remove_file(os.path.join(backup_dir, stale))
         return True
 
     @staticmethod
@@ -712,7 +722,14 @@ class MatrixExecutor:
             == "download"
         ):
             self.do_download_save(
-                fresh, ctx.saves_dir, filename, ctx.save_state, ctx.device_id, ctx.system, options.default_slot
+                fresh,
+                ctx.saves_dir,
+                filename,
+                ctx.save_state,
+                ctx.device_id,
+                ctx.system,
+                options.default_slot,
+                save_set=ctx.save_set,
             )
             return TransferDirection.DOWNLOAD
         sink.conflicts.append(self.build_sync_conflict_entry(ctx.rom_id, filename, fresh, local_path, local_hash))
@@ -776,6 +793,7 @@ class MatrixExecutor:
                     ctx.device_id,
                     ctx.system,
                     options.default_slot,
+                    save_set=ctx.save_set,
                 )
                 return TransferDirection.DOWNLOAD
             if isinstance(action, Conflict):

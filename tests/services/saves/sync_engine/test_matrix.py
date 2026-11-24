@@ -2962,3 +2962,389 @@ class TestStandaloneVita3K:
         assert len([n for n in names if n.startswith("PCSE01274_")]) == 10
         assert "Other.sav" in names
         assert not (saves_dir / "PCSE01274").exists()
+
+
+# ---------------------------------------------------------------------------
+# Disc-code emulators (EmuDeck for Windows): Dolphin, PPSSPP, PCSX2
+# ---------------------------------------------------------------------------
+
+
+def _zip_bytes(entries: dict[str, bytes]) -> bytes:
+    import io
+
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w") as zf:
+        for name, data in entries.items():
+            zf.writestr(name, data)
+    return buffer.getvalue()
+
+
+def _uploaded_entries(fake) -> list[str]:
+    import io
+
+    (save_id,) = fake.saves
+    with zipfile.ZipFile(io.BytesIO(fake._save_content[save_id])) as zf:
+        return zf.namelist()
+
+
+def _gci(code: bytes, body: bytes = b"") -> bytes:
+    return code + b"\x00" * 58 + body
+
+
+class TestStandaloneDolphinGameCube:
+    def _svc(self, tmp_path):
+        from domain.disc_ids import DiscCode
+        from tests.services.saves._helpers import make_standalone_service
+
+        return make_standalone_service(
+            tmp_path, "dolphin", system="gc", file_name="Super Smash Bros. Melee.rvz", disc=DiscCode("gc", "GALE01")
+        )
+
+    def _cards(self, saves_dir):
+        card_a = saves_dir / "GC" / "USA" / "Card A"
+        card_a.mkdir(parents=True)
+        (card_a / "01-GALE-SuperSmashBros0110290334.gci").write_bytes(_gci(b"GALE01", b"melee"))
+        (card_a / "4Z-GOBE-BadBoys.gci").write_bytes(_gci(b"GOBE4Z", b"bad boys"))
+        (card_a / "AF-GRSE-sc2_0.dat.gci").write_bytes(_gci(b"GRSEAF", b"soulcalibur"))
+        (saves_dir / "GC" / "SRAM.raw").write_bytes(b"sram")
+        (saves_dir / "GC" / "MemoryCardA.USA.raw").write_bytes(b"raw card")
+        return card_a
+
+    def test_only_this_games_gci_files_upload_as_one_bundle(self, tmp_path):
+        svc, fake, saves_dir = self._svc(tmp_path)
+        self._cards(saves_dir)
+
+        uploaded, _d, errors, _c = _do_sync(svc, 42)
+
+        assert (uploaded, errors) == (1, [])
+        assert _uploads(fake) == [(str(saves_dir / "GALE01.dolphin-gc.zip"), "dolphin")]
+        assert _uploaded_entries(fake) == ["Card A/01-GALE-SuperSmashBros0110290334.gci"]
+        assert _do_sync(svc, 42) == (0, 0, [], [])
+
+    def test_bundle_downloads_into_an_empty_device(self, tmp_path):
+        svc, fake, saves_dir = self._svc(tmp_path)
+        bundle = _zip_bytes({"Card A/01-GALE-SuperSmashBros0110290334.gci": _gci(b"GALE01", b"remote")})
+        _seed_other_device(fake, "GALE01.dolphin-gc [2099-01-01_00-00-00].zip", "dolphin", bundle)
+
+        uploaded, downloaded, errors, _ = _do_sync(svc, 42)
+
+        assert (uploaded, downloaded, errors) == (0, 1, [])
+        restored = saves_dir / "GC" / "USA" / "Card A" / "01-GALE-SuperSmashBros0110290334.gci"
+        assert restored.read_bytes() == _gci(b"GALE01", b"remote")
+        assert not (saves_dir / ".GALE01.dolphin-gc.romm-unpack").exists()
+        assert _do_sync(svc, 42) == (0, 0, [], [])
+
+    def test_replacing_backs_up_this_games_files_and_never_touches_others(self, tmp_path):
+        svc, fake, saves_dir = self._svc(tmp_path)
+        card_a = self._cards(saves_dir)
+        assert _do_sync(svc, 42)[0] == 1
+        bundle = _zip_bytes({"Card A/01-GALE-newname.gci": _gci(b"GALE01", b"newer remote")})
+        _seed_other_device(fake, "GALE01.dolphin-gc [2099-01-01_00-00-00].zip", "dolphin", bundle)
+
+        uploaded, downloaded, errors, _ = _do_sync(svc, 42)
+
+        assert (uploaded, downloaded, errors) == (0, 1, [])
+        assert sorted(p.name for p in card_a.iterdir()) == [
+            "01-GALE-newname.gci",
+            "4Z-GOBE-BadBoys.gci",
+            "AF-GRSE-sc2_0.dat.gci",
+        ]
+        assert (card_a / "4Z-GOBE-BadBoys.gci").read_bytes() == _gci(b"GOBE4Z", b"bad boys")
+        assert (saves_dir / "GC" / "SRAM.raw").read_bytes() == b"sram"
+        assert (saves_dir / "GC" / "MemoryCardA.USA.raw").read_bytes() == b"raw card"
+        (backup,) = (saves_dir / ".romm-backup").iterdir()
+        assert backup.name.startswith("GALE01_") and backup.name.endswith(".dolphin-gc")
+        old = backup / "Card A" / "01-GALE-SuperSmashBros0110290334.gci"
+        assert old.read_bytes() == _gci(b"GALE01", b"melee")
+
+    def test_both_sides_changed_stays_a_conflict(self, tmp_path):
+        svc, fake, saves_dir = self._svc(tmp_path)
+        card_a = self._cards(saves_dir)
+        assert _do_sync(svc, 42)[0] == 1
+        (card_a / "01-GALE-SuperSmashBros0110290334.gci").write_bytes(_gci(b"GALE01", b"played offline"))
+        bundle = _zip_bytes({"Card A/01-GALE-SuperSmashBros0110290334.gci": _gci(b"GALE01", b"other pc")})
+        _seed_other_device(fake, "GALE01.dolphin-gc [2099-01-01_00-00-00].zip", "dolphin", bundle)
+
+        uploaded, downloaded, errors, conflicts = _do_sync(svc, 42)
+
+        assert (uploaded, downloaded, errors) == (0, 0, [])
+        assert [c["filename"] for c in conflicts] == ["GALE01.dolphin-gc.zip"]
+        assert (card_a / "01-GALE-SuperSmashBros0110290334.gci").read_bytes() == _gci(b"GALE01", b"played offline")
+        assert not (saves_dir / ".romm-backup").exists()
+
+    def test_a_bundle_carrying_another_games_file_is_refused(self, tmp_path):
+        svc, fake, saves_dir = self._svc(tmp_path)
+        card_a = self._cards(saves_dir)
+        assert _do_sync(svc, 42)[0] == 1
+        bundle = _zip_bytes(
+            {
+                "Card A/01-GALE-x.gci": _gci(b"GALE01", b"ok"),
+                "Card A/4Z-GOBE-BadBoys.gci": _gci(b"GOBE4Z", b"overwrite another game"),
+            }
+        )
+        _seed_other_device(fake, "GALE01.dolphin-gc [2099-01-01_00-00-00].zip", "dolphin", bundle)
+
+        _u, downloaded, errors, _ = _do_sync(svc, 42)
+
+        assert downloaded == 0 and len(errors) == 1
+        assert (card_a / "4Z-GOBE-BadBoys.gci").read_bytes() == _gci(b"GOBE4Z", b"bad boys")
+        assert (card_a / "01-GALE-SuperSmashBros0110290334.gci").exists()
+        assert not (saves_dir / ".romm-backup").exists()
+
+
+class TestStandaloneDolphinWii:
+    def _svc(self, tmp_path):
+        from domain.disc_ids import DiscCode
+        from tests.services.saves._helpers import make_standalone_service
+
+        return make_standalone_service(
+            tmp_path, "dolphin", system="wii", file_name="Super Mario Galaxy.rvz", disc=DiscCode("wii", "RMGE01")
+        )
+
+    def _title(self, saves_dir):
+        return saves_dir / "Wii" / "title" / "00010000" / "524d4745"
+
+    def test_data_folder_uploads_and_content_is_never_included(self, tmp_path):
+        svc, fake, saves_dir = self._svc(tmp_path)
+        title = self._title(saves_dir)
+        (title / "data").mkdir(parents=True)
+        (title / "data" / "banner.bin").write_bytes(b"banner")
+        (title / "data" / "GameData.bin").write_bytes(b"progress")
+        (title / "content").mkdir()
+        (title / "content" / "title.tmd").write_bytes(b"tmd")
+        (saves_dir / "Wii" / "shared2").mkdir(parents=True)
+
+        uploaded, _d, errors, _c = _do_sync(svc, 42)
+
+        assert (uploaded, errors) == (1, [])
+        assert _uploads(fake) == [(str(saves_dir / "RMGE.dolphin-wii.zip"), "dolphin")]
+        assert _uploaded_entries(fake) == ["GameData.bin", "banner.bin"]
+        assert _do_sync(svc, 42) == (0, 0, [], [])
+
+    def test_downloads_into_an_empty_device_and_replaces_with_backup(self, tmp_path):
+        svc, fake, saves_dir = self._svc(tmp_path)
+        _seed_other_device(
+            fake, "RMGE.dolphin-wii [2099-01-01_00-00-00].zip", "dolphin", _zip_bytes({"GameData.bin": b"remote"})
+        )
+        assert _do_sync(svc, 42)[1] == 1
+        data = self._title(saves_dir) / "data"
+        assert (data / "GameData.bin").read_bytes() == b"remote"
+
+        (data / "GameData.bin").write_bytes(b"local after download")
+        assert _do_sync(svc, 42)[0] == 1
+        _seed_other_device(
+            fake, "RMGE.dolphin-wii [2099-01-02_00-00-00].zip", "dolphin", _zip_bytes({"GameData.bin": b"newest"})
+        )
+        fake.saves[max(fake.saves)]["updated_at"] = "2099-02-01T00:00:00Z"
+
+        uploaded, downloaded, errors, _ = _do_sync(svc, 42)
+
+        assert (uploaded, downloaded, errors) == (0, 1, [])
+        assert (data / "GameData.bin").read_bytes() == b"newest"
+        (backup,) = (saves_dir / ".romm-backup").iterdir()
+        assert (backup / "GameData.bin").read_bytes() == b"local after download"
+
+
+class TestStandalonePpsspp:
+    def _svc(self, tmp_path):
+        from domain.disc_ids import DiscCode
+        from tests.services.saves._helpers import make_standalone_service
+
+        return make_standalone_service(
+            tmp_path, "ppsspp", system="psp", file_name="Game.cso", disc=DiscCode("psp", "ULUS10234")
+        )
+
+    def _saves(self, saves_dir):
+        root = saves_dir / "saves"
+        for folder, files in {
+            "ULUS102340000": {"PARAM.SFO": b"sfo", "DATA.BIN": b"progress", "ICON0.PNG": b"i", "PIC1.PNG": b"p"},
+            "ULUS10234SYS": {"SYS.BIN": b"sys"},
+            "ULES01234DATA00": {"DATA.BIN": b"another game"},
+        }.items():
+            (root / folder).mkdir(parents=True)
+            for name, data in files.items():
+                (root / folder / name).write_bytes(data)
+        return root
+
+    def test_every_folder_of_the_game_uploads_as_one_bundle(self, tmp_path):
+        svc, fake, saves_dir = self._svc(tmp_path)
+        self._saves(saves_dir)
+
+        uploaded, _d, errors, _c = _do_sync(svc, 42)
+
+        assert (uploaded, errors) == (1, [])
+        assert _uploads(fake) == [(str(saves_dir / "ULUS10234.ppsspp.zip"), "ppsspp")]
+        assert _uploaded_entries(fake) == [
+            "ULUS102340000/DATA.BIN",
+            "ULUS102340000/ICON0.PNG",
+            "ULUS102340000/PARAM.SFO",
+            "ULUS102340000/PIC1.PNG",
+            "ULUS10234SYS/SYS.BIN",
+        ]
+        assert _do_sync(svc, 42) == (0, 0, [], [])
+
+    def test_bundle_downloads_into_an_empty_device(self, tmp_path):
+        svc, fake, saves_dir = self._svc(tmp_path)
+        bundle = _zip_bytes({"ULUS102340000/DATA.BIN": b"remote", "ULUS102340000/PARAM.SFO": b"sfo"})
+        _seed_other_device(fake, "ULUS10234.ppsspp [2099-01-01_00-00-00].zip", "ppsspp", bundle)
+
+        uploaded, downloaded, errors, _ = _do_sync(svc, 42)
+
+        assert (uploaded, downloaded, errors) == (0, 1, [])
+        assert (saves_dir / "saves" / "ULUS102340000" / "DATA.BIN").read_bytes() == b"remote"
+        assert _do_sync(svc, 42) == (0, 0, [], [])
+
+    def test_replacing_backs_up_every_folder_of_the_game_and_keeps_other_games(self, tmp_path):
+        svc, fake, saves_dir = self._svc(tmp_path)
+        root = self._saves(saves_dir)
+        assert _do_sync(svc, 42)[0] == 1
+        _seed_other_device(
+            fake,
+            "ULUS10234.ppsspp [2099-01-01_00-00-00].zip",
+            "ppsspp",
+            _zip_bytes({"ULUS102340000/DATA.BIN": b"newer remote"}),
+        )
+
+        uploaded, downloaded, errors, _ = _do_sync(svc, 42)
+
+        assert (uploaded, downloaded, errors) == (0, 1, [])
+        assert sorted(p.name for p in root.iterdir()) == ["ULES01234DATA00", "ULUS102340000"]
+        assert sorted(p.name for p in (root / "ULUS102340000").iterdir()) == ["DATA.BIN"]
+        assert (root / "ULES01234DATA00" / "DATA.BIN").read_bytes() == b"another game"
+        (backup,) = (saves_dir / ".romm-backup").iterdir()
+        assert sorted(p.name for p in backup.iterdir()) == ["ULUS102340000", "ULUS10234SYS"]
+        assert (backup / "ULUS102340000" / "DATA.BIN").read_bytes() == b"progress"
+
+    def test_both_sides_changed_stays_a_conflict(self, tmp_path):
+        svc, fake, saves_dir = self._svc(tmp_path)
+        root = self._saves(saves_dir)
+        assert _do_sync(svc, 42)[0] == 1
+        (root / "ULUS102340000" / "DATA.BIN").write_bytes(b"offline")
+        _seed_other_device(
+            fake, "ULUS10234.ppsspp [2099-01-01_00-00-00].zip", "ppsspp", _zip_bytes({"ULUS102340000/X": b"o"})
+        )
+
+        uploaded, downloaded, errors, conflicts = _do_sync(svc, 42)
+
+        assert (uploaded, downloaded, errors) == (0, 0, [])
+        assert [c["filename"] for c in conflicts] == ["ULUS10234.ppsspp.zip"]
+        assert (root / "ULUS102340000" / "DATA.BIN").read_bytes() == b"offline"
+
+    def test_unreadable_disc_does_not_sync(self, tmp_path):
+        from tests.services.saves._helpers import make_standalone_service
+
+        svc, fake, saves_dir = make_standalone_service(tmp_path, "ppsspp", system="psp", file_name="Game.pbp")
+        self._saves(saves_dir)
+        assert _do_sync(svc, 42) == (0, 0, [], [])
+        assert _uploads(fake) == []
+
+
+class TestStandalonePcsx2:
+    _INI = "[Folders]\nMemoryCards = memcards\n[MemoryCards]\nSlot1_Enable = true\nSlot1_Filename = memcard.ps2\n"
+
+    def _svc(self, tmp_path, ini: str | None = _INI):
+        from domain.disc_ids import DiscCode
+        from tests.services.saves._helpers import make_standalone_service
+
+        exe_dir = tmp_path / "emus" / "PCSX2-Qt"
+        (exe_dir / "inis").mkdir(parents=True)
+        if ini is not None:
+            (exe_dir / "inis" / "PCSX2.ini").write_text(ini)
+        svc, fake, saves_dir = make_standalone_service(
+            tmp_path,
+            "pcsx2",
+            system="ps2",
+            file_name="Grand Theft Auto III.chd",
+            disc=DiscCode("ps2", "SLUS-20062"),
+            command=f'"{exe_dir / "pcsx2-qtx64-avx2.exe"}" -batch',
+        )
+        card = saves_dir / "saves" / "memcard.ps2"
+        card.mkdir(parents=True)
+        (card / "_pcsx2_superblock").write_bytes(b"superblock")
+        (card / "_pcsx2_index").write_bytes(b"index")
+        (saves_dir / "saves" / "Mcd001.ps2").write_bytes(b"file card")
+        return svc, fake, saves_dir, card
+
+    def _game(self, card, data=b"gta3"):
+        (card / "BASLUS-20062GTA30000").mkdir(exist_ok=True)
+        (card / "BASLUS-20062GTA30000" / "GTA3SAVE").write_bytes(data)
+        (card / "BASLUS-21645SD8_0").mkdir(exist_ok=True)
+        (card / "BASLUS-21645SD8_0" / "other").write_bytes(b"another game")
+
+    def test_this_games_folders_upload_and_card_files_never_do(self, tmp_path):
+        svc, fake, saves_dir, card = self._svc(tmp_path)
+        self._game(card)
+
+        uploaded, _d, errors, _c = _do_sync(svc, 42)
+
+        assert (uploaded, errors) == (1, [])
+        assert _uploads(fake) == [(str(saves_dir / "SLUS-20062.pcsx2.zip"), "pcsx2")]
+        assert _uploaded_entries(fake) == ["BASLUS-20062GTA30000/GTA3SAVE"]
+        assert _do_sync(svc, 42) == (0, 0, [], [])
+
+    def test_downloads_and_replaces_with_backup_leaving_the_card_intact(self, tmp_path):
+        svc, fake, saves_dir, card = self._svc(tmp_path)
+        self._game(card, b"local")
+        assert _do_sync(svc, 42)[0] == 1
+        _seed_other_device(
+            fake,
+            "SLUS-20062.pcsx2 [2099-01-01_00-00-00].zip",
+            "pcsx2",
+            _zip_bytes({"BASLUS-20062GTA30000/GTA3SAVE": b"remote"}),
+        )
+
+        uploaded, downloaded, errors, _ = _do_sync(svc, 42)
+
+        assert (uploaded, downloaded, errors) == (0, 1, [])
+        assert (card / "BASLUS-20062GTA30000" / "GTA3SAVE").read_bytes() == b"remote"
+        assert (card / "_pcsx2_superblock").read_bytes() == b"superblock"
+        assert (card / "_pcsx2_index").read_bytes() == b"index"
+        assert (card / "BASLUS-21645SD8_0" / "other").read_bytes() == b"another game"
+        assert (saves_dir / "saves" / "Mcd001.ps2").read_bytes() == b"file card"
+        (backup,) = (saves_dir / ".romm-backup").iterdir()
+        assert (backup / "BASLUS-20062GTA30000" / "GTA3SAVE").read_bytes() == b"local"
+
+    def test_a_bundle_touching_the_superblock_is_refused(self, tmp_path):
+        svc, fake, _saves_dir, card = self._svc(tmp_path)
+        _seed_other_device(
+            fake,
+            "SLUS-20062.pcsx2 [2099-01-01_00-00-00].zip",
+            "pcsx2",
+            _zip_bytes({"BASLUS-20062GTA30000/GTA3SAVE": b"x", "_pcsx2_superblock": b"evil"}),
+        )
+
+        _u, downloaded, errors, _ = _do_sync(svc, 42)
+
+        assert downloaded == 0 and len(errors) == 1
+        assert (card / "_pcsx2_superblock").read_bytes() == b"superblock"
+        assert not (card / "BASLUS-20062GTA30000").exists()
+
+    @pytest.mark.parametrize(
+        "ini",
+        [
+            None,
+            _INI.replace("memcard.ps2", "Mcd001.ps2"),  # a file card in slot 1
+            _INI.replace("Slot1_Enable = true", "Slot1_Enable = false"),
+            _INI.replace("= memcards", "= D:\\elsewhere"),
+        ],
+    )
+    def test_no_sync_unless_the_folder_card_is_the_active_slot_1_card(self, tmp_path, ini):
+        svc, fake, _saves_dir, card = self._svc(tmp_path, ini=ini)
+        self._game(card)
+        assert _do_sync(svc, 42) == (0, 0, [], [])
+        assert _uploads(fake) == []
+
+    def test_card_without_superblock_is_not_a_folder_card(self, tmp_path):
+        svc, _fake, _saves_dir, card = self._svc(tmp_path)
+        (card / "_pcsx2_superblock").unlink()
+        self._game(card)
+        assert _do_sync(svc, 42) == (0, 0, [], [])
+
+
+class TestBundleQuarantineNeedsItsLayout:
+    def test_member_bundle_without_save_set_refuses(self, tmp_path):
+        from tests.services.saves._helpers import make_service
+
+        svc, _fake = make_service(tmp_path)
+        with pytest.raises(ValueError, match="no save set"):
+            svc._sync_engine.quarantine_local_file(str(tmp_path), "ULUS10234.ppsspp.zip")

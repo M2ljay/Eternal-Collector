@@ -275,7 +275,9 @@ class RollbackOrchestrator:
         """
         target = _require_target(server, info, save_state)
         default_slot = resolve_default_slot(self._settings)
-        self._matrix.do_download_save(server, saves_dir, target, save_state, device_id, system, default_slot)
+        self._matrix.do_download_save(
+            server, saves_dir, target, save_state, device_id, system, default_slot, save_set=info.get("save_set")
+        )
 
     def _resolve_conflict_keep_local(
         self,

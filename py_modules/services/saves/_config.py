@@ -20,6 +20,7 @@ if TYPE_CHECKING:
         ComputeSyncActionFn,
         CoreNameProviderFn,
         DebugLogger,
+        DiscCodeReader,
         EventEmitter,
         HostnameReader,
         LauncherPaths,
@@ -95,6 +96,10 @@ class SaveServiceConfig:
         server dedupes this device across reinstalls. ``None`` when the
         machine id is unreadable, which degrades registration to the
         no-fingerprint path.
+    disc_codes:
+        ``DiscCodeReader`` Protocol seam — reads the game identifier from an
+        installed disc image, for standalone emulators that file a game's save
+        under its disc code (Dolphin, PPSSPP, PCSX2).
     get_core_name:
         Callable returning the RetroArch canonical ``corename`` field
         from a core's ``.info`` file for a given ``core_so`` (e.g.
@@ -156,6 +161,7 @@ class SaveServiceConfig:
     settings: dict[str, Any]
     settings_persister: SettingsPersister
     save_file_store: SaveFileStore
+    disc_codes: DiscCodeReader
     loop: asyncio.AbstractEventLoop
     logger: logging.Logger
     clock: Clock

@@ -8,6 +8,7 @@ from typing import Any
 
 from _factories import _make_retry
 from fakes.fake_active_core_resolver import FakeActiveCoreResolver
+from fakes.fake_disc_code_reader import FakeDiscCodeReader
 from fakes.fake_hostname_reader import FakeHostnameReader
 from fakes.fake_machine_id_reader import FakeMachineIdReader
 from fakes.fake_plugin_metadata_reader import FakePluginMetadataReader
@@ -51,6 +52,7 @@ def make_service(tmp_path, fake_api=None, *, emit=None, **overrides) -> tuple["S
         "settings": {"log_level": "debug"},
         "settings_persister": FakeSettingsPersister(),
         "save_file_store": save_file_store,
+        "disc_codes": FakeDiscCodeReader(),
         "loop": asyncio.get_event_loop(),
         "logger": logging.getLogger("test"),
         "clock": FakeClock(now=datetime(2026, 1, 1, tzinfo=UTC)),
@@ -385,18 +387,31 @@ STANDALONE_COMMANDS = {
     "melonds": '"C:\\Emulation\\tools\\melonDS\\melonDS.exe"',
     "duckstation": '"C:\\Emulation\\tools\\duckstation\\duckstation-qt-x64-ReleaseLTCG.exe"',
     "vita3k": '--title-id-file "C:\\Users\\v\\AppData\\Roaming\\Vita3K\\Vita3K.exe" -F -r',
+    "dolphin": '"C:\\Users\\v\\AppData\\Roaming\\EmuDeck\\Emulators\\Dolphin-x64\\Dolphin.exe" -b -e',
+    "ppsspp": '"C:\\Users\\v\\AppData\\Roaming\\EmuDeck\\Emulators\\PPSSPP\\PPSSPPWindows64.exe"',
 }
 """Baked launch commands as EmuDeck for Windows writes them, per standalone emulator."""
 
 
-def make_standalone_service(tmp_path, emulator_id: str, *, rom_id: int = 42, system: str, file_name: str):
+def make_standalone_service(
+    tmp_path,
+    emulator_id: str,
+    *,
+    rom_id: int = 42,
+    system: str,
+    file_name: str,
+    disc=None,
+    command: str | None = None,
+):
     """A SaveService whose ROM *rom_id* launches with standalone *emulator_id* under EmuDeck for Windows.
 
     The fake launcher paths answer ``<tmp>/emu-saves/<emulator_id>`` as that
     emulator's save folder (created), the active-core seam answers the
     emulator's baked command for *rom_id*, sync is on, a device is
     registered and the ROM's ``autosave`` slot is confirmed (as the setup
-    wizard leaves it). Returns ``(svc, fake_api, standalone_saves_dir)``.
+    wizard leaves it). *disc* is the ``DiscCode`` the installed image
+    carries (for the disc-code emulators); *command* overrides the baked
+    command. Returns ``(svc, fake_api, standalone_saves_dir)``.
     """
     from domain.shortcut_data import EmulatorInvocation
 
@@ -405,9 +420,13 @@ def make_standalone_service(tmp_path, emulator_id: str, *, rom_id: int = 42, sys
     saves_dir.mkdir(parents=True)
     paths.standalone_saves[emulator_id] = str(saves_dir)
     active = FakeActiveCoreResolver(
-        per_rom_emulator={rom_id: EmulatorInvocation.standalone(STANDALONE_COMMANDS[emulator_id], emulator_id)}
+        per_rom_emulator={
+            rom_id: EmulatorInvocation.standalone(command or STANDALONE_COMMANDS[emulator_id], emulator_id)
+        }
     )
-    svc, fake = make_service(tmp_path, launcher_paths=paths, active_core=active)
+    svc, fake = make_service(
+        tmp_path, launcher_paths=paths, active_core=active, disc_codes=FakeDiscCodeReader(default=disc)
+    )
     _enable_sync_with_device(svc, "dev-1")
     _install_rom(svc, tmp_path, rom_id=rom_id, system=system, file_name=file_name)
     state = RomSaveSyncState()

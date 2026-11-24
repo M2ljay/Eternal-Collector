@@ -27,16 +27,20 @@ Games that launch with a RetroArch core sync their saves exactly as on the Steam
 instead, from the folders EmuDeck keeps under its saves folder (`C:\Emulation\saves\` by default — the plugin reads the
 real location from EmuDeck's settings):
 
-| Emulator    | Folder                                 | What syncs for a ROM named `<game>`           |
-| ----------- | -------------------------------------- | --------------------------------------------- |
-| melonDS     | `C:\Emulation\saves\melonds\saves`     | `<game>.sav`                                  |
-| DuckStation | `C:\Emulation\saves\duckstation\saves` | `<game>_1.mcd` and `<game>_2.mcd`             |
-| Vita3K      | `C:\Emulation\saves\Vita3K\saves`      | the `<TITLE_ID>` folder of the installed game |
+| Emulator    | Folder                                 | What syncs for a ROM named `<game>`                                                                              |
+| ----------- | -------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| melonDS     | `C:\Emulation\saves\melonds\saves`     | `<game>.sav`                                                                                                     |
+| DuckStation | `C:\Emulation\saves\duckstation\saves` | `<game>_1.mcd` and `<game>_2.mcd`                                                                                |
+| Vita3K      | `C:\Emulation\saves\Vita3K\saves`      | the `<TITLE_ID>` folder of the installed game                                                                    |
+| Dolphin     | `C:\Emulation\saves\dolphin`           | GameCube: the game's `.gci` files in `GC\<USA/EUR/JAP>\Card A` and `Card B`; Wii: `Wii\title\00010000\<id>\data` |
+| PPSSPP      | `C:\Emulation\saves\ppsspp\saves`      | every save-data folder starting with the game's ID (`ULUS10234…`)                                                |
+| PCSX2       | `C:\Emulation\saves\pcsx2\saves`       | the game's save folders (`BASLUS-20062…`) on the folder memory card in slot 1                                    |
 
 Which emulator counts is the one the game actually launches with — your per-game or per-platform choice, else EmuDeck's
 default. A PlayStation game you launch with a RetroArch core keeps syncing RetroArch's save. Each emulator's saves are
-stored on RomM under that emulator's name (`melonds`, `duckstation`, `vita3k`), so saves from different emulators never
-overwrite each other. Only files positively identified as the game's are read or written; save states are not synced.
+stored on RomM under that emulator's name (`melonds`, `duckstation`, `vita3k`, `dolphin`, `ppsspp`, `pcsx2`), so saves
+from different emulators never overwrite each other. Only files positively identified as the game's are read or
+written; save states are not synced.
 
 !!! note "DuckStation: the card must be named after your ROM"
 
@@ -53,6 +57,40 @@ overwrite each other. Only files positively identified as the game's are read or
     changes, so you never need to touch it. When a newer save comes down from RomM, your current folder is first moved
     to `.romm-backup\PCSE01274_<date>_<time>` in the same saves folder (the last 10 are kept), then replaced. This works
     for games installed by the plugin, whose launch file is `<TITLE_ID>.psvita`.
+
+!!! note "Dolphin, PPSSPP, PCSX2: the game is identified from its disc image"
+
+    These emulators file a save under the code printed in the game itself (`GALE01`, `ULUS10234`, `SLUS-20062`), so the
+    plugin reads that code from the installed image — only the few bytes that hold it, never the whole file. These
+    formats are read:
+
+    | System   | Formats                        |
+    | -------- | ------------------------------ |
+    | GameCube | `.rvz`, `.wia`, `.iso`, `.gcm` |
+    | Wii      | `.rvz`, `.wia`, `.iso`         |
+    | PSP      | `.iso`, `.cso`, `.chd`         |
+    | PS2      | `.iso`, `.chd` (DVD or CD)     |
+
+    A game in any other format (`.wbfs`, `.gcz`, `.ciso`, `.pbp`, `.zso`, `.cue`/`.bin`, …), or an image that cannot be
+    read exactly, does not sync its emulator saves. CHD images compressed with zstd cannot be read on Windows either
+    (`chdman`'s defaults do not use zstd). Several saves of one game — all its GameCube `.gci` files, all its PSP or PS2
+    save folders — travel together as one file (`GALE01.dolphin-gc.zip`, `ULUS10234.ppsspp.zip`,
+    `SLUS-20062.pcsx2.zip`, `SMOX.dolphin-wii.zip`) kept in the emulator's saves folder. Other games' saves, Dolphin's
+    `SRAM.raw` and `MemoryCard*.raw`, and PCSX2's own card files are never read or changed. When a newer save comes down,
+    this game's current saves are first moved to `.romm-backup` in that folder.
+
+!!! note "PCSX2: use a folder memory card in slot 1"
+
+    PCSX2 must use a **folder** memory card (Settings → Memory Cards → create a card of type *Folder*) in slot 1, in its
+    normal `memcards` folder. The plugin reads PCSX2's `inis\PCSX2.ini` to find which card is in slot 1; if slot 1 holds
+    a regular file card such as `Mcd001.ps2` (EmuDeck's default), is disabled, or the ini cannot be read, PS2 saves do
+    not sync. Per-game memory-card overrides are not followed.
+
+!!! note "Dolphin GameCube: GCI folders"
+
+    Dolphin must store GameCube saves in GCI folders (memory card slot set to *GCI Folder*). The region folder is chosen
+    from the disc's ID as Dolphin does; a few special releases whose region Dolphin works out differently are not
+    identified and do not sync. Saves in a raw memory card file (`MemoryCardA.USA.raw`) are not synced.
 
 Removing a game from your library does not touch these standalone save folders.
 

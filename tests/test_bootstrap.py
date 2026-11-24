@@ -315,6 +315,7 @@ class TestWireServices:
                 migration_file_store=deps["migration_file_store"],
                 rom_file_store=deps["rom_file_store"],
                 save_file_store=deps["save_file_store"],
+                disc_codes=MagicMock(),
                 path_probe=deps["path_probe"],
                 renderer_rss=deps["renderer_rss"],
                 renderer_gc=deps["renderer_gc"],
