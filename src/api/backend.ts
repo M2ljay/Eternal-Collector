@@ -54,6 +54,13 @@ import type {
   AdoptResult,
   VerifyContentResult,
   XemuAlignmentResult,
+  GameModsAnswer,
+  ModSourcesAnswer,
+  ModPreviewAnswer,
+  ModInstallAnswer,
+  ModRemoveAnswer,
+  ModSettingAnswer,
+  ModOpenAnswer,
 } from "../types";
 
 export interface BackendResult {
@@ -718,6 +725,20 @@ export interface SelectExecutableResult {
 // (follow the default — the first enumerated `.exe`).
 export const getWindowsExecutables = callable<[number], WindowsExecutablesAnswer>("get_windows_executables");
 export const selectExecutable = callable<[number, string | null], SelectExecutableResult>("select_executable");
+
+/**
+ * The Mods panel (EmuDeck on Windows). Every call re-resolves the game's
+ * emulator and mod folders on the backend; the frontend names a target by id, a
+ * source by its Downloads entry name, and an installed entry by the name the
+ * backend listed. `installMod` must echo the preview's `fingerprint`.
+ */
+export const getGameMods = callable<[number], GameModsAnswer>("get_game_mods");
+export const listModSources = callable<[number, string], ModSourcesAnswer>("list_mod_sources");
+export const previewModInstall = callable<[number, string, string], ModPreviewAnswer>("preview_mod_install");
+export const installMod = callable<[number, string, string, string], ModInstallAnswer>("install_mod");
+export const removeMod = callable<[number, string, string | null], ModRemoveAnswer>("remove_mod");
+export const enableModSetting = callable<[number, string], ModSettingAnswer>("enable_mod_setting");
+export const openModFolder = callable<[number, string], ModOpenAnswer>("open_mod_folder");
 
 /**
  * One version (RomM sibling) of a game in the version picker (#1297, ADR-0021).

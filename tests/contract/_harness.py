@@ -82,6 +82,7 @@ _BOUND_SERVICE_ATTRS = {
     "_settings_service": "settings_service",
     "_core_service": "core_service",
     "_disc_service": "disc_service",
+    "_game_mods_service": "game_mods_service",
     "_version_switch_service": "version_switch_service",
     "_prune_service": "prune_service",
     "_connection_service": "connection_service",

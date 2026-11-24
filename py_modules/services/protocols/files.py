@@ -28,6 +28,7 @@ if TYPE_CHECKING:
     )
 
     from domain.disc_ids import DiscCode
+    from domain.game_mods import InstallOutcome, ModEntryInfo, PlannedWrite, SourceEntry
     from domain.prune import BundleReadmeContext
     from domain.save_bundles import BundleLayout
 
@@ -757,6 +758,82 @@ class DiscCodeReader(Protocol):
 
     def read_disc_code(self, path: str, family: str) -> DiscCode | None:
         """The identifier of the image at *path* read as a *family* disc, or ``None`` when it cannot be read exactly."""
+        ...
+
+
+class GameModStore(Protocol):
+    """Filesystem seam for game mod folders, the Downloads folder mods are installed from, and their backups.
+
+    Every path a write or move touches is confined below the folder it is
+    handed (``lib.path_safety.safe_join``); a name a caller supplies is never
+    taken as a path on its own. Nothing here deletes: replaced and removed
+    entries are moved to the backup path given.
+    """
+
+    def downloads_folder(self) -> str:
+        """The folder mod sources are picked from (``%USERPROFILE%\\Downloads``)."""
+        ...
+
+    def is_file(self, path: str) -> bool: ...
+
+    def is_dir(self, path: str) -> bool: ...
+
+    def load_text(self, path: str) -> str | None:
+        """A small UTF-8 text file's content (BOM dropped), or ``None`` when missing, too large or not UTF-8."""
+        ...
+
+    def list_folder(self, folder: str, limit: int) -> tuple[list[ModEntryInfo], bool]:
+        """The top-level entries of *folder* with folder totals, and whether more than *limit* were left out."""
+        ...
+
+    def stat_names(self, folder: str, names: tuple[str, ...]) -> list[ModEntryInfo]:
+        """The entries of *folder* among *names* that exist, without listing the folder."""
+        ...
+
+    def list_sources(self, folder: str, limit: int) -> tuple[list[ModEntryInfo], bool]:
+        """*folder*'s top-level entries, newest first, sizes for files only; and whether any were left out."""
+        ...
+
+    def source_path(self, name: str) -> str | None:
+        """The Downloads entry *name* (one plain component that exists there), or ``None``."""
+        ...
+
+    def source_stamp(self, path: str) -> str | None:
+        """A stamp that changes when the file or folder at *path* changes, or ``None`` when it is gone."""
+        ...
+
+    def read_source_entries(self, path: str) -> list[SourceEntry]:
+        """The entries a zip, folder or single file would install, unvalidated. Raises ``OSError`` / ``ValueError``."""
+        ...
+
+    def probe_kinds(self, root: str, rel_paths: tuple[str, ...]) -> dict[str, str]:
+        """``"file"`` / ``"dir"`` / ``"other"`` / ``"missing"`` for each ``/``-relative path below *root*."""
+        ...
+
+    def install(
+        self, source: str, root: str, writes: tuple[PlannedWrite, ...], replaces: frozenset[str], backup: str
+    ) -> InstallOutcome:
+        """Move each of *replaces* to *backup*, then write every planned file below *root*.
+
+        Stops at the first failure and reports how far it got; never writes
+        over a file that is not in *replaces*.
+        """
+        ...
+
+    def move_to_backup(self, root: str, name: str, backup: str) -> None:
+        """Move the entry *name* of *root* (or *root* itself when *name* is empty) to the new path *backup*."""
+        ...
+
+    def replace_text(self, path: str, expected: str, new_text: str, backup: str) -> bool:
+        """Copy *path* to *backup*, then rewrite it as *new_text* — only while its content is still *expected*."""
+        ...
+
+    def open_folder(self, path: str) -> bool:
+        """Open the existing folder *path* in the system file manager; ``False`` when that cannot be done."""
+        ...
+
+    def running_executable_names(self) -> frozenset[str] | None:
+        """Lower-cased executable names of every running process, or ``None`` when they cannot be read."""
         ...
 
 

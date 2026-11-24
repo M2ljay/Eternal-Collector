@@ -17,7 +17,7 @@ from fakes.disc_images import (
 )
 
 from adapters.disc_code_reader import DiscCodeReaderAdapter
-from domain.disc_ids import GAMECUBE, NINTENDO_OPTICAL, PS2, PSP, WII, DiscCode
+from domain.disc_ids import GAMECUBE, N3DS, NINTENDO_OPTICAL, PS2, PSP, WII, DiscCode
 
 _PS2_ISO = build_iso({"SYSTEM.CNF": b"BOOT2 = cdrom0:\\SLUS_200.62;1\r\nVER = 1.00\r\n"}, pad_sectors=8)
 _PSP_ISO = build_iso(
@@ -162,3 +162,36 @@ def test_wia_disc_size_bounds(tmp_path):
     struct.pack_into(">I", blob, 12, 0x10)
     reader = DiscCodeReaderAdapter(logger=logging.getLogger("test"))
     assert reader.read_disc_code(_write(tmp_path, "g.rvz", bytes(blob)), NINTENDO_OPTICAL) is None
+
+
+def _ncch(program_id: int) -> bytes:
+    header = bytearray(0x200)
+    header[0x100:0x104] = b"NCCH"
+    struct.pack_into("<Q", header, 0x118, program_id)
+    return bytes(header)
+
+
+class TestNintendo3ds:
+    def test_cartridge_image_reads_partition0_program_id(self, reader, tmp_path):
+        ncsd = bytearray(0x4000)
+        ncsd[0x100:0x104] = b"NCSD"
+        struct.pack_into("<II", ncsd, 0x120, 0x20, 0x10)
+        path = _write(tmp_path, "Game.3ds", bytes(ncsd) + _ncch(0x0004000000055D00) + bytes(0x200))
+        assert reader.read_disc_code(path, N3DS) == DiscCode(N3DS, "0004000000055D00")
+
+    def test_cxi(self, reader, tmp_path):
+        path = _write(tmp_path, "Game.cxi", _ncch(0x000400000F700E00))
+        assert reader.read_disc_code(path, N3DS) == DiscCode(N3DS, "000400000F700E00")
+
+    def test_cia_reads_tmd_title_id(self, reader, tmp_path):
+        header = struct.pack("<IHHIII", 0x2020, 0, 0, 0xA00, 0x350, 0x208) + bytes(0x2020 - 0x14)
+        tmd = bytearray(0x300)
+        struct.pack_into(">I", tmd, 0, 0x010004)
+        struct.pack_into(">Q", tmd, 0x140 + 0x4C, 0x0004000000030800)
+        blob = header + bytes(0x2040 - 0x2020) + bytes(0xA00) + bytes(0x380) + bytes(tmd)
+        path = _write(tmp_path, "Game.cia", blob)
+        assert reader.read_disc_code(path, N3DS) == DiscCode(N3DS, "0004000000030800")
+
+    @pytest.mark.parametrize("name", ["Game.3dsx", "Game.3ds", "Game.cia"])
+    def test_unrecognised_answers_none(self, reader, tmp_path, name):
+        assert reader.read_disc_code(_write(tmp_path, name, bytes(0x400)), N3DS) is None

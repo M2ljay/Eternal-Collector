@@ -19,6 +19,7 @@ import { FaGamepad, FaCog, FaMicrochip, FaExclamationTriangle } from "react-icon
 import { CustomPlayButton } from "./CustomPlayButton";
 import { DiscSelector } from "./DiscSelector";
 import { ExeSelector } from "./ExeSelector";
+import { ModsButton } from "./ModsButton";
 import { VersionPicker } from "./VersionPicker";
 import { WarningCard } from "./WarningCard";
 import { SgdbGamePickerModalContent } from "./SgdbGamePickerModal";
@@ -1062,6 +1063,12 @@ export const RomMPlaySection: FC<RomMPlaySectionProps> = ({ appId }) => { // NOS
               <FaMicrochip size={22} />
             </NativeMenuButton>
           ) : null}
+          <ModsButton
+            romId={detail.romId}
+            romName={detail.romName}
+            installed={detail.installed}
+            onFocus={scrollToTop}
+          />
           <NativeMenuButton onClick={showSteamMenu} onFocus={scrollToTop} title="Steam Properties">
             <FaCog size={22} />
           </NativeMenuButton>

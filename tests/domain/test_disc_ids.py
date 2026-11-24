@@ -8,18 +8,23 @@ from fakes.disc_images import build_iso, gamecube_header, param_sfo
 from domain.disc_ids import (
     GAMECUBE,
     ISO_SECTOR_SIZE,
+    N3DS_HEADER_SIZE,
     PRIMARY_VOLUME_DESCRIPTOR_LBA,
     WII,
     DiscCode,
+    cia_tmd_offset,
     find_directory_entry,
     gamecube_region_folder,
     gci_game_code,
+    ncch_program_id,
+    ncsd_partition0_offset,
     normalize_psp_game_id,
     parse_nintendo_disc_header,
     parse_param_sfo_disc_id,
     parse_primary_volume_descriptor,
     parse_system_cnf_serial,
     parse_umd_data,
+    tmd_title_id,
     wii_title_folder,
 )
 
@@ -183,3 +188,56 @@ class TestSystemCnf:
     )
     def test_no_ps2_serial(self, text):
         assert parse_system_cnf_serial(text) is None
+
+
+# -- Nintendo 3DS ----------------------------------------------------------------
+
+
+def _ncch(program_id: int) -> bytes:
+    header = bytearray(N3DS_HEADER_SIZE)
+    header[0x100:0x104] = b"NCCH"
+    struct.pack_into("<Q", header, 0x118, program_id)
+    return bytes(header)
+
+
+class TestNintendo3ds:
+    def test_ncch_program_id(self):
+        assert ncch_program_id(_ncch(0x0004000000055D00)) == "0004000000055D00"
+
+    def test_ncch_rejects_bad_magic_short_and_zero(self):
+        assert ncch_program_id(b"\0" * N3DS_HEADER_SIZE) is None
+        assert ncch_program_id(_ncch(1)[:0x100]) is None
+        assert ncch_program_id(_ncch(0)) is None
+
+    def test_ncsd_partition0(self):
+        header = bytearray(N3DS_HEADER_SIZE)
+        header[0x100:0x104] = b"NCSD"
+        struct.pack_into("<II", header, 0x120, 0x20, 0x1000)
+        assert ncsd_partition0_offset(bytes(header)) == 0x4000
+
+    def test_ncsd_rejects(self):
+        header = bytearray(N3DS_HEADER_SIZE)
+        assert ncsd_partition0_offset(bytes(header)) is None
+        header[0x100:0x104] = b"NCSD"
+        assert ncsd_partition0_offset(bytes(header)) is None
+
+    def test_cia_tmd_offset_aligns_each_section(self):
+        header = struct.pack("<IHHIII", 0x2020, 0, 0, 0xA00, 0x350, 0xB34) + b"\0" * 12
+        assert cia_tmd_offset(header) == 0x2040 + 0xA00 + 0x380
+
+    def test_cia_rejects_other_headers(self):
+        assert cia_tmd_offset(struct.pack("<IHHIII", 0x2000, 0, 0, 1, 1, 1)) is None
+        assert cia_tmd_offset(struct.pack("<IHHIII", 0x2020, 0, 0, 1, 1, 0)) is None
+        assert cia_tmd_offset(b"short") is None
+
+    @pytest.mark.parametrize(("sig_type", "skip"), [(0x010004, 0x140), (0x010003, 0x240), (0x010005, 0x80)])
+    def test_tmd_title_id(self, sig_type, skip):
+        tmd = bytearray(skip + 0x100)
+        struct.pack_into(">I", tmd, 0, sig_type)
+        struct.pack_into(">Q", tmd, skip + 0x4C, 0x000400000F700E00)
+        assert tmd_title_id(bytes(tmd)) == "000400000F700E00"
+
+    def test_tmd_rejects_unknown_signature_and_short(self):
+        assert tmd_title_id(struct.pack(">I", 0xDEAD) + b"\0" * 0x300) is None
+        assert tmd_title_id(struct.pack(">I", 0x010004) + b"\0" * 0x20) is None
+        assert tmd_title_id(b"") is None

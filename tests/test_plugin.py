@@ -863,6 +863,13 @@ _MIGRATION_BLOCKED_WHITELIST: set[str] = {
     "get_disc_selection",
     # Read-only exe-picker state query (the pin-write select_executable IS decorated).
     "get_windows_executables",
+    # Mods panel reads: target listing, Downloads listing, an install preview
+    # that writes nothing, and opening a folder in the file manager. The three
+    # writes (install_mod, remove_mod, enable_mod_setting) ARE decorated.
+    "get_game_mods",
+    "list_mod_sources",
+    "preview_mod_install",
+    "open_mod_folder",
     # Read-only version-picker state query (the binding-move switch_version IS decorated).
     "get_version_list",
     "get_platforms",
@@ -1108,6 +1115,7 @@ class TestMainStartupOrdering:
             "core_service": MagicMock(),
             "disc_service": MagicMock(),
             "windows_game_service": MagicMock(),
+            "game_mods_service": MagicMock(),
             "version_switch_service": MagicMock(),
             "prune_service": MagicMock(shutdown=AsyncMock()),
             "connection_service": connection_service,

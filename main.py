@@ -183,6 +183,7 @@ class Plugin:
         self._core_service = services["core_service"]
         self._disc_service = services["disc_service"]
         self._windows_game_service = services["windows_game_service"]
+        self._game_mods_service = services["game_mods_service"]
         self._version_switch_service = services["version_switch_service"]
         self._prune_service = services["prune_service"]
         self._connection_service = services["connection_service"]
@@ -402,6 +403,35 @@ class Plugin:
         if result.get("success") and result.get("launch_options") is not None:
             result["prune_lease_token"] = await acquire_prune_conflict_lease(self, "executable_selection")
         return result
+
+    # ── Mods panel delegation to GameModsService ──────────────
+
+    async def get_game_mods(self, rom_id):
+        return await self._game_mods_service.get_game_mods(rom_id)
+
+    async def list_mod_sources(self, rom_id, target_id):
+        return await self._game_mods_service.list_mod_sources(rom_id, target_id)
+
+    async def preview_mod_install(self, rom_id, target_id, source_name):
+        return await self._game_mods_service.preview_mod_install(rom_id, target_id, source_name)
+
+    @migration_blocked
+    @prune_active_blocked
+    async def install_mod(self, rom_id, target_id, source_name, fingerprint):
+        return await self._game_mods_service.install_mod(rom_id, target_id, source_name, fingerprint)
+
+    @migration_blocked
+    @prune_active_blocked
+    async def remove_mod(self, rom_id, target_id, name):
+        return await self._game_mods_service.remove_mod(rom_id, target_id, name)
+
+    @migration_blocked
+    @prune_active_blocked
+    async def enable_mod_setting(self, rom_id, target_id):
+        return await self._game_mods_service.enable_mod_setting(rom_id, target_id)
+
+    async def open_mod_folder(self, rom_id, target_id):
+        return await self._game_mods_service.open_mod_folder(rom_id, target_id)
 
     # ── Version picker delegation to VersionSwitchService ──────────────
 

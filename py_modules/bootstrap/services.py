@@ -27,6 +27,7 @@ from services.disc_launch_resolver import DiscLaunchResolver, DiscLaunchResolver
 from services.downloads import DownloadService, DownloadServiceConfig
 from services.firmware import FirmwareService, FirmwareServiceConfig
 from services.game_detail import GameDetailService, GameDetailServiceConfig
+from services.game_mods import GameModsService, GameModsServiceConfig
 from services.game_process import GameProcessService, GameProcessServiceConfig
 from services.launch_gate import LaunchGateService, LaunchGateServiceConfig
 from services.launcher_backend import LauncherBackendRegistry, LauncherBackendService, LauncherBackendServiceConfig
@@ -533,6 +534,22 @@ def wire_services(cfg: WiringConfig) -> dict[str, Any]:
         ),
     )
 
+    game_mods_service = GameModsService(
+        config=GameModsServiceConfig(
+            loop=cfg.runtime.loop,
+            logger=cfg.runtime.logger,
+            log_debug=cfg.callbacks.log_debug,
+            clock=cfg.runtime.clock,
+            uuid_gen=cfg.runtime.uuid_gen,
+            uow_factory=cfg.callbacks.uow_factory,
+            active_core=active_core_resolver,
+            launch_renderer=launcher_backend_service,
+            active_backend_id=launcher_backend_service.active_backend_id,
+            disc_codes=cfg.adapters.disc_codes,
+            mod_store=cfg.adapters.game_mods,
+        ),
+    )
+
     connection_service = ConnectionService(
         config=ConnectionServiceConfig(
             settings=cfg.stores.settings,
@@ -661,6 +678,7 @@ def wire_services(cfg: WiringConfig) -> dict[str, Any]:
         "core_service": core_service,
         "disc_service": disc_service,
         "windows_game_service": windows_game_service,
+        "game_mods_service": game_mods_service,
         "version_switch_service": version_switch_service,
         "connection_service": connection_service,
         "startup_healing_service": startup_healing_service,

@@ -1,8 +1,9 @@
-"""Exact game identifiers read from disc images, and the save folders they name.
+"""Exact game identifiers read from disc and cartridge images, and the save folders they name.
 
 A standalone emulator files a disc game's save under an identifier the disc
 itself carries — Dolphin under the GameCube/Wii disc ID, PPSSPP under the PSP
-game ID, PCSX2 under the PS2 boot serial. This module owns reading those
+game ID, PCSX2 under the PS2 boot serial; Citra/Azahar key a 3DS game's mods
+by its title ID. This module owns reading those
 identifiers out of the bytes a disc image yields (the GameCube/Wii disc
 header, ISO 9660 directory structures, ``UMD_DATA.BIN``, ``PARAM.SFO``,
 ``SYSTEM.CNF``) and the emulator-side naming rules that follow from them.
@@ -23,6 +24,8 @@ GAMECUBE = "gc"
 WII = "wii"
 PSP = "psp"
 PS2 = "ps2"
+N3DS = "3ds"
+"""The Nintendo 3DS family: a cartridge or package image whose identifier is its 16-hex-digit title ID."""
 NINTENDO_OPTICAL = "gc-wii"
 """The disc family a GameCube-or-Wii emulator asks for: the image decides which of the two it is."""
 
@@ -47,7 +50,8 @@ class DiscCode:
     """The identifier a disc image carries, and which console's disc it is.
 
     ``code`` is the GameCube/Wii ID6 (``GALE01``), the PSP game ID without its
-    dash (``ULUS10234``), or the PS2 serial with its dash (``SLUS-20062``).
+    dash (``ULUS10234``), the PS2 serial with its dash (``SLUS-20062``), or a
+    3DS title ID as sixteen upper-case hex digits (``0004000000055D00``).
     """
 
     platform: str
@@ -242,3 +246,89 @@ def parse_system_cnf_serial(data: bytes) -> str | None:
             prefix, head, tail = match.groups()
             return f"{prefix.upper()}-{head}{tail}"
     return None
+
+
+# -- Nintendo 3DS ---------------------------------------------------------------
+#
+# Layouts per 3dbrew (NCSD, NCCH, CIA, Title metadata). The NCSD and NCCH
+# headers are never encrypted, even on an encrypted dump; a CIA's TMD is not
+# encrypted either. Citra/Azahar key a game's mods and textures by the NCCH
+# program ID, rendered ``{:016X}`` (the ``load/mods/{:016X}/`` template the
+# vendored atlas cites from the shipped binary).
+
+N3DS_HEADER_SIZE = 0x200
+"""Bytes of an NCSD/NCCH header (and enough of a CIA's archive header) the parsers below need."""
+N3DS_MEDIA_UNIT = 0x200
+CIA_TMD_READ_SIZE = 0x300
+"""Bytes of a CIA's TMD that hold every signature form's header up to the title ID."""
+
+_NCSD_MAGIC_OFFSET = 0x100
+_NCSD_PARTITION0_OFFSET = 0x120
+_NCCH_PROGRAM_ID_OFFSET = 0x118
+_CIA_HEADER_SIZE = 0x2020
+_CIA_ALIGN = 64
+# Signature type → (signature size, padding) for a TMD's signature block.
+_TMD_SIGNATURES = {
+    0x010000: (0x200, 0x3C),
+    0x010001: (0x100, 0x3C),
+    0x010002: (0x3C, 0x40),
+    0x010003: (0x200, 0x3C),
+    0x010004: (0x100, 0x3C),
+    0x010005: (0x3C, 0x40),
+}
+_TMD_TITLE_ID_OFFSET = 0x4C
+
+
+def _title_id_text(value: int) -> str | None:
+    return f"{value:016X}" if value else None
+
+
+def ncsd_partition0_offset(header: bytes) -> int | None:
+    """The byte offset of the first NCCH partition of an NCSD (``.3ds`` / ``.cci``) image, or ``None``."""
+    if len(header) < N3DS_HEADER_SIZE or header[_NCSD_MAGIC_OFFSET : _NCSD_MAGIC_OFFSET + 4] != b"NCSD":
+        return None
+    offset, size = struct.unpack_from("<II", header, _NCSD_PARTITION0_OFFSET)
+    if offset == 0 or size == 0:
+        return None
+    return offset * N3DS_MEDIA_UNIT
+
+
+def ncch_program_id(header: bytes) -> str | None:
+    """The program ID of an NCCH header (``.cxi`` / ``.app``, or an NCSD's partition), or ``None``."""
+    if len(header) < N3DS_HEADER_SIZE or header[0x100:0x104] != b"NCCH":
+        return None
+    (program_id,) = struct.unpack_from("<Q", header, _NCCH_PROGRAM_ID_OFFSET)
+    return _title_id_text(program_id)
+
+
+def cia_tmd_offset(header: bytes) -> int | None:
+    """Where a CIA's title metadata starts, from its archive header, or ``None``.
+
+    The certificate chain, ticket and TMD follow the header, each aligned to
+    64 bytes. Only the standard ``0x2020``-byte header is accepted.
+    """
+    if len(header) < 0x20:
+        return None
+    header_size, _type, _version, cert_size, ticket_size, tmd_size = struct.unpack_from("<IHHIII", header, 0)
+    if header_size != _CIA_HEADER_SIZE or tmd_size == 0:
+        return None
+    return _align(header_size) + _align(cert_size) + _align(ticket_size)
+
+
+def _align(size: int) -> int:
+    return (size + _CIA_ALIGN - 1) // _CIA_ALIGN * _CIA_ALIGN
+
+
+def tmd_title_id(tmd: bytes) -> str | None:
+    """The title ID of a TMD (its signature block, then the header's title ID), or ``None``."""
+    if len(tmd) < 4:
+        return None
+    (sig_type,) = struct.unpack_from(">I", tmd, 0)
+    signature = _TMD_SIGNATURES.get(sig_type)
+    if signature is None:
+        return None
+    start = 4 + signature[0] + signature[1] + _TMD_TITLE_ID_OFFSET
+    if len(tmd) < start + 8:
+        return None
+    (title_id,) = struct.unpack_from(">Q", tmd, start)
+    return _title_id_text(title_id)

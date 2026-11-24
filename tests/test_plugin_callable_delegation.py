@@ -956,3 +956,53 @@ class TestUnloadHook:
         plugin._migration_service.shutdown.assert_awaited_once_with()
         plugin._session_lifecycle_service.shutdown.assert_awaited_once_with()
         plugin._prune_service.shutdown.assert_awaited_once_with()
+
+
+class TestGameModsCallableDelegation:
+    @pytest.fixture
+    def mods_plugin(self, plugin):
+        plugin._game_mods_service = MagicMock()
+        return plugin
+
+    @pytest.mark.parametrize(
+        ("method", "args"),
+        [
+            ("get_game_mods", (7,)),
+            ("list_mod_sources", (7, "textures")),
+            ("preview_mod_install", (7, "textures", "pack.zip")),
+            ("install_mod", (7, "textures", "pack.zip", "fp")),
+            ("remove_mod", (7, "textures", None)),
+            ("enable_mod_setting", (7, "textures")),
+            ("open_mod_folder", (7, "textures")),
+        ],
+    )
+    @pytest.mark.asyncio
+    async def test_delegates_and_returns_the_service_answer(self, mods_plugin, method, args):
+        answer = {"success": True, "method": method}
+        setattr(mods_plugin._game_mods_service, method, AsyncMock(return_value=answer))
+        result = await getattr(mods_plugin, method)(*args)
+        getattr(mods_plugin._game_mods_service, method).assert_awaited_once_with(*args)
+        assert result is answer
+
+    @pytest.mark.parametrize("method", ["install_mod", "remove_mod", "enable_mod_setting"])
+    def test_writes_carry_migration_and_prune_guards(self, method):
+        from main import Plugin
+
+        assert getattr(getattr(Plugin, method), "_migration_blocked", False) is True
+        assert getattr(getattr(Plugin, method), "_prune_active_blocked", False) is True
+
+    @pytest.mark.parametrize("method", ["get_game_mods", "list_mod_sources", "preview_mod_install", "open_mod_folder"])
+    def test_reads_carry_no_guards(self, method):
+        from main import Plugin
+
+        assert getattr(getattr(Plugin, method), "_migration_blocked", False) is False
+        assert getattr(getattr(Plugin, method), "_prune_active_blocked", False) is False
+
+    @pytest.mark.asyncio
+    async def test_install_refused_while_a_prune_runs(self, mods_plugin):
+        mods_plugin._prune_service.is_active.return_value = True
+        mods_plugin._game_mods_service.install_mod = AsyncMock()
+        result = await mods_plugin.install_mod(7, "textures", "pack.zip", "fp")
+        assert result["success"] is False
+        assert result["reason"] == "prune_active"
+        mods_plugin._game_mods_service.install_mod.assert_not_awaited()

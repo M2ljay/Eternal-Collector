@@ -94,6 +94,72 @@ written; save states are not synced.
 
 Removing a game from your library does not touch these standalone save folders.
 
+## Mods
+
+An installed game's page has a **Mods** button (the puzzle piece, next to the RomM and Steam menus). It opens a panel
+for that game that shows where its mods go for the emulator it launches with, what is already there, and lets you
+install from your Downloads folder, remove, open the folder in Explorer, and turn on the emulator's texture setting.
+
+Every folder is worked out from your machine — the emulator the game actually launches with, that emulator's portable
+folder, its own settings file, and the ID read from the game file itself. When any of that can't be read exactly, the
+panel says **No known mod folder for this emulator** and why, rather than guessing a folder.
+
+| Emulator                       | What the panel offers                                                                                                                                    | Setting it checks                                          |
+| ------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------- |
+| Dolphin (GameCube, Wii)        | Texture pack in `User\Load\Textures\<ID6>`; graphics mods in `User\Load\GraphicMods` (shared); Wii only: Riivolution in `User\Load\Riivolution` (shared) | `[Settings] HiresTextures` in `User\Config\GFX.ini`        |
+| PPSSPP (PSP)                   | Texture pack in `memstick\PSP\TEXTURES\<GAME ID>`                                                                                                        | `[Graphics] ReplaceTextures` in `PSP\SYSTEM\ppsspp.ini`    |
+| PCSX2 (PS2)                    | Texture replacements in `textures\<SERIAL>\replacements`                                                                                                 | `[EmuCore/GS] LoadTextureReplacements` in `inis\PCSX2.ini` |
+| Azahar / Citra / Lime3DS (3DS) | Mods (`romfs` / `exefs`) in `user\load\mods\<TITLE ID>`; custom textures in `user\load\textures\<TITLE ID>`                                              | —                                                          |
+| RetroArch (cartridge games)    | A soft patch beside the ROM: `<ROM name>.ips`, `.bps` or `.ups`                                                                                          | —                                                          |
+
+- **Which emulator folder.** Only portable installs are read, which is how EmuDeck installs them: Dolphin with
+  `portable.txt` beside `Dolphin.exe`; PPSSPP with its `memstick` folder and no `installed.txt`; PCSX2 with
+  `portable.ini` (or an empty `portable.txt`); Azahar/Citra with a `user` folder beside the exe. Dolphin's custom *Load*
+  path and PCSX2's custom *Textures* folder are followed.
+- **Game IDs.** GameCube/Wii, PSP and PS2 IDs come from the disc image (the same reader save sync uses: ISO, GCM, RVZ,
+  WIA, CSO, CHD). 3DS title IDs come from `.3ds`, `.cci`, `.cxi`, `.app` and `.cia` files; `.3dsx` homebrew has none,
+  so it gets no mod folder.
+- **Not offered.** PCSX2 patches and cheats (`.pnach`) are named by the game's executable CRC, which the plugin does not
+  read. Dolphin's *Enable Graphics Mods* and Azahar's *Use Custom Textures* settings are not checked. Other emulators
+  (Cemu, xemu, RPCS3, …) show no folder.
+- **Soft patches.** RetroArch applies the patch in memory each launch; the ROM file is never changed. It only works for
+  a single cartridge file loaded into memory, so zipped ROMs, disc images and cores that read the game from disk
+  (their core info says `needs_fullpath`) get no soft-patch option. Which patch formats EmuDeck's RetroArch build tries
+  is unverified.
+
+### Installing
+
+**Install from Downloads** lists the top of `%USERPROFILE%\Downloads`, newest first: `.zip` archives and folders (or,
+for a soft patch, `.ips` / `.bps` / `.ups` files and `.zip` files holding exactly one). `.7z` and `.rar` are listed but
+must be extracted first — the plugin only reads `.zip`. A relocated Downloads folder is not followed.
+
+Before anything is written you see a preview: how many files, how big, where they go, and which existing files would be
+replaced. Every name in the archive is checked first; an archive with an entry that would land outside the folder (an
+absolute path, a drive letter, `..`, a link) is refused as a whole. If the archive's single top folder is the game's ID
+folder (`GALE01\...`), its contents go straight into the game folder instead of a second `GALE01` inside it. PCSX2
+packs without a `replacements` folder are put in one.
+
+Files that would be overwritten are moved to a backup folder first. If the file, the archive or the mod folder changes
+between the preview and **Install**, the install is refused and you are shown the new preview.
+
+### Removing
+
+**Remove** (one entry) and **Remove All** (the game's whole folder) ask first, naming exactly what moves. Nothing is
+deleted: it is moved to the backup folder, whose location the result message shows.
+
+### Backups
+
+Backups go to `romm-mod-backups\<date-time>\` inside the emulator's own folder — Dolphin's `User`, PPSSPP's `memstick`,
+the PCSX2 folder, Azahar's `user`, or the RetroArch folder for soft patches. Delete them yourself when you no longer
+need them.
+
+### Turning texture packs on
+
+When the setting above is off, the panel says *Texture packs are off in &lt;emulator&gt;* with a **Turn On** button.
+Close the emulator first: the plugin refuses while it is running. It copies the ini to the backup folder, then changes
+that one line. If the ini has anything unusual in it (a section or key twice, a line it doesn't understand) the button
+is not offered — change the setting in the emulator instead.
+
 ## Building the launcher
 
 The launcher's source is in `native/rom-launcher-win/`. `native/rom-launcher-win/build.sh` runs its tests on the build

@@ -97,7 +97,12 @@ class _Win32:
         )
         self.LocalFree = sig(k.LocalFree, ctypes.c_void_p, ctypes.c_void_p)
         self.NtQueryInformationProcess = sig(
-            n.NtQueryInformationProcess, ctypes.c_ulong, h, ctypes.c_int, ctypes.c_void_p, ctypes.c_ulong,
+            n.NtQueryInformationProcess,
+            ctypes.c_ulong,
+            h,
+            ctypes.c_int,
+            ctypes.c_void_p,
+            ctypes.c_ulong,
             ctypes.POINTER(ctypes.c_ulong),
         )
         self.CommandLineToArgvW = sig(
@@ -190,6 +195,14 @@ class WindowsGameProcessAdapter:
         finally:
             self._w.CloseHandle(handle)
 
+    def running_executable_names(self) -> frozenset[str] | None:
+        """Lower-cased executable names of every running process, or ``None`` when the table cannot be read."""
+        try:
+            table = self._process_table()
+        except (OSError, AttributeError):
+            return None
+        return frozenset(name.lower() for _parent, name in table.values()) if table else None
+
     # ── process table ─────────────────────────────────────────────────────
 
     def _process_table(self) -> dict[int, tuple[int, str]]:
@@ -260,7 +273,9 @@ class WindowsGameProcessAdapter:
             return []
         try:
             needed = ctypes.c_ulong(0)
-            status = w.NtQueryInformationProcess(handle, _PROCESS_COMMAND_LINE_INFORMATION, None, 0, ctypes.byref(needed))
+            status = w.NtQueryInformationProcess(
+                handle, _PROCESS_COMMAND_LINE_INFORMATION, None, 0, ctypes.byref(needed)
+            )
             if status != _STATUS_INFO_LENGTH_MISMATCH or not needed.value:
                 return []
             buf = ctypes.create_string_buffer(needed.value)

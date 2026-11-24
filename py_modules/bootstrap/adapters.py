@@ -83,6 +83,7 @@ if TYPE_CHECKING:
         DownloadFileStore,
         EventEmitter,
         FirmwareFileStore,
+        GameModStore,
         GameProcessControl,
         HostnameReader,
         LauncherBackendFactory,
@@ -152,6 +153,7 @@ class AdapterBundle:
     retrodeck_launcher_backend_factory: LauncherBackendFactory
     emudeck_launcher_backend_factory: LauncherBackendFactory
     vita_app_linker: VitaAppLinker | None = None
+    game_mods: GameModStore | None = None
 
 
 @dataclass(frozen=True)
@@ -396,11 +398,18 @@ def bootstrap(
     path_probe = PathProbeAdapter()
     renderer_rss = RendererRssAdapter()
     renderer_gc = RendererGcAdapter(logger=logger)
+    game_mods: GameModStore | None = None
     if sys.platform == "win32":
         # Windows: games run under bin\rom-launcher.exe; stop = WM_CLOSE, then TerminateProcess.
+        from adapters.game_mod_files import GameModFilesAdapter
         from adapters.game_process_windows import WindowsGameProcessAdapter
 
-        game_process = WindowsGameProcessAdapter()
+        windows_process = WindowsGameProcessAdapter()
+        game_process = windows_process
+        game_mods = GameModFilesAdapter(
+            downloads_dir=os.path.join(os.environ.get("USERPROFILE") or user_home, "Downloads"),
+            running_executable_names=windows_process.running_executable_names,
+        )
     else:
         game_process = GameProcessAdapter()
     # The compiled gavel core owns both save-sync decisions — the per-file sync
@@ -442,6 +451,7 @@ def bootstrap(
         retrodeck_launcher_backend_factory=retrodeck_launcher_backend_factory,
         emudeck_launcher_backend_factory=emudeck_launcher_backend_factory,
         vita_app_linker=Vita3kAppLinker(logger=logger),
+        game_mods=game_mods,
     )
     stores = StateBundle(
         settings=settings,

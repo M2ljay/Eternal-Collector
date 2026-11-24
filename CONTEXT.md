@@ -348,6 +348,16 @@ the set. A **save bundle** is a save that is not one file travelling as one dete
 directories other games share (`domain/save_bundles.py`). Either way the save on disk is the truth, the zip is derived
 from it and is what is hashed, tracked and uploaded, and a restore never touches an entry the layout does not own.
 
+### Mod target / mod backup
+
+A **mod target** is one place a game's mods go under the emulator it launches with (`domain/game_mods.py`
+`ModTarget`): a **game** folder named by the game's own identifier (`Load\Textures\GALE01`), a **shared** folder every
+game of the emulator reads (`Load\GraphicMods`), or a **soft patch** beside the ROM (`<ROM stem>.ips`). A target exists
+only when the emulator's folder and the game's identifier were both read exactly; otherwise the game has "no known mod
+folder". A **mod backup** is where the Mods panel moves what an install replaces or a removal takes away, and the ini
+before a setting edit: `romm-mod-backups\<stamp>\<target>` inside the emulator's own data folder. Nothing in the
+feature deletes.
+
 ### Baseline
 
 The last-synced reference point recorded for a tracked save file — captured in a `FileSyncState` value object

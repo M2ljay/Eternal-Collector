@@ -1,8 +1,9 @@
-"""Reads the game identifier out of a disc image file. Implements ``DiscCodeReader``.
+"""Reads the game identifier out of a disc or cartridge image file. Implements ``DiscCodeReader``.
 
 Opens the image, reads only the handful of sectors that identify it — the
-GameCube/Wii disc header, or an ISO 9660 walk to ``UMD_DATA.BIN`` /
-``PSP_GAME/PARAM.SFO`` / ``SYSTEM.CNF`` — and hands the bytes to
+GameCube/Wii disc header, an ISO 9660 walk to ``UMD_DATA.BIN`` /
+``PSP_GAME/PARAM.SFO`` / ``SYSTEM.CNF``, or a 3DS image's NCSD/NCCH header or
+CIA title metadata — and hands the bytes to
 :mod:`domain.disc_ids`. Results are cached per file (path, size, mtime), so a
 sync pass that asks for the same game repeatedly reads it once.
 """
@@ -16,19 +17,26 @@ from typing import TYPE_CHECKING, BinaryIO
 
 from adapters.disc_images import ChdReader, ChdSource, CsoSource, DiscImageError, PlainIsoSource
 from domain.disc_ids import (
+    CIA_TMD_READ_SIZE,
     DISC_HEADER_PREFIX,
     ISO_SECTOR_SIZE,
+    N3DS,
+    N3DS_HEADER_SIZE,
     NINTENDO_OPTICAL,
     PRIMARY_VOLUME_DESCRIPTOR_LBA,
     PS2,
     PSP,
     DiscCode,
+    cia_tmd_offset,
     find_directory_entry,
+    ncch_program_id,
+    ncsd_partition0_offset,
     parse_nintendo_disc_header,
     parse_param_sfo_disc_id,
     parse_primary_volume_descriptor,
     parse_system_cnf_serial,
     parse_umd_data,
+    tmd_title_id,
 )
 
 if TYPE_CHECKING:
@@ -56,7 +64,7 @@ _MAX_ID_FILE_BYTES = 32 * ISO_SECTOR_SIZE
 
 
 class DiscCodeReaderAdapter:
-    """Identifies GameCube/Wii (RVZ, WIA, ISO, GCM), PSP (ISO, CSO, CHD) and PS2 (ISO, CHD) images."""
+    """Identifies GameCube/Wii (RVZ, WIA, ISO, GCM), PSP (ISO, CSO, CHD), PS2 (ISO, CHD) and 3DS images."""
 
     def __init__(self, *, logger: logging.Logger, zstd_decompress: Callable[[bytes], bytes] | None = None) -> None:
         self._logger = logger
@@ -66,7 +74,7 @@ class DiscCodeReaderAdapter:
     def read_disc_code(self, path: str, family: str) -> DiscCode | None:
         """The identifier of the image at *path*, read as a *family* disc, or ``None``.
 
-        *family* is :data:`domain.disc_ids.NINTENDO_OPTICAL`, ``PSP`` or ``PS2``.
+        *family* is :data:`domain.disc_ids.NINTENDO_OPTICAL`, ``PSP``, ``PS2`` or ``N3DS``.
         ``None`` for an unsupported format, an unreadable file, or an image
         that does not decode exactly.
         """
@@ -93,6 +101,8 @@ class DiscCodeReaderAdapter:
             if ext in (".iso", ".gcm"):
                 return parse_nintendo_disc_header(f.read(DISC_HEADER_PREFIX))
             return None
+        if family == N3DS:
+            return _read_3ds(f, ext)
         source = self._sector_source(f, ext)
         if source is None:
             return None
@@ -130,6 +140,27 @@ def _read_wia(f: BinaryIO) -> DiscCode | None:
     if code is None or _WIA_DISC_TYPES.get(disc_type) != code.platform:
         return None
     return code
+
+
+def _read_3ds(f: BinaryIO, ext: str) -> DiscCode | None:
+    head = f.read(N3DS_HEADER_SIZE)
+    if ext in (".3ds", ".cci"):
+        offset = ncsd_partition0_offset(head)
+        if offset is None:
+            return None
+        f.seek(offset)
+        title_id = ncch_program_id(f.read(N3DS_HEADER_SIZE))
+    elif ext in (".cxi", ".app"):
+        title_id = ncch_program_id(head)
+    elif ext == ".cia":
+        offset = cia_tmd_offset(head)
+        if offset is None:
+            return None
+        f.seek(offset)
+        title_id = tmd_title_id(f.read(CIA_TMD_READ_SIZE))
+    else:
+        return None
+    return DiscCode(N3DS, title_id) if title_id else None
 
 
 def _read_iso_file(source: _SectorSource, path: tuple[str, ...], limit: int) -> bytes | None:
