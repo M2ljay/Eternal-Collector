@@ -28,6 +28,7 @@ import {
   probeReachability,
   preLaunchSync,
   checkLocalDrift,
+  stopRunningGame,
   logInfo,
   logError,
 } from "../api/backend";
@@ -38,6 +39,7 @@ import { getAppIdRomIdMapSnapshot, isSessionActive } from "./sessionManager";
 import { isAppRunning } from "./runningApps";
 import { runLaunchGate, markLaunchSkipped, consumeLaunchSkip } from "./launchGate";
 import { NO_LAUNCH_TARGET_TOAST_BODY, romHasLaunchTarget } from "./launchTarget";
+import { steamGameIdFor } from "./steamShortcuts";
 import type { GateVerdict, LaunchGateOps, PreLaunchSyncOutcome } from "./launchGate";
 import { reconfirmLaunchOptions } from "./launchOptionsReconcile";
 import { capturePruneLeaseAdmission, isPruneLeaseAdmissionCurrent, type PruneLeaseAdmission } from "./pruneLease";
@@ -203,7 +205,7 @@ function makeWatcherOps(romId: number, prompts: LaunchPrompts): LaunchGateOps {
  *  re-confirm; the gated path goes through {@link relaunch}. */
 function bareRelaunch(appId: number): void {
   markLaunchSkipped(appId);
-  const gameId = appStore.GetAppOverviewByAppID(appId)?.GetGameID?.() ?? String(appId);
+  const gameId = steamGameIdFor(appId);
   SteamClient.Apps.RunGame(gameId, "", -1, 100);
 }
 
@@ -325,6 +327,82 @@ async function isRomInstalled(appId: number, romId: number): Promise<boolean> {
   }
 }
 
+type TerminateAppFn = typeof SteamClient.Apps.TerminateApp;
+
+let originalTerminateApp: TerminateAppFn | null = null;
+
+/** Resolve a Steam game id (64-bit shortcut id or bare appId) to a RomM-owned appId and its rom. */
+function romIdForGameId(gameId: string | number): { appId: number; romId: number } | undefined {
+  let appId: number;
+  try {
+    const big = BigInt(String(gameId));
+    appId = big > 0xffffffffn ? Number(big >> 32n) : Number(big);
+  } catch {
+    return undefined;
+  }
+  const romId = getAppIdRomIdMapSnapshot()[String(appId)];
+  return romId == null ? undefined : { appId, romId };
+}
+
+/**
+ * On Windows, route Steam's "Exit game" for a RomM shortcut through
+ * `stopRunningGame` so the emulator closes gracefully instead of being
+ * hard-killed. Anything that is not a RomM game, or a graceful stop the
+ * backend declines, falls through to Steam's own `TerminateApp`.
+ */
+function installExitInterceptor(): void {
+  if (originalTerminateApp || !navigator.userAgent.includes("Windows")) return;
+  const apps = SteamClient.Apps;
+  const original = apps.TerminateApp;
+  if (typeof original !== "function") return;
+  originalTerminateApp = original;
+  apps.TerminateApp = function (gameId: string | number, force: boolean, ...rest: unknown[]) {
+    const target = romIdForGameId(gameId);
+    if (!target) return original.call(apps, gameId, force, ...rest);
+    logInfo(
+      `Exit interceptor: Steam asked to end appId=${target.appId} — closing the emulator gracefully (rom ${target.romId})`,
+    );
+    stopRunningGame(target.romId)
+      .then((result) => {
+        if (result.success || result.reason === "not_running") {
+          // The emulator has exited cleanly. Let Steam finish its own exit
+          // flow (nothing is left for it to kill): that is what hands
+          // controller focus back to the Big Picture window.
+          try {
+            original.call(apps, gameId, false, ...rest);
+          } catch (e) {
+            logError(`Exit interceptor: Steam exit after graceful stop failed: ${e}`);
+          }
+          try {
+            SteamClient.Window?.BringToFront?.();
+          } catch {
+            /* best effort */
+          }
+          return;
+        }
+        if (result.reason === "already_stopping") return;
+        logInfo(`Exit interceptor: graceful stop declined (${result.reason}) — handing back to Steam`);
+        original.call(apps, gameId, force, ...rest);
+      })
+      .catch((e) => {
+        logError(`Exit interceptor: graceful stop failed (${e}) — handing back to Steam`);
+        original.call(apps, gameId, force, ...rest);
+      });
+  };
+  if (apps.TerminateApp === original) {
+    originalTerminateApp = null;
+    logInfo("Exit interceptor: SteamClient.Apps.TerminateApp is not writable — Steam's exit stays a hard close");
+    return;
+  }
+  logInfo("Exit interceptor registered");
+}
+
+function removeExitInterceptor(): void {
+  if (!originalTerminateApp) return;
+  SteamClient.Apps.TerminateApp = originalTerminateApp;
+  originalTerminateApp = null;
+}
+
 export function registerLaunchInterceptor(prompts: LaunchPrompts): void {
   gameActionHook = SteamClient.Apps.RegisterForGameActionStart(
     (gameActionId: number, appIdStr: string, action: string, _launchSource: number) => {
@@ -402,9 +480,11 @@ export function registerLaunchInterceptor(prompts: LaunchPrompts): void {
   );
 
   logInfo("Launch interceptor registered");
+  installExitInterceptor();
 }
 
 export function unregisterLaunchInterceptor(): void {
+  removeExitInterceptor();
   if (gameActionHook) {
     gameActionHook.unregister();
     gameActionHook = null;

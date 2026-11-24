@@ -14,6 +14,14 @@ import { addEventListener, removeEventListener } from "@decky/api";
 import { showToast } from "../utils/toast";
 import { Focusable, DialogButton, Menu, MenuItem, Navigation, showContextMenu } from "@decky/ui";
 import { appActionButtonClasses, basicAppDetailsSectionStylerClasses } from "../utils/deckyUiInternals";
+import {
+  joinCls,
+  nativeLook,
+  NativeInstallIcon,
+  NativeMenuButton,
+  NativePlayIcon,
+  pressOnce,
+} from "../utils/nativeLook";
 import { hideNativePlaySection, showNativePlaySection } from "../utils/styleInjector";
 import { hasAnySaveConflict } from "../utils/saveStatus";
 import {
@@ -78,7 +86,7 @@ import type {
 } from "../types";
 import { SAVEFILES_IN_CONTENT_DIR_REASON } from "../types";
 import { detach } from "../utils/detach";
-import { setLaunchOptionsConfirmed } from "../utils/steamShortcuts";
+import { setLaunchOptionsConfirmed, steamGameIdFor } from "../utils/steamShortcuts";
 import {
   capturePruneLeaseAdmission,
   isPruneLeaseAdmissionCurrent,
@@ -716,8 +724,7 @@ export const CustomPlayButton: FC<CustomPlayButtonProps> = ({ appId }) => { // N
   // states), mirroring the watcher's imperative-modal reaction.
   const handlePlay = async () => {
     if (state === "syncing" || state === "launching") return; // debounce
-    const overview = appStore.GetAppOverviewByAppID(appId);
-    const gameId = overview?.GetGameID?.() ?? String(appId);
+    const gameId = steamGameIdFor(appId);
     const admission = capturePruneLeaseAdmission(leaseOwner);
     detach(debugLog(`CustomPlayButton: handlePlay appId=${appId} gameId=${gameId}`));
 
@@ -1620,10 +1627,43 @@ export const CustomPlayButton: FC<CustomPlayButtonProps> = ({ appId }) => { // N
       </DialogButton>
     );
 
+    if (!downloading && nativeLook()) {
+      const blocked = actionPending || isOffline || downloadBlockedByVanished;
+      const label = dlLabel === "Download" ? "Install" : dlLabel;
+      const installPress = pressOnce(() => {
+        if (!blocked) detach(handleDownload());
+        // eslint-disable-next-line react-hooks/refs -- the ref object is only an identity key for pressOnce's debounce WeakMap; `.current` is never read during render.
+      }, containerRef);
+      return (
+        <Focusable
+          ref={containerRef}
+          className={joinCls(
+            basicAppDetailsSectionStylerClasses?.AppActionButton,
+            appActionButtonClasses?.PlayButtonContainer,
+            blocked && appActionButtonClasses?.Disabled,
+          )}
+        >
+          <Focusable
+            className={joinCls(appActionButtonClasses?.PlayButton, appActionButtonClasses?.ButtonChild, "romm-native-install")}
+            onActivate={installPress}
+            onClick={installPress}
+            onFocus={scrollToTop}
+          >
+            <NativeInstallIcon />
+            <div className={appActionButtonClasses?.ButtonText}>{label}</div>
+          </Focusable>
+        </Focusable>
+      );
+    }
+
     if (!downloading) {
       // Idle ("Download") or "Starting..." — single full-width button, no action.
       return (
-        <Focusable ref={containerRef} className={appActionButtonClasses?.PlayButtonContainer} style={btnContainerStyle}>
+        <Focusable ref={containerRef} className={
+          nativeLook()
+            ? joinCls(basicAppDetailsSectionStylerClasses?.AppActionButton, appActionButtonClasses?.PlayButtonContainer)
+            : appActionButtonClasses?.PlayButtonContainer
+        } style={btnContainerStyle}>
           {downloadBtn}
         </Focusable>
       );
@@ -1713,7 +1753,13 @@ export const CustomPlayButton: FC<CustomPlayButtonProps> = ({ appId }) => { // N
     return (
       <Focusable
         ref={containerRef}
-        className={[appActionButtonClasses?.PlayButtonContainer, "romm-dl-active-group"].filter(Boolean).join(" ")}
+        className={[
+          nativeLook() && basicAppDetailsSectionStylerClasses?.AppActionButton,
+          appActionButtonClasses?.PlayButtonContainer,
+          "romm-dl-active-group",
+        ]
+          .filter(Boolean)
+          .join(" ")}
         style={{ ...btnContainerStyle, "--romm-pulse-color": pulseColor } as React.CSSProperties}
       >
         {downloadBtn}
@@ -1724,7 +1770,11 @@ export const CustomPlayButton: FC<CustomPlayButtonProps> = ({ appId }) => { // N
 
   if (state === "uninstall_pending") {
     return (
-      <Focusable className={appActionButtonClasses?.PlayButtonContainer} style={btnContainerStyle}>
+      <Focusable className={
+          nativeLook()
+            ? joinCls(basicAppDetailsSectionStylerClasses?.AppActionButton, appActionButtonClasses?.PlayButtonContainer)
+            : appActionButtonClasses?.PlayButtonContainer
+        } style={btnContainerStyle}>
         <DialogButton
           className={[appActionButtonClasses?.PlayButton, "romm-btn-download"].filter(Boolean).join(" ")}
           style={{
@@ -1746,7 +1796,11 @@ export const CustomPlayButton: FC<CustomPlayButtonProps> = ({ appId }) => { // N
 
   if (state === "uninstalling") {
     return (
-      <Focusable className={appActionButtonClasses?.PlayButtonContainer} style={btnContainerStyle}>
+      <Focusable className={
+          nativeLook()
+            ? joinCls(basicAppDetailsSectionStylerClasses?.AppActionButton, appActionButtonClasses?.PlayButtonContainer)
+            : appActionButtonClasses?.PlayButtonContainer
+        } style={btnContainerStyle}>
         <DialogButton
           className={[appActionButtonClasses?.PlayButton, "romm-btn-download", "romm-dl-uninstall-flash"]
             .filter(Boolean)
@@ -1767,7 +1821,11 @@ export const CustomPlayButton: FC<CustomPlayButtonProps> = ({ appId }) => { // N
 
   if (state === "launching") {
     return (
-      <Focusable className={appActionButtonClasses?.PlayButtonContainer} style={btnContainerStyle}>
+      <Focusable className={
+          nativeLook()
+            ? joinCls(basicAppDetailsSectionStylerClasses?.AppActionButton, appActionButtonClasses?.PlayButtonContainer)
+            : appActionButtonClasses?.PlayButtonContainer
+        } style={btnContainerStyle}>
         <DialogButton
           className={[appActionButtonClasses?.PlayButton, "romm-btn-play", isOffline && "romm-offline"]
             .filter(Boolean)
@@ -1794,7 +1852,11 @@ export const CustomPlayButton: FC<CustomPlayButtonProps> = ({ appId }) => { // N
 
   if (state === "syncing") {
     return (
-      <Focusable className={appActionButtonClasses?.PlayButtonContainer} style={btnContainerStyle}>
+      <Focusable className={
+          nativeLook()
+            ? joinCls(basicAppDetailsSectionStylerClasses?.AppActionButton, appActionButtonClasses?.PlayButtonContainer)
+            : appActionButtonClasses?.PlayButtonContainer
+        } style={btnContainerStyle}>
         <DialogButton
           className={[appActionButtonClasses?.PlayButton, "romm-btn-play", isOffline && "romm-offline"]
             .filter(Boolean)
@@ -1821,7 +1883,11 @@ export const CustomPlayButton: FC<CustomPlayButtonProps> = ({ appId }) => { // N
 
   if (state === "conflict") {
     return (
-      <Focusable ref={containerRef} className={appActionButtonClasses?.PlayButtonContainer} style={btnContainerStyle}>
+      <Focusable ref={containerRef} className={
+          nativeLook()
+            ? joinCls(basicAppDetailsSectionStylerClasses?.AppActionButton, appActionButtonClasses?.PlayButtonContainer)
+            : appActionButtonClasses?.PlayButtonContainer
+        } style={btnContainerStyle}>
         <DialogButton
           className={[appActionButtonClasses?.PlayButton, "romm-btn-conflict"].filter(Boolean).join(" ")}
           style={{
@@ -1840,6 +1906,45 @@ export const CustomPlayButton: FC<CustomPlayButtonProps> = ({ appId }) => { // N
   }
 
   // state === "play"
+  if (nativeLook()) {
+    const playPressOnce = pressOnce(() => {
+      detach(handlePlay());
+      // eslint-disable-next-line react-hooks/refs -- the ref object is only an identity key for pressOnce's debounce WeakMap; `.current` is never read during render.
+    }, containerRef);
+    return (
+      <Focusable flow-children="row" style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+        <Focusable
+          ref={containerRef}
+          className={joinCls(
+            basicAppDetailsSectionStylerClasses?.AppActionButton,
+            appActionButtonClasses?.PlayButtonContainer,
+            !isOffline && appActionButtonClasses?.Green,
+          )}
+        >
+          <Focusable
+            className={joinCls(appActionButtonClasses?.PlayButton, appActionButtonClasses?.ButtonChild, "romm-native-play")}
+            onActivate={playPressOnce}
+            onClick={playPressOnce}
+            onFocus={scrollToTop}
+          >
+            <NativePlayIcon />
+            <div className={appActionButtonClasses?.ButtonText}>{isOffline ? "Play (offline)" : "Play"}</div>
+          </Focusable>
+        </Focusable>
+        <NativeMenuButton onClick={showDropdownMenu} onFocus={scrollToTop} title="More">
+          <svg width="14" height="9" viewBox="0 0 12 8" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path
+              d="M1 1.5L6 6.5L11 1.5"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
+        </NativeMenuButton>
+      </Focusable>
+    );
+  }
   const playBg = isOffline
     ? "linear-gradient(to right, #6b7b6b 0%, #5a6a5a 60%)"
     : "linear-gradient(to right, #70d61d 0%, #01a75b 60%)";

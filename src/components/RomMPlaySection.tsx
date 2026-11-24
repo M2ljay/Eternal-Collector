@@ -12,17 +12,9 @@
 
 import { useState, useEffect, FC, Fragment, type ReactElement } from "react";
 import { showToast } from "../utils/toast";
-import {
-  ConfirmModal,
-  DialogButton,
-  Focusable,
-  Menu,
-  MenuItem,
-  MenuSeparator,
-  showContextMenu,
-  showModal,
-} from "@decky/ui";
-import { basicAppDetailsSectionStylerClasses } from "../utils/deckyUiInternals";
+import { ConfirmModal, Focusable, Menu, MenuItem, MenuSeparator, showContextMenu, showModal } from "@decky/ui";
+import { basicAppDetailsSectionStylerClasses, playSectionClasses } from "../utils/deckyUiInternals";
+import { ensureNativeLookStyles, joinCls, nativeLook, NativeMenuButton, rc } from "../utils/nativeLook";
 import { FaGamepad, FaCog, FaMicrochip, FaExclamationTriangle } from "react-icons/fa";
 import { CustomPlayButton } from "./CustomPlayButton";
 import { DiscSelector } from "./DiscSelector";
@@ -475,12 +467,20 @@ export const RomMPlaySection: FC<RomMPlaySectionProps> = ({ appId }) => { // NOS
   }, [appId]);
 
   // Helper: create an info item with header and value (Steam's two-line pattern)
-  const infoItem = (key: string, header: string, value: string, extraClass?: string) => (
-    <div key={key} className={`romm-info-item ${extraClass || ""}`.trim()}>
-      <div className="romm-info-header">{header}</div>
-      <div className="romm-info-value">{value}</div>
-    </div>
-  );
+  const infoItem = (key: string, header: string, value: string, extraClass?: string) =>
+    nativeLook() ? (
+      <div key={key} className={rc(`romm-info-item ${extraClass || ""}`.trim())}>
+        <div className={playSectionClasses?.GameStatRight}>
+          <div className={rc("romm-info-header")}>{header}</div>
+          <div className={rc("romm-info-value")}>{value}</div>
+        </div>
+      </div>
+    ) : (
+      <div key={key} className={rc(`romm-info-item ${extraClass || ""}`.trim())}>
+        <div className={rc("romm-info-header")}>{header}</div>
+        <div className={rc("romm-info-value")}>{value}</div>
+      </div>
+    );
 
   // --- Gear button action handlers ---
 
@@ -911,11 +911,11 @@ export const RomMPlaySection: FC<RomMPlaySectionProps> = ({ appId }) => { // NOS
   // Offline indicator (first — most prominent)
   if (connectionState === "offline") {
     infoItems.push(
-      <div key="offline-indicator" className="romm-info-item">
-        <div className="romm-info-header">
+      <div key="offline-indicator" className={rc("romm-info-item")}>
+        <div className={rc("romm-info-header")}>
           <FaExclamationTriangle size={12} color="#ff8800" />
         </div>
-        <div className="romm-info-value" style={{ color: "#ff8800" }}>
+        <div className={rc("romm-info-value")} style={{ color: "#ff8800" }}>
           RomM offline
         </div>
       </div>,
@@ -983,7 +983,7 @@ export const RomMPlaySection: FC<RomMPlaySectionProps> = ({ appId }) => { // NOS
           globalThis.dispatchEvent(new CustomEvent("romm_tab_switch", { detail: { tab: "achievements" } }));
         }}
       >
-        <div className="romm-info-header">ACHIEVEMENTS</div>
+        <div className={rc("romm-info-header")}>ACHIEVEMENTS</div>
         <div className="romm-cheevo-badge-sparkle">
           {/* Trophy icon with sparkle container */}
           <span style={{ position: "relative", display: "inline-block" }}>
@@ -999,8 +999,8 @@ export const RomMPlaySection: FC<RomMPlaySectionProps> = ({ appId }) => { // NOS
   // Save Sync moved to dedicated tab — show legacy slot warning only
   if (detail.activeSlot == null && detail.saveSyncEnabled) {
     infoItems.push(
-      <div key="legacy-slot-warning" className="romm-info-item">
-        <div className="romm-info-header">SAVE SYNC</div>
+      <div key="legacy-slot-warning" className={rc("romm-info-item")}>
+        <div className={rc("romm-info-header")}>SAVE SYNC</div>
         <div style={{ fontSize: "11px", color: "#ff8800", marginTop: "4px" }}>{"\u26A0 Legacy save slot"}</div>
       </div>,
     );
@@ -1014,14 +1014,14 @@ export const RomMPlaySection: FC<RomMPlaySectionProps> = ({ appId }) => { // NOS
       // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- pointer-only shortcut into the BIOS tab, which the tab bar's DialogButton already reaches from the focus ring; a role/tabIndex here would add a gamepad focus stop to the play row.
       <div
         key="bios"
-        className="romm-info-item"
+        className={rc("romm-info-item")}
         onClick={() => {
           globalThis.dispatchEvent(new CustomEvent("romm_tab_switch", { detail: { tab: "bios" } }));
         }}
         style={{ cursor: "pointer" }}
       >
-        <div className="romm-info-header">BIOS</div>
-        <div className="romm-info-value" style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+        <div className={rc("romm-info-header")}>BIOS</div>
+        <div className={rc("romm-info-value")} style={{ display: "flex", alignItems: "center", gap: "6px" }}>
           <span className="romm-status-dot" style={{ backgroundColor: biosColor }} />
           {detail.biosLabel}
         </div>
@@ -1029,7 +1029,46 @@ export const RomMPlaySection: FC<RomMPlaySectionProps> = ({ appId }) => { // NOS
     );
   }
 
-  const playSectionRow = (
+  if (nativeLook()) ensureNativeLookStyles();
+  const playSectionRow = nativeLook() ? (
+    <Focusable
+      key="play-row"
+      data-romm="true"
+      className={joinCls("romm-play-section-row", "romm-native-look", basicAppDetailsSectionStylerClasses?.PlaySection)}
+      flow-children="row"
+    >
+      <Focusable className={basicAppDetailsSectionStylerClasses?.ActionRow} flow-children="row">
+        <Focusable
+          className={basicAppDetailsSectionStylerClasses?.ActionButtonAndStatusPanel}
+          flow-children="row"
+          style={{ width: "auto" }}
+        >
+          <CustomPlayButton appId={appId} />
+        </Focusable>
+        <DiscSelector appId={appId} />
+        <ExeSelector appId={appId} />
+        <VersionPicker appId={appId} />
+        <div className={playSectionClasses?.StatusAndStats}>
+          <div className={playSectionClasses?.StatusNameContainer}>
+            <div className={playSectionClasses?.GameStatsSection}>{infoItems}</div>
+          </div>
+        </div>
+        <Focusable className={basicAppDetailsSectionStylerClasses?.AppButtons} flow-children="row">
+          <NativeMenuButton onClick={showRomMMenu} onFocus={scrollToTop} title="RomM Actions">
+            <FaGamepad size={22} />
+          </NativeMenuButton>
+          {detail.emulators.length > 1 ? (
+            <NativeMenuButton key="core-btn" onClick={showCoreMenu} onFocus={scrollToTop} title="Emulator Core">
+              <FaMicrochip size={22} />
+            </NativeMenuButton>
+          ) : null}
+          <NativeMenuButton onClick={showSteamMenu} onFocus={scrollToTop} title="Steam Properties">
+            <FaCog size={22} />
+          </NativeMenuButton>
+        </Focusable>
+      </Focusable>
+    </Focusable>
+  ) : (
     <Focusable
       key="play-row"
       data-romm="true"
@@ -1076,12 +1115,12 @@ export const RomMPlaySection: FC<RomMPlaySectionProps> = ({ appId }) => { // NOS
         }}
       >
         {/* RomM actions button */}
-        <DialogButton className="romm-gear-btn" onClick={showRomMMenu} onFocus={scrollToTop} title="RomM Actions">
+        <NativeMenuButton className="romm-gear-btn" onClick={showRomMMenu} onFocus={scrollToTop} title="RomM Actions">
           <FaGamepad size={18} color="#553e98" />
-        </DialogButton>
+        </NativeMenuButton>
         {/* Core selection button (only when multiple emulators to choose between) */}
         {detail.emulators.length > 1 ? (
-          <DialogButton
+          <NativeMenuButton
             key="core-btn"
             className="romm-gear-btn"
             onClick={showCoreMenu}
@@ -1089,12 +1128,12 @@ export const RomMPlaySection: FC<RomMPlaySectionProps> = ({ appId }) => { // NOS
             title="Emulator Core"
           >
             <FaMicrochip size={18} color={detail.activeCoreIsDefault ? "#8f98a0" : "#d4a72c"} />
-          </DialogButton>
+          </NativeMenuButton>
         ) : null}
         {/* Steam properties button */}
-        <DialogButton className="romm-gear-btn" onClick={showSteamMenu} onFocus={scrollToTop} title="Steam Properties">
+        <NativeMenuButton className="romm-gear-btn" onClick={showSteamMenu} onFocus={scrollToTop} title="Steam Properties">
           <FaCog size={18} color="#8f98a0" />
-        </DialogButton>
+        </NativeMenuButton>
       </div>
     </Focusable>
   );

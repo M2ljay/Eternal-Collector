@@ -44,8 +44,9 @@ vi.mock("../api/backend", () => ({
 
 // The reconcile helper confirm-sets the resolved command onto the shortcut.
 // Mock just that surface so the watcher relaunch re-confirm is observable
-// without touching SteamClient's shortcut APIs.
-vi.mock("./steamShortcuts", () => ({
+// without touching SteamClient's shortcut APIs; the rest (steamGameIdFor) stays real.
+vi.mock("./steamShortcuts", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("./steamShortcuts")>()),
   setLaunchOptionsConfirmed: vi.fn().mockResolvedValue(true),
 }));
 

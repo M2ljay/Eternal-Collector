@@ -15,6 +15,8 @@ declare var SteamClient: {
       assetType: number,
     ): Promise<void>;
     ClearCustomArtworkForApp(appId: number, assetType: number): Promise<void>;
+    // Absent on some Steam builds — callers must feature-test before calling.
+    SetCustomLogoPositionForApp?(appId: number, positionJson: string): void;
     // The runtime may invoke the callback with no details before the app's
     // data is loaded — `details` is genuinely absent on early fires.
     RegisterForAppDetails(
@@ -22,7 +24,7 @@ declare var SteamClient: {
       callback: (details: SteamAppDetails | undefined) => void,
     ): { unregister: () => void };
     RunGame(gameId: string | number, launchId: string, param2: number, param3: number): void;
-    TerminateApp(appId: number, force: boolean): void;
+    TerminateApp(gameId: string | number, force: boolean, ...rest: unknown[]): void;
     RegisterForGameActionStart(
       callback: (gameActionId: number, appIdStr: string, action: string, launchSource: number) => void,
     ): { unregister: () => void };
@@ -35,6 +37,9 @@ declare var SteamClient: {
   };
   System: {
     GetSystemInfo(): Promise<{ sHostname: string; [key: string]: any }>;
+  };
+  Window?: {
+    BringToFront?(): void;
   };
   User: {
     // Restart the whole Steam client (closes and reopens Steam). `force` skips the
@@ -87,6 +92,7 @@ interface SteamAppOverview {
   BIsModOrShortcut?(): boolean;
   BHasRecentlyLaunched?(): boolean;
   GetGameID?(): string;
+  m_gameid?: string | number;
   GetPrimaryAppID?(): number;
 }
 

@@ -4,17 +4,20 @@ import { delay } from "./pacedOps";
 
 /**
  * Ownership marker: RomM-managed shortcuts launch through the plugin's
- * `bin/rom-launcher` exec wrapper. A shortcut whose `strShortcutExe` ends with
- * this suffix is ours regardless of its launch options (which now carry the
+ * `bin/rom-launcher` exec wrapper (`bin\\rom-launcher.exe` on Windows). A
+ * shortcut whose `strShortcutExe` ends with this suffix is ours regardless of its launch options (which now carry the
  * full RetroDECK command, not a `romm:<id>` marker).
  */
 const ROM_LAUNCHER_SUFFIX = "/bin/rom-launcher";
 
+/** True for the launcher wrapper's path on Linux and Windows (`.exe` matched case-insensitively). */
+function isRomLauncherExe(exe: string): boolean {
+  const normalized = exe.replace(/^"|"$/g, "").replace(/\\/g, "/");
+  return normalized.endsWith(ROM_LAUNCHER_SUFFIX) || normalized.toLowerCase().endsWith(`${ROM_LAUNCHER_SUFFIX}.exe`);
+}
+
 export function isRomMShortcutDetails(details: SteamAppDetails | null): details is SteamAppDetails {
-  return (
-    typeof details?.strShortcutExe === "string" &&
-    details.strShortcutExe.replace(/^"|"$/g, "").endsWith(ROM_LAUNCHER_SUFFIX)
-  );
+  return typeof details?.strShortcutExe === "string" && isRomLauncherExe(details.strShortcutExe);
 }
 
 const HEARTBEAT_INTERVAL_MS = 10_000;
@@ -48,6 +51,35 @@ export function getAppDetails(appId: number, timeoutMs = 2000): Promise<SteamApp
 }
 
 /**
+ * The game id `SteamClient.Apps.RunGame` / `TerminateApp` expect for an app.
+ *
+ * Prefers the id Steam reports on the overview. A non-Steam shortcut's game id
+ * is the 64-bit `(appId << 32) | 0x02000000`; when the overview does not report
+ * one (or reports the bare appId), that id is built here for shortcut-range
+ * appIds (>= 0x80000000).
+ */
+export function steamGameIdFor(appId: number): string {
+  const overview = appStore.GetAppOverviewByAppID(appId);
+  const reported = overview?.GetGameID?.() ?? overview?.m_gameid;
+  // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- `m_gameid` is a Steam-internal field read untyped at runtime; a null there must not become the string "null".
+  if (reported !== undefined && reported !== null && String(reported) !== String(appId)) return String(reported);
+  if (appId >= 0x80000000) return ((BigInt(appId) << 32n) | 0x02000000n).toString();
+  return String(appId);
+}
+
+/**
+ * Wrap an unquoted Windows launcher exe (`…\\bin\\rom-launcher.exe`) in quotes on
+ * the shortcut. A read-back that is already quoted does not match and is left alone.
+ */
+function healWindowsLauncherExe(appId: number, details: SteamAppDetails | undefined): void {
+  const exe = details?.strShortcutExe;
+  if (typeof exe === "string" && /[\\/]bin[\\/]rom-launcher\.exe$/i.test(exe)) {
+    SteamClient.Apps.SetShortcutExe(appId, `"${exe}"`);
+    logInfo(`healWindowsLauncherExe: quoted shortcut exe for appId ${appId}`);
+  }
+}
+
+/**
  * Set an existing shortcut's launch options and confirm the write landed.
  *
  * Every Steam ``Set*`` returns ``void`` with no success signal, so we fire
@@ -65,6 +97,7 @@ export function setLaunchOptionsConfirmed(appId: number, value: string, timeoutM
     // reads reg.
     // eslint-disable-next-line prefer-const -- the `let`-before-register ordering is the TDZ guard; `prefer-const` only sees the single assignment and can't model the closure reading `reg` before the assignment line executes.
     let reg: { unregister: () => void } | undefined;
+    let lastSeen: string | undefined;
     const finish = (matched: boolean) => {
       if (resolved) return;
       resolved = true;
@@ -76,11 +109,19 @@ export function setLaunchOptionsConfirmed(appId: number, value: string, timeoutM
 
     reg = SteamClient.Apps.RegisterForAppDetails(appId, (details) => {
       if (!details) return;
+      healWindowsLauncherExe(appId, details);
       const current = details.strLaunchOptions ?? details.LaunchOptions ?? "";
+      lastSeen = current;
       if (current === value) finish(true);
     });
 
-    setTimeout(() => finish(false), timeoutMs);
+    setTimeout(() => {
+      if (!resolved)
+        logInfo(
+          `setLaunchOptionsConfirmed: appId ${appId} read-back ${lastSeen === undefined ? "never arrived" : JSON.stringify(lastSeen)} (wanted ${JSON.stringify(value)})`,
+        );
+      finish(false);
+    }, timeoutMs);
   });
 }
 
@@ -118,7 +159,7 @@ export async function getLiveRomMShortcutAppIds(): Promise<number[] | null> {
       batch.map((appId) => getAppDetails(appId).then((details) => ({ appId, exe: details?.strShortcutExe ?? "" }))),
     );
     for (const { appId, exe } of entries) {
-      if (exe.endsWith(ROM_LAUNCHER_SUFFIX)) ourAppIds.push(appId);
+      if (isRomLauncherExe(exe)) ourAppIds.push(appId);
     }
     if (Date.now() - lastHeartbeat > HEARTBEAT_INTERVAL_MS) {
       syncHeartbeat().catch(() => {});

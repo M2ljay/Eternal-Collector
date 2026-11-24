@@ -3,10 +3,12 @@
  * Uses Steam's internal collectionStore API.
  *
  * Collection names are machine-scoped to prevent cross-device conflicts
- * when Steam Cloud syncs collections: "RomM: Platform (hostname)"
+ * when Steam Cloud syncs collections: "RomM: Platform (hostname)". On Windows
+ * they are plain instead: "Platform" and "[Collection]".
  */
 
 import { logInfo, logWarn, logError } from "../api/backend";
+import { isRomMAppId } from "../patches/gameDetailPatch";
 
 let _hostname = "";
 
@@ -99,6 +101,49 @@ async function saveCollection(
   return true;
 }
 
+function plainCollectionNames(): boolean {
+  return navigator.userAgent.includes("Windows");
+}
+
+function platformCollectionName(platformName: string, hostname: string): string {
+  return plainCollectionNames() ? platformName : `RomM: ${platformName} (${hostname})`;
+}
+
+function rommCollectionName(collName: string, hostname: string): string {
+  return plainCollectionNames() ? `[${collName}]` : `RomM: [${collName}] (${hostname})`;
+}
+
+/** Case-insensitive lookup: Steam's collection identity is case-insensitive (#1569). */
+function findCollection(name: string): SteamCollection | undefined {
+  const target = name.toLowerCase();
+  return collectionStore.userCollections.find((c) => c.displayName.toLowerCase() === target);
+}
+
+/** True for a non-empty collection whose every app is a RomM shortcut. */
+function isRomMOnlyCollection(c: SteamCollection): boolean {
+  // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- `allApps` is a Steam-internal mobx field; a collection that has not loaded its apps yet must read as empty, not throw.
+  const apps = c.allApps || [];
+  return apps.length > 0 && apps.every((a) => isRomMAppId(a.appid));
+}
+
+/**
+ * Under plain names, delete the old-style collections each new name replaces —
+ * only once the new collection exists, so the games are never left without one.
+ */
+async function retireOldCollectionNames(pairs: Array<[string, string[]]>, signal?: AbortSignal): Promise<void> {
+  if (!plainCollectionNames()) return;
+  for (const [newName, oldNames] of pairs) {
+    if (!findCollection(newName)) continue;
+    for (const oldName of oldNames) {
+      const old = findCollection(oldName);
+      if (!old || old.displayName.toLowerCase() === newName.toLowerCase()) continue;
+      if (signal?.aborted) return;
+      logInfo(`Removing old-style collection "${old.displayName}" (now "${newName}")`);
+      await old.Delete();
+    }
+  }
+}
+
 /**
  * Write one family of collections, reporting progress per entry. A failure on
  * one collection is logged and the rest still run; an abort stops the run.
@@ -146,8 +191,15 @@ export async function createOrUpdateCollections(
     await saveCollectionFamily(
       Object.entries(platformAppIds),
       "collection",
-      (platformName) => `RomM: ${platformName} (${hostname})`,
+      (platformName) => platformCollectionName(platformName, hostname),
       onProgress,
+      signal,
+    );
+    await retireOldCollectionNames(
+      Object.keys(platformAppIds).map((p) => [
+        platformCollectionName(p, hostname),
+        [`RomM: ${p} (${hostname})`, `RomM: ${p}`],
+      ]),
       signal,
     );
   } catch (e) {
@@ -173,8 +225,15 @@ export async function createOrUpdateRomMCollections(
     await saveCollectionFamily(
       Object.entries(collectionAppIds),
       "RomM collection",
-      (collName) => `RomM: [${collName}] (${hostname})`,
+      (collName) => rommCollectionName(collName, hostname),
       onProgress,
+      signal,
+    );
+    await retireOldCollectionNames(
+      Object.keys(collectionAppIds).map((n) => [
+        rommCollectionName(n, hostname),
+        [`RomM: [${n}] (${hostname})`, `RomM: [${n}]`],
+      ]),
       signal,
     );
   } catch (e) {
@@ -215,7 +274,16 @@ export async function clearPlatformCollection(platformName: string, signal?: Abo
       await legacy.Delete();
     }
 
-    if (!scoped && !legacy) {
+    // A plain-named collection is deleted only while it holds nothing but RomM
+    // shortcuts: the name alone could be a collection the user made themselves.
+    const plain = plainCollectionNames() ? findCollection(platformName) : undefined;
+    if (plain && isRomMOnlyCollection(plain)) {
+      logInfo(`Deleting collection "${plain.displayName}" (id=${plain.id})`);
+      if (signal?.aborted) return;
+      await plain.Delete();
+    }
+
+    if (!scoped && !legacy && !plain) {
       logInfo(`Collection "${scopedName}" not found, nothing to clear`);
     }
   } catch (e) {
@@ -244,6 +312,7 @@ export async function clearAllRomMCollections(signal?: AbortSignal): Promise<voi
     // same collection and must still be swept, #1569).
     const rommCollections = collectionStore.userCollections.filter((c) => {
       const lower = c.displayName.toLowerCase();
+      if (plainCollectionNames() && !lower.startsWith("romm: ") && isRomMOnlyCollection(c)) return true;
       if (!lower.startsWith("romm: ")) return false;
       // This machine's scoped collections (both platform and RomM collection style)
       if (lower.endsWith(lowerSuffix)) return true;

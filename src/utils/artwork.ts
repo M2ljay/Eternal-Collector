@@ -6,7 +6,7 @@
  * component to keep their import graph acyclic.
  */
 
-import { getSgdbArtworkBase64, saveShortcutIcon, debugLog } from "../api/backend";
+import { getSgdbArtworkBase64, saveShortcutIcon, debugLog, logError, logInfo } from "../api/backend";
 import { detach } from "./detach";
 import {
   capturePruneLeaseAdmission,
@@ -42,6 +42,31 @@ async function applyIcon(appId: number, base64: string, signal: AbortSignal): Pr
     return true;
   }
   return false;
+}
+
+// A custom logo with no position file is never drawn on the game page. Give a
+// RomM shortcut's logo Steam's default placement once; a position the user sets
+// later in Steam is never overwritten (tracked per appId in localStorage).
+function ensureLogoPosition(appId: number): void {
+  const key = "romm-logo-positioned";
+  let done: number[] = [];
+  try {
+    done = JSON.parse(localStorage.getItem(key) || "[]") as number[];
+  } catch {
+    done = [];
+  }
+  if (done.includes(appId) || typeof SteamClient.Apps.SetCustomLogoPositionForApp !== "function") return;
+  try {
+    SteamClient.Apps.SetCustomLogoPositionForApp(
+      appId,
+      JSON.stringify({ nVersion: 1, logoPosition: { pinnedPosition: "BottomLeft", nWidthPct: 50, nHeightPct: 50 } }),
+    );
+    done.push(appId);
+    localStorage.setItem(key, JSON.stringify(done));
+    logInfo(`ensureLogoPosition: set default logo position for appId ${appId}`);
+  } catch (e) {
+    logError(`ensureLogoPosition failed for appId ${appId}: ${e}`);
+  }
 }
 
 /** Fetch SGDB artwork (hero, logo, wide grid, icon) and apply to Steam.
@@ -92,6 +117,7 @@ export async function applyArtwork(romId: number, appId: number): Promise<number
         if (superseded()) return bail();
         await SteamClient.Apps.SetCustomArtworkForApp(appId, base64, "png", assetType);
         applied++;
+        if (assetType === 2) ensureLogoPosition(appId);
       }
 
       // Type 4 = icon (a distinct apply path — see applyIcon).

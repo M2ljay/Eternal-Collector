@@ -14,6 +14,11 @@ export interface RetroDeckBanner {
   message: string;
 }
 
+/** The launcher named in banner copy: EmuDeck on Windows, RetroDECK elsewhere. */
+function launcherName(): string {
+  return navigator.userAgent.includes("Windows") ? "EmuDeck" : "RetroDECK";
+}
+
 /**
  * Map a RetroDECK health status to banner copy, or `null` when nothing should
  * be shown. `ok` and `absent` stay quiet: `ok` is healthy, and `absent` is the
@@ -28,17 +33,17 @@ export function retroDeckBanner(
   switch (status) {
     case "unreadable":
       return {
-        title: "RetroDECK configuration unreadable",
+        title: `${launcherName()} configuration unreadable`,
         message:
-          "Couldn't read RetroDECK's configuration — syncs and downloads may target the wrong location. " +
-          "Check that RetroDECK is installed correctly. " +
+          `Couldn't read ${launcherName()}'s configuration — syncs and downloads may target the wrong location. ` +
+          `Check that ${launcherName()} is installed correctly. ` +
           `Looked at: ${paths.config_path}`,
       };
     case "root_missing":
       return {
-        title: "RetroDECK library not found",
+        title: `${launcherName()} library not found`,
         message:
-          "RetroDECK's library folder doesn't exist on disk — if it's on an SD card, make sure the card is inserted. " +
+          `${launcherName()}'s library folder doesn't exist on disk — if it's on an SD card, make sure the card is inserted. ` +
           `Expected at: ${paths.resolved_home}`,
       };
     default:

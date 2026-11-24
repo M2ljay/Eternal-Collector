@@ -222,7 +222,7 @@ export const SystemPage: FC<SystemPageProps> = ({ onBack }) => {
     showModal(
       <ConfirmModal
         strTitle={`Delete BIOS files for ${platformSlug}?`}
-        strDescription="This deletes every downloaded BIOS file for this system from your RetroDECK bios directory. Games that need these files won't launch until you download them again."
+        strDescription="This deletes every downloaded BIOS file for this system from your BIOS folder. Games that need these files won't launch until you download them again."
         strOKButtonText="Delete BIOS Files"
         strCancelButtonText="Cancel"
         onOK={() => {
