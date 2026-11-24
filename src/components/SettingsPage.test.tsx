@@ -96,6 +96,11 @@ vi.mock("./settings/AdvancedSection", () => ({
 vi.mock("./settings/LauncherBackendSection", () => ({
   LauncherBackendSection: () => createElement("div", { "data-testid": "launcher-backend-section" }),
 }));
+// Self-contained and covered by its own test file; stubbed so its mount-time
+// update check does not run against this file's default callable mocks.
+vi.mock("./settings/PluginUpdateSection", () => ({
+  PluginUpdateSection: () => createElement("div", { "data-testid": "plugin-update-section" }),
+}));
 vi.mock("./settings/LibrarySection", async (importOriginal) => {
   // Keep the real AUTO_REGION / DEFAULT_REGION_LABEL constants (SettingsPage
   // imports them), but stub the component to capture props.

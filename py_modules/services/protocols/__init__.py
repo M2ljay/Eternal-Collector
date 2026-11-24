@@ -76,6 +76,7 @@ from services.protocols.files import (
     FirmwareFileStore,
     GameModStore,
     MigrationFileStore,
+    PluginUpdateFileStore,
     PruneArtifactStore,
     RecoveryBundleStore,
     RomFileStore,
@@ -138,6 +139,7 @@ from services.protocols.repositories import (
     SyncRunRepository,
 )
 from services.protocols.transport import (
+    PluginReleaseSource,
     RommAchievementsApi,
     RommApi,
     RommConnectionApi,
@@ -209,6 +211,8 @@ __all__ = [
     "PlaytimeRepository",
     "PlaytimeScopeNoticeClearFn",
     "PluginMetadataReader",
+    "PluginReleaseSource",
+    "PluginUpdateFileStore",
     "ProtonLocator",
     "PruneArtifactStore",
     "PruneSaveCoordinator",

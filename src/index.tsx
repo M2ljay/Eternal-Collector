@@ -90,6 +90,7 @@ import type { PruneActionRequired } from "./utils/pruneActions";
 import { admitPruneFrame, setPruneComplete, setPruneProgress } from "./utils/pruneStore";
 import type { PruneComplete, PruneProgress } from "./utils/pruneStore";
 import { publishCommittedVersionSwitch } from "./utils/versionSwitchApplication";
+import { startPluginUpdateWatch } from "./utils/pluginUpdate";
 
 // Module-level page state survives QAM remounts (e.g. after modal close)
 let currentPage: Page = "main";
@@ -304,6 +305,7 @@ function registerAppIds(map: Record<string, number[]>): void {
 
 export default definePlugin(() => {
   mountPruneLeasePlugin();
+  const stopPluginUpdateWatch = startPluginUpdateWatch();
   const pluginAdmission = capturePruneLeaseAdmission();
   registerGameDetailPatch();
   registerLaunchInterceptor({
@@ -1008,6 +1010,7 @@ export default definePlugin(() => {
     content: <QAMPanel />,
     alwaysRender: true,
     onDismount() {
+      stopPluginUpdateWatch();
       syncContinuationController.abort();
       destroySessionManager();
       unregisterLaunchInterceptor();

@@ -1262,3 +1262,31 @@ export const copySaveToSlot = callable<[number, number, string], CopySaveToSlotS
 // Achievements callables
 export const getAchievements = callable<[number], AchievementList>("get_achievements");
 export const getAchievementProgress = callable<[number], AchievementProgress>("get_achievement_progress");
+
+// Plugin self-update (Windows fork builds; every other build answers supported: false)
+interface PluginUpdateFailure {
+  success: false;
+  reason: string;
+  message: string;
+  current: string;
+}
+export type PluginUpdateCheck =
+  | {
+      success: true;
+      supported: boolean;
+      current: string;
+      update_available: boolean;
+      version?: string;
+      notes?: string;
+      size?: number;
+      checked_at?: number | null;
+    }
+  | PluginUpdateFailure;
+export type PluginUpdatePrepared =
+  { success: true; version: string; artifact: string; sha256: string; size: number } | PluginUpdateFailure;
+export type PluginRollback =
+  | { success: true; available: false }
+  | { success: true; available: true; version: string; artifact: string; sha256: string };
+export const checkPluginUpdate = callable<[boolean], PluginUpdateCheck>("check_plugin_update");
+export const preparePluginUpdate = callable<[], PluginUpdatePrepared>("prepare_plugin_update");
+export const getPluginRollback = callable<[], PluginRollback>("get_plugin_rollback");

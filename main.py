@@ -194,6 +194,7 @@ class Plugin:
         self._game_process_service = services["game_process_service"]
         self._relaunch_options_resolver = services["relaunch_options_resolver"]
         self._launcher_backend_service = services["launcher_backend_service"]
+        self._plugin_update_service = services["plugin_update_service"]
 
         # ── 4b. Legacy credential migration ─────────────────────────────────
         # Upgrade a stored-password install to a Client API Token. The
@@ -297,6 +298,17 @@ class Plugin:
 
     async def get_settings(self):
         return self._settings_service.get_settings()
+
+    # ── Plugin self-update (Windows fork builds) ──────────────────────
+
+    async def check_plugin_update(self, force=False):
+        return await self._plugin_update_service.check_for_update(bool(force))
+
+    async def prepare_plugin_update(self):
+        return await self._plugin_update_service.prepare_update()
+
+    async def get_plugin_rollback(self):
+        return await self._plugin_update_service.get_rollback()
 
     async def get_retrodeck_status(self):
         """Report RetroDECK path-resolution health for the frontend banner.

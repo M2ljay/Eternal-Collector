@@ -83,6 +83,7 @@ nav:
       - Launcher Backends: architecture/launcher-backends.md
       - Native-Windows Games &amp; Proton Launch: architecture/windows-proton-launch.md
       - Game Mods (Windows): architecture/game-mods.md
+      - Plugin Self-Update (Windows): architecture/plugin-self-update.md
       - Steam Non-Steam Shortcuts: architecture/steam-non-steam-shortcuts.md
       - Steam Remote Play & Cross-Device: architecture/steam-remote-play.md
   - Contributing:

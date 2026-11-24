@@ -244,3 +244,11 @@ def error_response(exc, fallback_message=None):
     """
     reason, msg = classify_error(exc)
     return {"success": False, "reason": reason, "message": fallback_message or msg}
+
+
+class PluginReleaseFetchError(Exception):
+    """Raised when the plugin's release channel cannot be read or downloaded from.
+
+    Wraps the transport's own exceptions (HTTP status, connection, timeout) so
+    callers never import urllib.
+    """

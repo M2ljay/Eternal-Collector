@@ -51,6 +51,7 @@ import { RegisteredDevicesSection } from "./settings/RegisteredDevicesSection";
 import { ControllerSection } from "./settings/ControllerSection";
 import { AdvancedSection } from "./settings/AdvancedSection";
 import { LauncherBackendSection } from "./settings/LauncherBackendSection";
+import { PluginUpdateSection } from "./settings/PluginUpdateSection";
 import { LibrarySection, AUTO_REGION, DEFAULT_REGION_LABEL } from "./settings/LibrarySection";
 import { showPreferredRegionModal } from "./settings/PreferredRegionModal";
 
@@ -581,6 +582,8 @@ export const SettingsPage: FC<SettingsPageProps> = ({ onBack }) => {
       />
 
       <LauncherBackendSection />
+
+      <PluginUpdateSection />
 
       <AdvancedSection logLevel={logLevel} onLogLevelChange={handleLogLevelChange} />
     </>

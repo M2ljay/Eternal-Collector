@@ -914,3 +914,28 @@ class SteamRecoveryStore(Protocol):
         snapshot: SteamRecoverySnapshot,
         claims: dict[str, SourceClaim],
     ) -> MutationOutcome: ...
+
+
+class PluginUpdateFileStore(Protocol):
+    """Filesystem seam for the plugin self-update's staging folder.
+
+    Owns the staged download, the snapshot of the installed plugin folder kept
+    for a rollback, and the small JSON records beside them. Paths are built by
+    the service; this Protocol only touches the files.
+    """
+
+    def ensure_dir(self, path: str) -> None: ...
+    def read_json(self, path: str) -> dict[str, object] | None: ...
+    def write_json(self, path: str, data: dict[str, object]) -> None: ...
+    def remove(self, path: str) -> None: ...
+    def digest(self, path: str) -> tuple[int, str] | None:
+        """``(size, sha256_hex)`` of the file at *path*, or ``None`` when it is absent."""
+        ...
+
+    def archive_folder(self, source_dir: str, top_folder: str, dest_path: str) -> tuple[int, str]:
+        """Zip *source_dir* as ``top_folder/...`` into *dest_path*; return ``(size, sha256_hex)``.
+
+        Leaves out ``__pycache__`` folders, ``.pyc`` files and ``.log`` files.
+        Raises ``OSError`` when the archive cannot be written.
+        """
+        ...

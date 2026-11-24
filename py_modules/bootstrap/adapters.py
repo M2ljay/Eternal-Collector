@@ -41,6 +41,8 @@ from adapters.persistence import (
     SettingsPersisterAdapter,
 )
 from adapters.plugin_metadata import PluginMetadataAdapter
+from adapters.plugin_release import PluginReleaseHttpAdapter
+from adapters.plugin_update_files import PluginUpdateFileAdapter
 from adapters.proton_locator import ProtonLocatorAdapter
 from adapters.prune_artifacts import PruneArtifactAdapter
 from adapters.recovery_bundle import RecoveryBundleAdapter
@@ -92,6 +94,8 @@ if TYPE_CHECKING:
         PathExistsReader,
         PlatformCoreReader,
         PluginMetadataReader,
+        PluginReleaseSource,
+        PluginUpdateFileStore,
         ProtonLocator,
         PruneArtifactStore,
         RecoveryBundleStore,
@@ -154,6 +158,8 @@ class AdapterBundle:
     emudeck_launcher_backend_factory: LauncherBackendFactory
     vita_app_linker: VitaAppLinker | None = None
     game_mods: GameModStore | None = None
+    plugin_release: PluginReleaseSource | None = None
+    plugin_update_files: PluginUpdateFileStore | None = None
 
 
 @dataclass(frozen=True)
@@ -452,6 +458,8 @@ def bootstrap(
         emudeck_launcher_backend_factory=emudeck_launcher_backend_factory,
         vita_app_linker=Vita3kAppLinker(logger=logger),
         game_mods=game_mods,
+        plugin_release=PluginReleaseHttpAdapter(user_agent=user_agent),
+        plugin_update_files=PluginUpdateFileAdapter(),
     )
     stores = StateBundle(
         settings=settings,

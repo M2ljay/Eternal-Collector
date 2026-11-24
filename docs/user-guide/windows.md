@@ -160,6 +160,35 @@ Close the emulator first: the plugin refuses while it is running. It copies the 
 that one line. If the ini has anything unusual in it (a section or key twice, a line it doesn't understand) the button
 is not offered — change the setting in the emulator instead.
 
+## Updates
+
+This build updates itself from the fork's own releases; it is not on the Decky store. When a newer build is published
+you get a toast when Steam starts, or within 6 hours while it runs: *Version 0.33.0-win.18 is available. Tap to
+install.* The plugin looks for a new build at most once every 6 hours.
+
+**Settings → Plugin Updates** shows the installed version, an **Install &lt;version&gt;** button with the release notes
+when a newer build is out, and **Check for Updates** to look right now.
+
+Installing (from the toast or the button):
+
+1. The plugin downloads the new build and checks it against the published size and SHA-256. If either differs, nothing
+   is installed and you are told why — usually it means the build was published moments ago; try again in a few
+   minutes.
+2. It saves a copy of the version you have now.
+3. Decky shows its own *update* prompt. Confirm it and Decky replaces the plugin and reloads it. Cancel and nothing
+   changes.
+
+Your settings, library, saves and covers are not part of the plugin folder and are kept. The launcher's log,
+`bin\rom-launcher.log`, starts again empty after an update.
+
+**Roll Back to &lt;version&gt;** appears in the same section after an update and reinstalls the copy saved in step 2,
+again through Decky's prompt. Only the most recent replaced version is kept. Rolling back across a release that changed
+the plugin's database is not safe.
+
+If your Decky Loader does not offer installing from plugins, the buttons are greyed out with a note, and no toast
+appears; install the zip from the fork's `release` branch by hand (Decky settings → Developer → Install Plugin from
+ZIP).
+
 ## Building the launcher
 
 The launcher's source is in `native/rom-launcher-win/`. `native/rom-launcher-win/build.sh` runs its tests on the build

@@ -91,6 +91,7 @@ _BOUND_SERVICE_ATTRS = {
     "_session_lifecycle_service": "session_lifecycle_service",
     "_game_process_service": "game_process_service",
     "_relaunch_options_resolver": "relaunch_options_resolver",
+    "_plugin_update_service": "plugin_update_service",
 }
 
 

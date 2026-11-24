@@ -494,3 +494,24 @@ class SteamGridDbApi(Protocol):
         (e.g. 401/403 for an invalid key).
         """
         ...
+
+
+class PluginReleaseSource(Protocol):
+    """The plugin's own release channel, read over HTTPS.
+
+    Implementations send the plugin's User-Agent and raise
+    ``lib.errors.PluginReleaseFetchError`` on any transport failure or non-200
+    answer. Synchronous — services offload via ``run_in_executor``.
+    """
+
+    def fetch_manifest(self, url: str, max_bytes: int) -> bytes:
+        """Return the body at *url*; a body larger than *max_bytes* is a fetch error."""
+        ...
+
+    def download(self, url: str, dest_path: str, max_bytes: int) -> tuple[int, str]:
+        """Stream *url* to *dest_path* and return ``(bytes_written, sha256_hex)``.
+
+        Stops reading after ``max_bytes + 1`` bytes, so an oversized body is
+        reported by its size rather than written in full.
+        """
+        ...

@@ -358,6 +358,14 @@ folder". A **mod backup** is where the Mods panel moves what an install replaces
 before a setting edit: `romm-mod-backups\<stamp>\<target>` inside the emulator's own data folder. Nothing in the
 feature deletes.
 
+### Fork build / release channel / kept build
+
+A **fork build** is a Windows build of this fork, versioned `X.Y.Z-win.N`; `N` counts fork builds of one upstream
+version and compares as a number. The **release channel** is the fork's `release` branch (`romm-dock.zip` +
+`update.json`) that a fork build updates itself from (`domain/plugin_release.py`). The **kept build** is the snapshot
+of the installed plugin folder taken before an update, which **Roll Back** reinstalls. Only a fork build on Windows uses
+the channel; every other build is left to the Decky store.
+
 ### Baseline
 
 The last-synced reference point recorded for a tracked save file — captured in a `FileSyncState` value object

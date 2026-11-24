@@ -266,6 +266,38 @@ class TestCoreCallableDelegation:
         assert result == {"emulators": [], "active_core": "snes9x_libretro", "active_core_label": "Snes9x"}
 
 
+class TestPluginUpdateCallableDelegation:
+    @pytest.mark.asyncio
+    async def test_check_plugin_update_delegates_with_force(self, plugin):
+        answer = {"success": True, "supported": True, "current": "0.33.0-win.16", "update_available": False}
+        plugin._plugin_update_service = MagicMock()
+        plugin._plugin_update_service.check_for_update = AsyncMock(return_value=answer)
+        assert await plugin.check_plugin_update(True) is answer
+        plugin._plugin_update_service.check_for_update.assert_awaited_once_with(True)
+
+    @pytest.mark.asyncio
+    async def test_check_plugin_update_defaults_to_cached(self, plugin):
+        plugin._plugin_update_service = MagicMock()
+        plugin._plugin_update_service.check_for_update = AsyncMock(return_value={})
+        await plugin.check_plugin_update()
+        plugin._plugin_update_service.check_for_update.assert_awaited_once_with(False)
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        ("callable_name", "method"),
+        [
+            ("prepare_plugin_update", "prepare_update"),
+            ("get_plugin_rollback", "get_rollback"),
+        ],
+    )
+    async def test_delegates(self, plugin, callable_name, method):
+        answer = {"success": False, "reason": "hash_mismatch", "message": "m"}
+        plugin._plugin_update_service = MagicMock()
+        setattr(plugin._plugin_update_service, method, AsyncMock(return_value=answer))
+        assert await getattr(plugin, callable_name)() is answer
+        getattr(plugin._plugin_update_service, method).assert_awaited_once_with()
+
+
 class TestLauncherBackendCallableDelegation:
     @pytest.mark.asyncio
     async def test_get_launcher_backends_delegates(self, plugin):

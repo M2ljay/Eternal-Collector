@@ -859,6 +859,12 @@ _MIGRATION_BLOCKED_WHITELIST: set[str] = {
     # Read-only launcher-backend listing (the switch set_launcher_backend IS
     # decorated).
     "get_launcher_backends",
+    # Plugin self-update: about the plugin's own build, not the library or
+    # RetroDECK data a migration is moving, so it must keep working while one
+    # is pending (an update may be the fix).
+    "check_plugin_update",
+    "prepare_plugin_update",
+    "get_plugin_rollback",
     # Read-only disc-picker state query (the pin-write select_disc IS decorated).
     "get_disc_selection",
     # Read-only exe-picker state query (the pin-write select_executable IS decorated).
@@ -1125,6 +1131,7 @@ class TestMainStartupOrdering:
             "game_process_service": MagicMock(),
             "relaunch_options_resolver": MagicMock(),
             "launcher_backend_service": MagicMock(),
+            "plugin_update_service": MagicMock(),
         }
 
         bootstrap_result = BootstrapResult(
