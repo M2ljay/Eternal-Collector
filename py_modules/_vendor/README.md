@@ -158,3 +158,26 @@ rather than "diff and pray". See the `_vendor/` rules in [`CLAUDE.md`](../../CLA
 - **Update procedure:** re-copy both files from a newer 3.11.x patch release only if `mise.toml`'s pinned Python version
   moves — these two stdlib modules change rarely and only for bugfixes; there is no reason to track anything but the
   toolchain's own Python version here.
+
+## stdlib_compat
+
+- **Upstream:** CPython 3.11 standard library (`Lib/tomllib/` — `__init__.py`, `_parser.py`, `_re.py`, `_types.py` —
+  and `Lib/glob.py`), plus CPython's `LICENSE` as `LICENSE.txt`
+- **Version:** 3.11.18 — byte-identical to that release's files (checked with `cmp` against a 3.11.18 install)
+- **License:** PSF License — see [`stdlib_compat/LICENSE.txt`](stdlib_compat/LICENSE.txt)
+- **Local patches:** none — verbatim copies. Pinned by
+  [`stdlib_compat/SHA256SUMS`](stdlib_compat/SHA256SUMS), verified by `sha256sum -c` in `mise run lint` and CI.
+- **How it is reached:** not imported as `_vendor.stdlib_compat`. On Windows only, `main.py` appends this folder to
+  `sys.path` when `tomllib` or `glob` cannot be found, so the plugin's own `import tomllib` / `import glob` resolve
+  here; appended, so a module the runtime provides always wins. On Linux (Decky's Python 3.11) both are found and the
+  folder is never put on the path.
+- **Why vendored:** Decky Loader for Windows is a PyInstaller-frozen Python 3.14 (`python314.dll`) that bundles only
+  the standard modules its own code imports. Read from the shipped `PluginLoader.exe` archive (its `PYZ.pyz` table of
+  contents and `base_library.zip`, 2026-11-24): `tomllib` is absent from both, so `adapters/xemu_config.py` and
+  `domain/xemu_config.py` fail to import without this copy; `glob` **is** bundled, so the `glob.py` copy here is not
+  reached on that build and is kept only as the fallback for a bundle that drops it. The 3.11 `tomllib` copy parses
+  correctly on CPython 3.14.6.
+- **Update procedure:** re-copy the five module files and `LICENSE` from a newer CPython release, regenerate
+  `SHA256SUMS` (`sha256sum LICENSE.txt glob.py tomllib/*.py > SHA256SUMS` in this folder), and bump the version here.
+  Whether either module can be dropped is a question for the frozen runtime, not for this copy: re-read the bundle's
+  module list after a Decky for Windows update.
