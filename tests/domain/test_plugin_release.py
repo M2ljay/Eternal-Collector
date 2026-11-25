@@ -6,6 +6,8 @@ import pytest
 
 from domain.plugin_release import (
     ARTIFACT_URL,
+    LEGACY_ARTIFACT_URL,
+    MANIFEST_URL,
     MAX_ARTIFACT_BYTES,
     ManifestError,
     is_fork_build,
@@ -91,12 +93,23 @@ class TestParseManifest:
             {"size": MAX_ARTIFACT_BYTES + 1},
             {"url": "https://example.com/romm-dock.zip"},
             {"url": ARTIFACT_URL + "?x=1"},
+            {"url": LEGACY_ARTIFACT_URL + "?x=1"},
+            {"url": "https://raw.githubusercontent.com/M2ljay/Eternal-Collector/main/romm-dock.zip"},
             {"url": None},
         ],
     )
     def test_rejects(self, overrides):
         with pytest.raises(ManifestError):
             parse_manifest(_manifest(**overrides))
+
+    def test_accepts_the_legacy_repository_url(self):
+        # Builds up to win.17 accept only the pre-rename URL, so the channel publishes it.
+        assert parse_manifest(_manifest(url=LEGACY_ARTIFACT_URL)).url == LEGACY_ARTIFACT_URL
+
+    def test_channel_reads_the_renamed_repository(self):
+        assert MANIFEST_URL == "https://raw.githubusercontent.com/M2ljay/Eternal-Collector/release/update.json"
+        assert ARTIFACT_URL == "https://raw.githubusercontent.com/M2ljay/Eternal-Collector/release/romm-dock.zip"
+        assert LEGACY_ARTIFACT_URL == "https://raw.githubusercontent.com/M2ljay/Eternal-Romm/release/romm-dock.zip"
 
     def test_rejects_non_object(self):
         with pytest.raises(ManifestError):

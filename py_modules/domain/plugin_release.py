@@ -9,12 +9,20 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 
-RELEASE_REPO = "M2ljay/Eternal-Romm"
+RELEASE_REPO = "M2ljay/Eternal-Collector"
 RELEASE_BRANCH = "release"
 RELEASE_BASE_URL = f"https://raw.githubusercontent.com/{RELEASE_REPO}/{RELEASE_BRANCH}/"
 MANIFEST_URL = RELEASE_BASE_URL + "update.json"
 ARTIFACT_NAME = "romm-dock.zip"
 ARTIFACT_URL = RELEASE_BASE_URL + ARTIFACT_NAME
+
+# The same repository under its name before the GitHub rename; raw.githubusercontent.com
+# still serves it. Builds up to 0.33.0-win.17 accept only this artifact URL in
+# update.json, so the channel publishes it until none of those builds remain.
+LEGACY_RELEASE_REPO = "M2ljay/Eternal-Romm"
+LEGACY_ARTIFACT_URL = f"https://raw.githubusercontent.com/{LEGACY_RELEASE_REPO}/{RELEASE_BRANCH}/{ARTIFACT_NAME}"
+ACCEPTED_ARTIFACT_URLS = (ARTIFACT_URL, LEGACY_ARTIFACT_URL)
+PUBLISHED_ARTIFACT_URL = LEGACY_ARTIFACT_URL
 
 CHECK_INTERVAL_SECONDS = 6 * 60 * 60
 MAX_MANIFEST_BYTES = 64 * 1024
@@ -77,7 +85,8 @@ def parse_manifest(payload: object) -> ReleaseManifest:
     """Validate a decoded ``update.json`` and return the build it describes.
 
     Raises :class:`ManifestError` when any field is missing or wrong. The
-    artifact URL must be exactly the channel's own zip: the installer runs
+    artifact URL must be exactly the channel's own zip, under the repository's
+    current or legacy name (:data:`ACCEPTED_ARTIFACT_URLS`): the installer runs
     whatever it is handed, so nothing else is accepted.
     """
     if not isinstance(payload, dict):
@@ -92,7 +101,7 @@ def parse_manifest(payload: object) -> ReleaseManifest:
     if isinstance(size, bool) or not isinstance(size, int) or not 0 < size <= MAX_ARTIFACT_BYTES:
         raise ManifestError(f"update.json has an invalid size: {size!r}")
     url = payload.get("url")
-    if not isinstance(url, str) or url != ARTIFACT_URL:
+    if not isinstance(url, str) or url not in ACCEPTED_ARTIFACT_URLS:
         raise ManifestError(f"update.json points somewhere other than {ARTIFACT_URL}")
     notes = payload.get("notes", "")
     if not isinstance(notes, str):

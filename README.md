@@ -2,7 +2,7 @@
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="assets/lockup-dark.png">
-  <img src="assets/lockup.png" alt="RomM-Dock" width="300">
+  <img src="assets/lockup.png" alt="The Collector (RomM-Dock)" width="300">
 </picture>
 
 <h3>Your RomM library, running native in Steam — on RetroDECK or EmuDeck</h3>
@@ -23,6 +23,13 @@
 <a href="https://github.com/rommapp/romm/releases"><img alt="Requires RomM 4.9.0 or newer" src="https://img.shields.io/badge/RomM-%E2%89%A5%204.9.0-4795c9?style=for-the-badge&labelColor=16202c"></a>
 
 </div>
+
+**The Collector** is the Windows build of RomM-Dock, maintained in
+[M2ljay/Eternal-Collector](https://github.com/M2ljay/Eternal-Collector): it runs in Steam Big Picture through Decky
+Loader for Windows (Playhub) and launches through EmuDeck for Windows. It updates itself from that repository's
+`release` branch. Decky lists it as **RomM-Dock**, the name its install folder and data are kept under. Everything below
+describes RomM-Dock, which The Collector carries forward; the Windows differences are in
+[docs/user-guide/windows.md](docs/user-guide/windows.md).
 
 > [!IMPORTANT]
 > **RomM-Dock is an AI-generated application.** Nearly all of the code, and this documentation, was written by an AI

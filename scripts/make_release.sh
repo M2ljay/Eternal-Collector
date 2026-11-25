@@ -104,7 +104,7 @@ import sys
 
 here, path, version, sha, size, notes = sys.argv[1:7]
 sys.path.insert(0, os.path.join(here, "py_modules"))
-from domain.plugin_release import ARTIFACT_URL  # noqa: E402 - the plugin's own channel URL
+from domain.plugin_release import PUBLISHED_ARTIFACT_URL  # noqa: E402 - the URL every installed build accepts
 with open(path, "w", encoding="utf-8") as f:
     json.dump(
         {
@@ -112,7 +112,7 @@ with open(path, "w", encoding="utf-8") as f:
             "sha256": sha,
             "size": int(size),
             "notes": notes,
-            "url": ARTIFACT_URL,
+            "url": PUBLISHED_ARTIFACT_URL,
         },
         f,
         indent=1,

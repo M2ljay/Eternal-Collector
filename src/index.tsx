@@ -1,5 +1,5 @@
 import { definePlugin, addEventListener, removeEventListener, toaster } from "@decky/api";
-import { showToast, PLUGIN_NAME } from "./utils/toast";
+import { showToast, PLUGIN_NAME, PLUGIN_DISPLAY_NAME } from "./utils/toast";
 import { useState, useRef, useEffect, FC, type ReactNode } from "react";
 import { FaGamepad } from "react-icons/fa";
 import { MainPage } from "./components/MainPage";
@@ -1006,6 +1006,7 @@ export default definePlugin(() => {
 
   return {
     name: PLUGIN_NAME,
+    titleView: <div style={{ flex: 0.9 }}>{PLUGIN_DISPLAY_NAME}</div>,
     icon: <FaGamepad />,
     content: <QAMPanel />,
     alwaysRender: true,

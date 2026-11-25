@@ -1,11 +1,11 @@
 # Managing Games
 
-After syncing, each game in your Steam Library that came from RomM has an injected **RomM-Dock** panel on its detail
+After syncing, each game in your Steam Library that came from RomM has an injected **The Collector** panel on its detail
 page. This panel handles downloads, artwork, BIOS status, save sync, and more.
 
 ## The Game Detail Panel
 
-When you open a RomM game in the Steam Library, you'll see the RomM-Dock panel below the standard Steam content. It
+When you open a RomM game in the Steam Library, you'll see The Collector's panel below the standard Steam content. It
 shows:
 
 - **Status badge** — "Installed", "Downloading", or "Not Installed"
@@ -20,7 +20,7 @@ shows:
   installed games); it's also omitted when RomM doesn't report the size.
 - **Action buttons** — Download, Pause/Resume, Uninstall, Cancel, or Refresh Metadata depending on state
 
-![Game detail page showing the RomM-Dock panel for an installed game](../assets/screenshot-game-detail.jpg)
+![Game detail page showing The Collector's panel for an installed game](../assets/screenshot-game-detail.jpg)
 
 ## Versions
 
@@ -199,7 +199,7 @@ Games appear as shortcuts in your library even before the ROM file is downloaded
 **Space Required** cell next to the Play button so you know how much disk space the ROM needs. To download:
 
 1. Open the game's detail page in the Steam Library
-2. In the RomM-Dock panel, tap **Download**
+2. In The Collector's panel, tap **Download**
 3. A progress bar shows download status with bytes transferred
 4. When complete, the status changes to "Installed" and the game is ready to play
 
@@ -289,10 +289,10 @@ list shows, it says so.
 same answer.
 
 The first is the **wrong shape**: your server sends each game either as a single file or as a folder of several files,
-and RomM-Dock can only take over what matches. A _folder_ with this game's name where the server sends a single file —
-or a loose file where it sends a folder — is not something it can use.
+and The Collector can only take over what matches. A _folder_ with this game's name where the server sends a single file
+— or a loose file where it sends a folder — is not something it can use.
 
-The second is a **shortcut** (a symlink). RomM-Dock never adopts one, even when it points at exactly the right game
+The second is a **shortcut** (a symlink). The Collector never adopts one, even when it points at exactly the right game
 file. Once a game counts as installed, Uninstall has to be able to remove it, and it will not remove a shortcut — so
 adopting one would leave you with a game you could never uninstall from here.
 
@@ -301,10 +301,10 @@ as this game, so downloading leaves you with two copies.** You can go ahead and 
 server's copy beside what is already there under the server's own name, or cancel and sort it out yourself. Neither
 choice renames, moves or deletes anything you have.
 
-Things that are neither files, folders nor shortcuts are ignored entirely — RomM-Dock will not offer you something that
-only looks like a game because it happens to have the right name. The one place it does mention such a thing is when it
-sits at the exact spot the download would write to: there it says something is in the way without claiming to know what,
-because downloading over it would destroy it and you should be the one to decide that.
+Things that are neither files, folders nor shortcuts are ignored entirely — The Collector will not offer you something
+that only looks like a game because it happens to have the right name. The one place it does mention such a thing is
+when it sits at the exact spot the download would write to: there it says something is in the way without claiming to
+know what, because downloading over it would destroy it and you should be the one to decide that.
 
 **And if it finds nothing at all.** If the page told you a copy was here and pressing turns up nothing that matches —
 you moved it, renamed it or deleted it in between — you get told that too, instead of a download starting on its own.
@@ -365,8 +365,8 @@ removes an already-installed copy.
 If you chose **Download Instead** on the [already-on-your-device dialog](#when-the-game-is-already-on-your-device) and
 then paused, resuming picks up where it left off as usual: your existing file is still there until the download
 finishes, and the answer you gave covers it. Resume is only refused if something _new_ has turned up at the game's
-location in the meantime — RomM-Dock says so rather than deleting it, since you were never shown that content. Cancel
-the download and start again to see the dialog for what is there now.
+location in the meantime — The Collector says so rather than deleting it, since you were never shown that content.
+Cancel the download and start again to see the dialog for what is there now.
 
 ### Multi-Disc and Multi-File Games
 
@@ -542,7 +542,7 @@ the game once a build is in place.
 To remove a downloaded ROM file:
 
 1. Open the game's detail page
-2. Tap **Uninstall** in the RomM-Dock panel
+2. Tap **Uninstall** in The Collector's panel
 3. The ROM file is deleted from disk
 4. The shortcut remains in your library so you can re-download later
 

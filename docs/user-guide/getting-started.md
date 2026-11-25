@@ -1,10 +1,10 @@
 # Getting Started
 
-## What is RomM-Dock?
+## What is The Collector?
 
-RomM-Dock is a [Decky Loader](https://decky.xyz/) plugin that connects your self-hosted
-[RomM](https://github.com/rommapp/romm) ROM library to Steam. Every game in your RomM library appears as a Non-Steam
-shortcut in the Steam Library, complete with cover art, metadata, and collections. Games launch through
+The Collector (the Windows build of RomM-Dock) is a [Decky Loader](https://decky.xyz/) plugin that connects your
+self-hosted [RomM](https://github.com/rommapp/romm) ROM library to Steam. Every game in your RomM library appears as a
+Non-Steam shortcut in the Steam Library, complete with cover art, metadata, and collections. Games launch through
 [RetroDECK](https://retrodeck.net/) or [EmuDeck](https://www.emudeck.com/), whichever you have installed.
 
 ## Prerequisites
@@ -70,7 +70,7 @@ Any direct URL to the zip file works (GitHub releases, a self-hosted mirror, etc
 
 After installation, you need to connect the plugin to your RomM server:
 
-1. Open the QAM and find **RomM-Dock**
+1. Open the QAM and find **RomM-Dock** in the Decky tab (its header reads **The Collector** once open)
 2. Tap **Connection Settings**
 3. Enter your RomM server URL (e.g. `http://192.168.1.100:8080`) — this saves automatically
 4. Tap **Sign in**, enter your RomM username and password once, and confirm

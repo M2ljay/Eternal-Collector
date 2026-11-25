@@ -1,7 +1,7 @@
 # Windows (EmuDeck)
 
-This fork's `windows` branch runs RomM-Dock on a Windows PC, inside Steam Big Picture with Decky Loader for Windows
-(Playhub), launching games through EmuDeck for Windows instead of RetroDECK.
+This fork's `windows` branch runs RomM-Dock on a Windows PC as **The Collector**, inside Steam Big Picture with Decky
+Loader for Windows (Playhub), launching games through EmuDeck for Windows instead of RetroDECK.
 
 ## What differs from the Steam Deck build
 
@@ -39,8 +39,8 @@ real location from EmuDeck's settings):
 Which emulator counts is the one the game actually launches with — your per-game or per-platform choice, else EmuDeck's
 default. A PlayStation game you launch with a RetroArch core keeps syncing RetroArch's save. Each emulator's saves are
 stored on RomM under that emulator's name (`melonds`, `duckstation`, `vita3k`, `dolphin`, `ppsspp`, `pcsx2`), so saves
-from different emulators never overwrite each other. Only files positively identified as the game's are read or
-written; save states are not synced.
+from different emulators never overwrite each other. Only files positively identified as the game's are read or written;
+save states are not synced.
 
 !!! note "DuckStation: the card must be named after your ROM"
 
@@ -114,18 +114,18 @@ panel says **No known mod folder for this emulator** and why, rather than guessi
 
 - **Which emulator folder.** Only portable installs are read, which is how EmuDeck installs them: Dolphin with
   `portable.txt` beside `Dolphin.exe`; PPSSPP with its `memstick` folder and no `installed.txt`; PCSX2 with
-  `portable.ini` (or an empty `portable.txt`); Azahar/Citra with a `user` folder beside the exe. Dolphin's custom *Load*
-  path and PCSX2's custom *Textures* folder are followed.
+  `portable.ini` (or an empty `portable.txt`); Azahar/Citra with a `user` folder beside the exe. Dolphin's custom _Load_
+  path and PCSX2's custom _Textures_ folder are followed.
 - **Game IDs.** GameCube/Wii, PSP and PS2 IDs come from the disc image (the same reader save sync uses: ISO, GCM, RVZ,
-  WIA, CSO, CHD). 3DS title IDs come from `.3ds`, `.cci`, `.cxi`, `.app` and `.cia` files; `.3dsx` homebrew has none,
-  so it gets no mod folder.
+  WIA, CSO, CHD). 3DS title IDs come from `.3ds`, `.cci`, `.cxi`, `.app` and `.cia` files; `.3dsx` homebrew has none, so
+  it gets no mod folder.
 - **Not offered.** PCSX2 patches and cheats (`.pnach`) are named by the game's executable CRC, which the plugin does not
-  read. Dolphin's *Enable Graphics Mods* and Azahar's *Use Custom Textures* settings are not checked. Other emulators
+  read. Dolphin's _Enable Graphics Mods_ and Azahar's _Use Custom Textures_ settings are not checked. Other emulators
   (Cemu, xemu, RPCS3, …) show no folder.
 - **Soft patches.** RetroArch applies the patch in memory each launch; the ROM file is never changed. It only works for
-  a single cartridge file loaded into memory, so zipped ROMs, disc images and cores that read the game from disk
-  (their core info says `needs_fullpath`) get no soft-patch option. Which patch formats EmuDeck's RetroArch build tries
-  is unverified.
+  a single cartridge file loaded into memory, so zipped ROMs, disc images and cores that read the game from disk (their
+  core info says `needs_fullpath`) get no soft-patch option. Which patch formats EmuDeck's RetroArch build tries is
+  unverified.
 
 ### Installing
 
@@ -136,8 +136,8 @@ must be extracted first — the plugin only reads `.zip`. A relocated Downloads 
 Before anything is written you see a preview: how many files, how big, where they go, and which existing files would be
 replaced. Every name in the archive is checked first; an archive with an entry that would land outside the folder (an
 absolute path, a drive letter, `..`, a link) is refused as a whole. If the archive's single top folder is the game's ID
-folder (`GALE01\...`), its contents go straight into the game folder instead of a second `GALE01` inside it. PCSX2
-packs without a `replacements` folder are put in one.
+folder (`GALE01\...`), its contents go straight into the game folder instead of a second `GALE01` inside it. PCSX2 packs
+without a `replacements` folder are put in one.
 
 Files that would be overwritten are moved to a backup folder first. If the file, the archive or the mod folder changes
 between the preview and **Install**, the install is refused and you are shown the new preview.
@@ -155,7 +155,7 @@ need them.
 
 ### Turning texture packs on
 
-When the setting above is off, the panel says *Texture packs are off in &lt;emulator&gt;* with a **Turn On** button.
+When the setting above is off, the panel says _Texture packs are off in &lt;emulator&gt;_ with a **Turn On** button.
 Close the emulator first: the plugin refuses while it is running. It copies the ini to the backup folder, then changes
 that one line. If the ini has anything unusual in it (a section or key twice, a line it doesn't understand) the button
 is not offered — change the setting in the emulator instead.
@@ -163,8 +163,8 @@ is not offered — change the setting in the emulator instead.
 ## Updates
 
 This build updates itself from the fork's own releases; it is not on the Decky store. When a newer build is published
-you get a toast when Steam starts, or within 6 hours while it runs: *Version 0.33.0-win.18 is available. Tap to
-install.* The plugin looks for a new build at most once every 6 hours.
+you get a toast when Steam starts, or within 6 hours while it runs: _Version 0.33.0-win.18 is available. Tap to
+install._ The plugin looks for a new build at most once every 6 hours.
 
 **Settings → Plugin Updates** shows the installed version, an **Install &lt;version&gt;** button with the release notes
 when a newer build is out, and **Check for Updates** to look right now.
@@ -172,10 +172,9 @@ when a newer build is out, and **Check for Updates** to look right now.
 Installing (from the toast or the button):
 
 1. The plugin downloads the new build and checks it against the published size and SHA-256. If either differs, nothing
-   is installed and you are told why — usually it means the build was published moments ago; try again in a few
-   minutes.
+   is installed and you are told why — usually it means the build was published moments ago; try again in a few minutes.
 2. It saves a copy of the version you have now.
-3. Decky shows its own *update* prompt. Confirm it and Decky replaces the plugin and reloads it. Cancel and nothing
+3. Decky shows its own _update_ prompt. Confirm it and Decky replaces the plugin and reloads it. Cancel and nothing
    changes.
 
 Your settings, library, saves and covers are not part of the plugin folder and are kept. The launcher's log,
@@ -188,6 +187,14 @@ the plugin's database is not safe.
 If your Decky Loader does not offer installing from plugins, the buttons are greyed out with a note, and no toast
 appears; install the zip from the fork's `release` branch by hand (Decky settings → Developer → Install Plugin from
 ZIP).
+
+### The name
+
+The plugin calls itself **The Collector**: its QAM header and its notifications use that name. Decky's own plugin list
+and plugin settings still show **RomM-Dock**, the name Decky installed it under. Keeping that name is what keeps the
+plugin's folder, so your shortcuts (and their playtime, collections and artwork), settings, RomM sign-in and save-sync
+state all carry over untouched. Builds from `0.33.0-win.18` look for updates at `M2ljay/Eternal-Collector`; older builds
+still find them at the repository's old name.
 
 ## Building the launcher
 
