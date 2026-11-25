@@ -192,7 +192,8 @@ emulators read; the bundle zip and `.romm-backup` sit in that root, which none o
   are unreadable and the game does not sync. FLAC codecs, parent (delta) CHDs and CHD v1–v4 are refused.
 
 Anything else (`.wbfs`, `.gcz`, `.ciso`, `.pbp`, `.zso`, `.dax`, `.cue`/`.bin`, …), or an image that does not decode
-exactly, yields no identifier, and the game keeps the pre-existing RetroArch handling — no standalone save syncs for it.
+exactly, yields no identifier, and the game keeps the pre-existing RetroArch handling — no standalone save syncs for it,
+and the game reports a [save-sync blocker](#save-sync-blockers) naming the cause.
 Results are cached per file (path, size, mtime), in memory only.
 
 **Dolphin GameCube region and cards.** The region folder (`USA`/`EUR`/`JAP`) follows Dolphin's `CountryCodeToRegion`
@@ -212,6 +213,39 @@ installs): `[MemoryCards] Slot1_Enable = true`, `Slot1_Filename` a plain name, `
 memcards folder — the game does not sync. Per-game memory-card overrides in `gamesettings\*.ini` are not read. The
 card's `_pcsx2_superblock` / `_pcsx2_index`, the file cards and other games' folders are never touched; PCSX2 rebuilds
 its folder-card index from the save folders on load.
+
+### Save-sync blockers
+
+Every path above on which a ROM launches with a standalone emulator but its exact save set cannot be derived used to
+fall back to RetroArch's layout and upload nothing, silently. `RomInfoService.get_rom_save_info` now returns a
+`save_sync_blocker` (`domain/save_sync_blockers.py`) for each of them, with a stable `reason` and the sentence the UI
+shows:
+
+| `reason`                    | When                                                                                                                   |
+| --------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| `unknown_emulator`          | The baked command's executable is no standalone emulator this plugin knows                                             |
+| `emulator_folder_unknown`   | The backend locates no save folder for that emulator                                                                   |
+| `vita_no_title_id`          | Vita3K, and the launch file's stem is not a title ID                                                                   |
+| `disc_unreadable`           | The image could not be opened                                                                                          |
+| `disc_format_unsupported`   | No reader for the image's extension (`.pbp`, `.wbfs`, …)                                                               |
+| `disc_image_unsupported`    | The image did not decode (an unsupported CHD version or codec, a parent CHD, a bad CRC); the reader's detail is quoted |
+| `disc_id_missing`           | The image decoded but carries no identifier (or a Wii title folder cannot be formed)                                   |
+| `disc_region_unknown`       | A GameCube disc whose region Dolphin decides from `bi2.bin` (`X`/`Y`/`Z`, unknown codes)                               |
+| `pcsx2_settings_unreadable` | `inis\PCSX2.ini` missing or unreadable                                                                                 |
+| `pcsx2_slot_empty`          | Slot 1 disabled, or its file name is not one plain name                                                                |
+| `pcsx2_cards_elsewhere`     | `[Folders] MemoryCards` is not the default `memcards`                                                                  |
+| `pcsx2_file_card`           | Slot 1 holds a single-file card (`Mcd001.ps2`)                                                                         |
+| `pcsx2_card_missing`        | The slot-1 name is neither a file nor a folder card with `_pcsx2_superblock`                                           |
+
+The disc causes come from `DiscCodeReader.disc_code_problem`, which the adapter records beside its per-file cache. A
+backend with no standalone save folder at all (RetroDECK, EmuDeck on Linux) is not a blocker: it is checked first so
+those backends never pay for the emulator resolution, and their standalone emulators keep the RetroArch handling.
+
+Where it shows: `get_save_status` carries `save_sync_blocked: {reason, message} | null` (additive, like
+`savefiles_in_content_dir`) and, with no local files, the display `Not syncing`; the game page renders a _Saves not
+syncing_ warning card above the play row; a sync that moved nothing carries `save_sync_blocked` too — the manual sync's
+`message` becomes the sentence, and the post-exit result's `blocked_toast` is shown when no other sync toast fires. A
+blocker is never a conflict and never gates a launch.
 
 **Member bundles.** A Vita3K or Wii save is one folder — a _folder bundle_, packed and restored as above. The GameCube,
 PPSSPP and PCSX2 sets are a game's share of directories other games use too — a _member bundle_ (`domain/save_bundles.py`):

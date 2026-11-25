@@ -651,6 +651,55 @@ class TestPostExitSync:
         assert result["synced"] == 0
 
 
+class TestSaveSyncBlocked:
+    """A run that moves nothing for a game whose saves cannot sync says why."""
+
+    @staticmethod
+    def _blocked_service(tmp_path):
+        from tests.services.saves._helpers import make_standalone_service
+
+        svc, _, _ = make_standalone_service(tmp_path, "vita3k", system="psvita", file_name="Persona 3.vpk")
+        svc._config.settings["save_sync_enabled"] = True
+        _set_device_id(svc, "test-device")
+        return svc
+
+    @pytest.mark.asyncio
+    async def test_post_exit_sync_carries_the_blocker(self, tmp_path):
+        svc = self._blocked_service(tmp_path)
+        result = await svc.post_exit_sync(42)
+        assert result["success"] is True
+        assert result["synced"] == 0
+        assert result["save_sync_blocked"]["reason"] == "vita_no_title_id"
+
+    @pytest.mark.asyncio
+    async def test_manual_sync_message_is_the_blocker(self, tmp_path):
+        svc = self._blocked_service(tmp_path)
+        result = await svc.sync_rom_saves(42)
+        assert result["message"].startswith("Vita saves aren't syncing")
+        assert result["save_sync_blocked"]["reason"] == "vita_no_title_id"
+
+    @pytest.mark.asyncio
+    async def test_syncable_game_has_no_blocker(self, tmp_path):
+        svc, _ = make_service(tmp_path)
+        svc._config.settings["save_sync_enabled"] = True
+        _set_device_id(svc, "test-device")
+        _install_rom(svc, tmp_path)
+        result = await svc.post_exit_sync(42)
+        assert result["save_sync_blocked"] is None
+
+    @pytest.mark.asyncio
+    async def test_a_run_that_moved_saves_is_not_checked(self, tmp_path, monkeypatch):
+        svc, _ = make_service(tmp_path)
+        svc._config.settings["save_sync_enabled"] = True
+        _set_device_id(svc, "test-device")
+        _install_rom(svc, tmp_path)
+        _create_save(tmp_path, content=b"new save data")
+        monkeypatch.setattr(svc._rom_info, "save_sync_blocker", lambda _rom_id: pytest.fail("asked"))
+        result = await svc.post_exit_sync(42)
+        assert result["synced"] == 1
+        assert result["save_sync_blocked"] is None
+
+
 class TestDeviceSyncDisabled:
     """RomM's per-device sync-disabled 400 (#1489) stops the run with a policy reason.
 

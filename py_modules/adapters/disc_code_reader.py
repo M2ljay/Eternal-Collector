@@ -70,6 +70,7 @@ class DiscCodeReaderAdapter:
         self._logger = logger
         self._zstd = zstd_decompress
         self._cache: dict[tuple[str, int, int, str], DiscCode | None] = {}
+        self._problems: dict[tuple[str, str], tuple[str, str]] = {}
 
     def read_disc_code(self, path: str, family: str) -> DiscCode | None:
         """The identifier of the image at *path*, read as a *family* disc, or ``None``.
@@ -80,19 +81,43 @@ class DiscCodeReaderAdapter:
         """
         try:
             st = os.stat(path)
-        except OSError:
+        except OSError as exc:
+            self._problems[(path, family)] = ("unreadable", exc.strerror or str(exc))
             return None
         key = (path, st.st_size, st.st_mtime_ns, family)
         if key in self._cache:
             return self._cache[key]
+        ext = os.path.splitext(path)[1].lower()
+        problem: tuple[str, str] | None = None
         try:
             with open(path, "rb") as f:
-                code = self._read(f, os.path.splitext(path)[1].lower(), family)
-        except (OSError, DiscImageError, struct.error) as exc:
+                code = self._read(f, ext, family)
+        except OSError as exc:
             self._logger.info("disc code: cannot identify %s: %s", path, exc)
-            code = None
+            code, problem = None, ("unreadable", exc.strerror or str(exc))
+        except (DiscImageError, struct.error) as exc:
+            self._logger.info("disc code: cannot identify %s: %s", path, exc)
+            code, problem = None, ("unsupported_image", str(exc))
+        if code is None and problem is None:
+            problem = ("no_disc_id", "") if self._handles(ext, family) else ("unsupported_format", ext)
         self._cache[key] = code
+        if problem is None:
+            self._problems.pop((path, family), None)
+        else:
+            self._problems[(path, family)] = problem
         return code
+
+    def disc_code_problem(self, path: str, family: str) -> tuple[str, str] | None:
+        """Why the last :meth:`read_disc_code` of *path* as *family* found no identifier, or ``None``."""
+        return self._problems.get((path, family))
+
+    @staticmethod
+    def _handles(ext: str, family: str) -> bool:
+        if family == NINTENDO_OPTICAL:
+            return ext in (".rvz", ".wia", ".iso", ".gcm")
+        if family == N3DS:
+            return ext in (".3ds", ".cci", ".cxi", ".app", ".cia")
+        return ext in (".iso", ".cso", ".chd")
 
     def _read(self, f: BinaryIO, ext: str, family: str) -> DiscCode | None:
         if family == NINTENDO_OPTICAL:

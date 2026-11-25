@@ -41,8 +41,6 @@ from adapters.persistence import (
     SettingsPersisterAdapter,
 )
 from adapters.plugin_metadata import PluginMetadataAdapter
-from adapters.plugin_release import PluginReleaseHttpAdapter
-from adapters.plugin_update_files import PluginUpdateFileAdapter
 from adapters.proton_locator import ProtonLocatorAdapter
 from adapters.prune_artifacts import PruneArtifactAdapter
 from adapters.recovery_bundle import RecoveryBundleAdapter
@@ -93,9 +91,8 @@ if TYPE_CHECKING:
         MigrationFileStore,
         PathExistsReader,
         PlatformCoreReader,
+        PluginFolderHandles,
         PluginMetadataReader,
-        PluginReleaseSource,
-        PluginUpdateFileStore,
         ProtonLocator,
         PruneArtifactStore,
         RecoveryBundleStore,
@@ -158,8 +155,6 @@ class AdapterBundle:
     emudeck_launcher_backend_factory: LauncherBackendFactory
     vita_app_linker: VitaAppLinker | None = None
     game_mods: GameModStore | None = None
-    plugin_release: PluginReleaseSource | None = None
-    plugin_update_files: PluginUpdateFileStore | None = None
 
 
 @dataclass(frozen=True)
@@ -265,6 +260,7 @@ def bootstrap(
     plugin_dir: str,
     user_home: str,
     logger: logging.Logger,
+    folder_handles: PluginFolderHandles | None = None,
 ) -> BootstrapResult:
     """Build every adapter and bundle the composition root hands to ``main.py``.
 
@@ -286,6 +282,9 @@ def bootstrap(
         ``decky.DECKY_USER_HOME`` — base for RetroDECK and Steam path lookups.
     logger:
         ``decky.logger``
+    folder_handles:
+        The registry ``core_bootstrap`` built; every adapter that holds a file
+        inside the plugin folder open registers its release with it.
 
     Returns
     -------
@@ -424,6 +423,8 @@ def bootstrap(
     # above) rather than surfacing mid-sync — there is no Python fallback
     # (GavelNativeLoadError propagates, plugin stays inert).
     gavel = GavelNativeAdapter()
+    if folder_handles is not None:
+        folder_handles.register("gavel native core", gavel.release)
     uuid_gen = SystemUuidGen()
     sleeper = AsyncioSleeper()
     hostname_provider = HostnameAdapter()
@@ -458,8 +459,6 @@ def bootstrap(
         emudeck_launcher_backend_factory=emudeck_launcher_backend_factory,
         vita_app_linker=Vita3kAppLinker(logger=logger),
         game_mods=game_mods,
-        plugin_release=PluginReleaseHttpAdapter(user_agent=user_agent),
-        plugin_update_files=PluginUpdateFileAdapter(),
     )
     stores = StateBundle(
         settings=settings,

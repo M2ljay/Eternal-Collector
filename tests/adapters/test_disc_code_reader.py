@@ -195,3 +195,47 @@ class TestNintendo3ds:
     @pytest.mark.parametrize("name", ["Game.3dsx", "Game.3ds", "Game.cia"])
     def test_unrecognised_answers_none(self, reader, tmp_path, name):
         assert reader.read_disc_code(_write(tmp_path, name, bytes(0x400)), N3DS) is None
+
+
+class TestDiscCodeProblem:
+    """Why a read found no identifier — the save-sync blocker's cause."""
+
+    def test_success_has_no_problem(self, reader, tmp_path):
+        path = _write(tmp_path, "g.iso", _PS2_ISO)
+        assert reader.read_disc_code(path, PS2) is not None
+        assert reader.disc_code_problem(path, PS2) is None
+
+    def test_missing_file_is_unreadable(self, reader, tmp_path):
+        path = str(tmp_path / "nope.iso")
+        reader.read_disc_code(path, PS2)
+        kind, _detail = reader.disc_code_problem(path, PS2)
+        assert kind == "unreadable"
+
+    def test_corrupt_chd_is_an_unsupported_image(self, reader, tmp_path):
+        blob = bytearray(build_chd(_PS2_ISO, hunk_bytes=4096, unit_bytes=2048, codecs=("zlib",)))
+        (map_offset,) = struct.unpack_from(">Q", blob, 40)
+        blob[map_offset + 10] ^= 0xFF
+        path = _write(tmp_path, "g.chd", bytes(blob))
+        reader.read_disc_code(path, PS2)
+        kind, detail = reader.disc_code_problem(path, PS2)
+        assert kind == "unsupported_image"
+        assert detail
+
+    def test_unhandled_extension_is_an_unsupported_format(self, reader, tmp_path):
+        path = _write(tmp_path, "g.pbp", b"\0PBP" + b"\0" * 64)
+        reader.read_disc_code(path, PSP)
+        assert reader.disc_code_problem(path, PSP) == ("unsupported_format", ".pbp")
+
+    def test_decoded_image_without_an_id(self, reader, tmp_path):
+        iso = build_iso({"SYSTEM.CNF": b"BOOT = cdrom:\\SLUS_001.23;1\n"})
+        path = _write(tmp_path, "g.iso", iso)
+        reader.read_disc_code(path, PS2)
+        assert reader.disc_code_problem(path, PS2) == ("no_disc_id", "")
+
+    def test_a_later_success_clears_the_problem(self, reader, tmp_path):
+        path = str(tmp_path / "g.iso")
+        reader.read_disc_code(path, PS2)
+        assert reader.disc_code_problem(path, PS2) is not None
+        _write(tmp_path, "g.iso", _PS2_ISO)
+        assert reader.read_disc_code(path, PS2) is not None
+        assert reader.disc_code_problem(path, PS2) is None

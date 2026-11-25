@@ -55,6 +55,7 @@ async def test_get_save_status_full_shape_and_partial_flag(harness):
         "conflicts",
         "save_sort_changed",
         "savefiles_in_content_dir",
+        "save_sync_blocked",
         "save_sync_display",
         "server_query_failed",
         "server_query_reason",
@@ -71,6 +72,7 @@ async def test_get_save_status_full_shape_and_partial_flag(harness):
     assert result["server_query_failed"] is False
     # Its companion slug is None while nothing failed.
     assert result["server_query_reason"] is None
+    assert result["save_sync_blocked"] is None
 
 
 async def test_get_save_status_server_failure_keeps_full_payload(harness):

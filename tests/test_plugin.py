@@ -864,7 +864,11 @@ _MIGRATION_BLOCKED_WHITELIST: set[str] = {
     # is pending (an update may be the fix).
     "check_plugin_update",
     "prepare_plugin_update",
+    "prepare_plugin_reinstall",
     "get_plugin_rollback",
+    # Install check: reads the plugin's own folder, and must answer even when
+    # the rest of the plugin failed to import.
+    "get_install_integrity",
     # Read-only disc-picker state query (the pin-write select_disc IS decorated).
     "get_disc_selection",
     # Read-only exe-picker state query (the pin-write select_executable IS decorated).
@@ -1131,7 +1135,6 @@ class TestMainStartupOrdering:
             "game_process_service": MagicMock(),
             "relaunch_options_resolver": MagicMock(),
             "launcher_backend_service": MagicMock(),
-            "plugin_update_service": MagicMock(),
         }
 
         bootstrap_result = BootstrapResult(

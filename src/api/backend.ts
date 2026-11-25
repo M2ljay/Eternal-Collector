@@ -1222,6 +1222,10 @@ interface SessionFinalizeSyncResult {
   // directional toast by construction.
   failure_toast: string | null;
   conflicts_toast: string | null;
+  // Why the game's saves were not synced at all (e.g. PCSX2 on a single-file
+  // memory card); `null` when they could be. Shown after the session when no
+  // other sync toast fires.
+  blocked_toast?: string | null;
 }
 
 interface SessionFinalizeMigration {
@@ -1282,11 +1286,32 @@ export type PluginUpdateCheck =
       checked_at?: number | null;
     }
   | PluginUpdateFailure;
+/** `install_type` is Decky Loader's PluginInstallType: 1 = reinstall (same version), 2 = update. */
 export type PluginUpdatePrepared =
-  { success: true; version: string; artifact: string; sha256: string; size: number } | PluginUpdateFailure;
+  | { success: true; version: string; artifact: string; sha256: string; size: number; install_type: number }
+  | PluginUpdateFailure;
 export type PluginRollback =
   | { success: true; available: false }
   | { success: true; available: true; version: string; artifact: string; sha256: string };
 export const checkPluginUpdate = callable<[boolean], PluginUpdateCheck>("check_plugin_update");
 export const preparePluginUpdate = callable<[], PluginUpdatePrepared>("prepare_plugin_update");
 export const getPluginRollback = callable<[], PluginRollback>("get_plugin_rollback");
+export const preparePluginReinstall = callable<[], PluginUpdatePrepared>("prepare_plugin_reinstall");
+
+/** Whether the installed plugin folder matches its build's install manifest (works when the rest of the backend could not load). */
+export type InstallIntegrity =
+  | {
+      success: true;
+      status: "ok" | "incomplete" | "stale_files" | "unchecked";
+      expected_version: string | null;
+      current_version: string;
+      missing: string[];
+      mismatched: string[];
+      extra: string[];
+      shadowing: string[];
+      hashes_checked: boolean;
+      detail: string | null;
+      import_error?: string;
+    }
+  | { success: false; reason: string; message: string };
+export const getInstallIntegrity = callable<[], InstallIntegrity>("get_install_integrity");

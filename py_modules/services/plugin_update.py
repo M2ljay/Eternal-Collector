@@ -34,13 +34,27 @@ if TYPE_CHECKING:
     import asyncio
     import logging
 
-    from services.protocols import Clock, DebugLogger, PluginReleaseSource, PluginUpdateFileStore
+    from services.protocols import (
+        Clock,
+        DebugLogger,
+        PluginFolderHandles,
+        PluginReleaseSource,
+        PluginUpdateFileStore,
+        RunningExecutablesFn,
+    )
 
 _STATE_FILE = "state.json"
 _DOWNLOAD_DIR = "download"
 _PREVIOUS_DIR = "previous"
 _PREVIOUS_RECORD = "previous.json"
 _UNSUPPORTED = "Self-update is only offered on the Windows fork build."
+_GAME_RUNNING = (
+    "A game started from The Collector is still running. Close it first: Windows keeps the game "
+    "launcher locked while it runs, and Decky cannot replace a locked file."
+)
+# Decky Loader's PluginInstallType (backend/decky_loader/browser.py, v3.3.1); its prompt words itself from it.
+INSTALL_TYPE_REINSTALL = 1
+INSTALL_TYPE_UPDATE = 2
 
 
 @dataclass(frozen=True)
@@ -50,8 +64,11 @@ class PluginUpdateServiceConfig:
     Carries the runtime infrastructure (loop, logger, debug logger, clock), the
     release-channel transport and the staging-folder store (``None`` where they
     are not wired), the running build's version, the installed plugin folder,
-    the staging folder under the runtime dir, and whether this platform takes
-    its updates from the fork at all.
+    the staging folder under the runtime dir, whether this platform takes
+    its updates from the fork at all, the process-table read and launcher exe
+    name that tell whether a game the plugin launched is running (``None``
+    where they cannot be read), and the registry of handles to close before
+    the hand-off.
     """
 
     loop: asyncio.AbstractEventLoop
@@ -64,6 +81,9 @@ class PluginUpdateServiceConfig:
     plugin_dir: str
     staging_dir: str
     platform_supported: bool
+    running_executables: RunningExecutablesFn | None = None
+    launcher_name: str = ""
+    folder_handles: PluginFolderHandles | None = None
 
 
 class PluginUpdateService:
@@ -79,6 +99,9 @@ class PluginUpdateService:
         self._current = config.current_version
         self._plugin_dir = config.plugin_dir
         self._staging_dir = config.staging_dir
+        self._running_executables = config.running_executables
+        self._launcher_name = config.launcher_name.lower()
+        self._handles = config.folder_handles
         self._supported = (
             config.platform_supported
             and config.release_source is not None
@@ -160,12 +183,30 @@ class PluginUpdateService:
 
         Always re-reads ``update.json`` first, so what is installed is what is
         published now. Returns ``{success: True, version, artifact, sha256,
-        size}`` where ``artifact`` is a ``file://`` path Decky's installer
-        reads, or the standard failure shape — nothing is handed on unless the
-        downloaded file's size and SHA-256 both match the manifest.
+        size, install_type}`` where ``artifact`` is a ``file://`` path Decky's
+        installer reads, or the standard failure shape — nothing is handed on
+        unless the downloaded file's size and SHA-256 both match the manifest,
+        no game the plugin launched is running, and the installed build was
+        snapshotted. The plugin's own handles inside its folder are closed last.
         """
+        return await self._prepare(reinstall=False)
+
+    async def prepare_reinstall(self) -> dict[str, Any]:
+        """Download and verify the published build to repair a half-copied install.
+
+        Like :meth:`prepare_update`, but the published build may be the running
+        version (``install_type`` REINSTALL) as well as a newer one (UPDATE),
+        and the installed folder is not snapshotted: a broken copy must not
+        replace the rollback build kept from the last good update. An older
+        published build is refused with ``channel_older``.
+        """
+        return await self._prepare(reinstall=True)
+
+    async def _prepare(self, *, reinstall: bool) -> dict[str, Any]:
         if not self._supported:
             return self._failure(ErrorCode.UNSUPPORTED, _UNSUPPORTED)
+        if await self._run(self._game_running_io):
+            return self._failure("game_running", _GAME_RUNNING)
         await self._load_state()
         now = self._clock.time()
         failure = await self._refresh(now)
@@ -173,7 +214,14 @@ class PluginUpdateService:
             return failure
         manifest = self._manifest
         assert manifest is not None
-        if not is_newer(self._current, manifest.version):
+        newer = is_newer(self._current, manifest.version)
+        if reinstall:
+            if not newer and manifest.version != self._current:
+                return self._failure(
+                    "channel_older",
+                    f"The release channel offers {manifest.version}, older than the installed {self._current}.",
+                )
+        elif not newer:
             return self._failure("up_to_date", f"{self._current} is already the newest build.")
 
         download_dir = os.path.join(self._staging_dir, _DOWNLOAD_DIR)
@@ -202,20 +250,44 @@ class PluginUpdateService:
                 "if the build was just published, try again in a few minutes.",
             )
 
-        try:
-            await self._run(self._snapshot_installed_io)
-        except OSError as e:
-            self._logger.warning(f"Plugin update: snapshot of the installed build failed: {e}")
-            return self._failure("backup_failed", f"Could not back up the installed build, so it was kept: {e}")
+        if not reinstall:
+            try:
+                await self._run(self._snapshot_installed_io)
+            except OSError as e:
+                self._logger.warning(f"Plugin update: snapshot of the installed build failed: {e}")
+                return self._failure("backup_failed", f"Could not back up the installed build, so it was kept: {e}")
 
-        self._logger.info(f"Plugin update {manifest.version} downloaded and verified ({size} bytes)")
+        if await self._run(self._game_running_io):
+            await self._run(lambda: self._discard_io(dest))
+            return self._failure("game_running", _GAME_RUNNING)
+        self._release_handles()
+
+        verb = "reinstall" if reinstall else "update"
+        self._logger.info(f"Plugin {verb} {manifest.version} downloaded and verified ({size} bytes)")
         return {
             "success": True,
             "version": manifest.version,
             "artifact": _file_artifact(dest),
             "sha256": sha256,
             "size": size,
+            "install_type": INSTALL_TYPE_UPDATE if newer else INSTALL_TYPE_REINSTALL,
         }
+
+    def _game_running_io(self) -> bool:
+        if self._running_executables is None or not self._launcher_name:
+            return False
+        names = self._running_executables()
+        if names is None:
+            self._logger.warning("Plugin update: the process table could not be read; not checking for a running game")
+            return False
+        return self._launcher_name in names
+
+    def _release_handles(self) -> None:
+        if self._handles is None:
+            return
+        failed = self._handles.release_all()
+        if failed:
+            self._logger.warning(f"Plugin update: still holding {failed} inside the plugin folder")
 
     def _download_io(self, download_dir: str, dest: str, manifest: ReleaseManifest, now: float) -> tuple[int, str]:
         assert self._source is not None and self._files is not None

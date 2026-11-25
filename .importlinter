@@ -126,6 +126,7 @@ modules =
     services.game_detail
     services.game_mods
     services.game_process
+    services.install_integrity
     services.launch_gate
     services.launcher_backend
     services.library

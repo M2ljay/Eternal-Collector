@@ -348,6 +348,13 @@ the set. A **save bundle** is a save that is not one file travelling as one dete
 directories other games share (`domain/save_bundles.py`). Either way the save on disk is the truth, the zip is derived
 from it and is what is hashed, tracked and uploaded, and a restore never touches an entry the layout does not own.
 
+### Save-sync blocker
+
+The reason a ROM that launches with a standalone emulator has no **standalone save set** — an unknown emulator, a save
+folder the backend does not locate, a disc image with no readable code, PCSX2 on a single-file memory card
+(`domain/save_sync_blockers.py`). A stable `reason` slug plus one sentence for the user. Its saves are not synced, and
+the game page and the post-session notification say why; it is never a conflict and never stops a launch.
+
 ### Mod target / mod backup
 
 A **mod target** is one place a game's mods go under the emulator it launches with (`domain/game_mods.py`
@@ -365,6 +372,14 @@ version and compares as a number. The **release channel** is the fork's `release
 `update.json`) that a fork build updates itself from (`domain/plugin_release.py`). The **kept build** is the snapshot
 of the installed plugin folder taken before an update, which **Roll Back** reinstalls. Only a fork build on Windows uses
 the channel; every other build is left to the Decky store.
+
+### Install manifest / half-copied install / rescue mode
+
+The **install manifest** is `install-manifest.json` in a release zip: the path, size and SHA-256 of every other file
+(`domain/install_manifest.py`). A **half-copied install** is a plugin folder that does not match it — Decky Loader's
+installer can stop part-way and leave old, new and missing files mixed. **Rescue mode** is `main.py` running only the
+import-safe core (`core_bootstrap.py`: the install check and the update channel) because the rest of the plugin failed
+to import; the QAM then offers **Reinstall**, which installs the published build without replacing the kept build.
 
 ### Baseline
 

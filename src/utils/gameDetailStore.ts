@@ -77,6 +77,9 @@ export interface GameDetailState extends BiosInfoFields, CoreInfoFields {
    *  can't be synced (#239). Derived from a LOCAL retroarch.cfg read, so it is
    *  populated even while RomM is unreachable. */
   savefilesInContentDir: boolean;
+  /** Why this game's saves are not synced at all (`SaveStatus.save_sync_blocked`
+   *  message), or `null`. Shown as a warning above the play row; never gates play. */
+  saveSyncBlocked: string | null;
   activeSlot: string | null;
   raId: number | null;
   achievementEarned: number;
@@ -94,6 +97,7 @@ const DEFAULT_STATE: GameDetailState = {
   saveSyncStatus: null,
   saveSyncLabel: "",
   savefilesInContentDir: false,
+  saveSyncBlocked: null,
   activeSlot: "default",
   raId: null,
   achievementEarned: 0,
@@ -442,6 +446,7 @@ function applySaveStatus(entry: Entry, generation: number, status: SaveStatus): 
     saveSyncStatus,
     saveSyncLabel,
     savefilesInContentDir: status.savefiles_in_content_dir === true,
+    saveSyncBlocked: status.save_sync_blocked?.message || null,
     activeSlot: "active_slot" in status ? (status.active_slot ?? null) : prev.activeSlot,
   }));
 }

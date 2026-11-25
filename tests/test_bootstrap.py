@@ -414,7 +414,7 @@ class TestWireServices:
     def test_returns_expected_services(self, tmp_path):
         deps = self._make_deps(tmp_path)
         result = wire_services(self._make_config(deps))
-        assert len(result) == 29
+        assert len(result) == 28
         assert "migration_service" in result
         assert "windows_game_service" in result
         assert "game_mods_service" in result
@@ -436,7 +436,8 @@ class TestWireServices:
         assert isinstance(result["game_process_service"], GameProcessService)
         assert "relaunch_options_resolver" in result
         assert "launcher_backend_service" in result
-        assert "plugin_update_service" in result
+        # The update channel is wired by core_bootstrap, which must load in a broken install.
+        assert "plugin_update_service" not in result
         deps["loop"].close()
 
     def test_pending_sync_binding_observes_library_rebinds(self, tmp_path):

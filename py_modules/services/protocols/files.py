@@ -760,6 +760,15 @@ class DiscCodeReader(Protocol):
         """The identifier of the image at *path* read as a *family* disc, or ``None`` when it cannot be read exactly."""
         ...
 
+    def disc_code_problem(self, path: str, family: str) -> tuple[str, str] | None:
+        """Why the last :meth:`read_disc_code` of *path* as *family* found no identifier, else ``None``.
+
+        ``(kind, detail)``: *kind* is ``unreadable``, ``unsupported_format``,
+        ``unsupported_image`` or ``no_disc_id``; *detail* is a short reason for
+        the log and the user (``unsupported CHD codec b'zstd'``).
+        """
+        ...
+
 
 class GameModStore(Protocol):
     """Filesystem seam for game mod folders, the Downloads folder mods are installed from, and their backups.
@@ -938,4 +947,29 @@ class PluginUpdateFileStore(Protocol):
         Leaves out ``__pycache__`` folders, ``.pyc`` files and ``.log`` files.
         Raises ``OSError`` when the archive cannot be written.
         """
+        ...
+
+
+class InstallFileScanner(Protocol):
+    """Reads the installed plugin folder for the install-integrity check.
+
+    Paths are relative to the plugin folder, with forward slashes, as the
+    install manifest names them. Synchronous; the service offloads the hash
+    pass to an executor.
+    """
+
+    def read_file(self, rel_path: str) -> bytes | None:
+        """The file's bytes, or ``None`` when it does not exist."""
+        ...
+
+    def sizes(self, rel_paths: list[str]) -> dict[str, int | None]:
+        """Each path's size, ``None`` for a path that is absent or not a regular file."""
+        ...
+
+    def python_tree(self, rel_root: str) -> tuple[frozenset[str], frozenset[str]]:
+        """``(every .py file, every folder)`` below *rel_root*, ``__pycache__`` left out."""
+        ...
+
+    def sha256(self, rel_path: str) -> str | None:
+        """The file's SHA-256 hex digest, or ``None`` when it cannot be read."""
         ...

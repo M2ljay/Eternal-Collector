@@ -19,19 +19,24 @@ import os
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
+from domain import save_sync_blockers as blockers
+from domain.disc_ids import GAMECUBE
 from domain.emulator_tag import build_emulator_tag
 from domain.save_extensions import get_save_extensions
 from domain.save_layout import InSaveDir
 from domain.save_path import resolve_save_dir
+from domain.save_sync_blockers import SaveSyncBlocker
 from domain.standalone_saves import (
     DISC_FAMILIES,
     PCSX2,
+    PCSX2_CARDS_ELSEWHERE,
     STANDALONE_EMULATOR_TAGS,
+    VITA3K,
     StandaloneSaveSet,
     disc_save_set,
     emulator_executable,
     identify_standalone_emulator,
-    pcsx2_slot1_card,
+    pcsx2_slot1,
     standalone_save_set,
 )
 
@@ -96,29 +101,46 @@ class RomInfoService:
         """Get save-related info for an installed ROM.
 
         Returns dict with keys: system, rom_name, saves_dir, platform_slug,
-        file_path, save_set — or None if not installed. ``save_set`` is the
-        :class:`StandaloneSaveSet` when the ROM launches with a standalone
-        emulator whose saves the active backend locates; ``saves_dir`` is then
-        that emulator's save folder. Otherwise ``save_set`` is ``None`` and
-        ``saves_dir`` is the RetroArch save directory.
+        file_path, save_set, save_sync_blocker — or None if not installed.
+        ``save_set`` is the :class:`StandaloneSaveSet` when the ROM launches
+        with a standalone emulator whose saves the active backend locates;
+        ``saves_dir`` is then that emulator's save folder. Otherwise
+        ``save_set`` is ``None`` and ``saves_dir`` is the RetroArch save
+        directory. ``save_sync_blocker`` is the :class:`SaveSyncBlocker` when
+        the ROM launches with such an emulator but its exact save set cannot be
+        derived — its saves are then not synced, and the user is told why.
         """
         info = self._retroarch_save_info(rom_id)
         if info is None:
             return None
-        standalone = self._standalone_save_set(int(rom_id), info["rom_name"], info["file_path"])
-        if standalone is not None:
-            info["save_set"], info["saves_dir"] = standalone
+        info["save_sync_blocker"] = None
+        resolved = self._standalone_save_set(int(rom_id), info["rom_name"], info["file_path"])
+        if isinstance(resolved, SaveSyncBlocker):
+            info["save_sync_blocker"] = resolved
+            self._logger.info("Save sync for rom %s is blocked: %s", rom_id, resolved.reason)
+        elif resolved is not None:
+            info["save_set"], info["saves_dir"] = resolved
         return info
 
-    def _standalone_save_set(self, rom_id: int, rom_name: str, file_path: str) -> tuple[StandaloneSaveSet, str] | None:
-        """The ROM's standalone save set and its folder, or ``None`` for RetroArch handling.
+    def save_sync_blocker(self, rom_id: int) -> SaveSyncBlocker | None:
+        """Why this ROM's saves cannot be synced, or ``None`` when they can (or it is not installed)."""
+        info = self.get_rom_save_info(rom_id)
+        return info.get("save_sync_blocker") if info else None
 
-        Requires all of: the active backend offers a standalone save folder at
-        all (checked first, so a backend without one never pays for the emulator
-        resolution), the ROM's launch emulator is a standalone one this plugin
-        knows, the backend locates that emulator's folder, and the ROM yields an
-        identifiable save set — for an emulator that files saves under the
-        disc's code, the installed image must be read exactly.
+    def _standalone_save_set(
+        self, rom_id: int, rom_name: str, file_path: str
+    ) -> tuple[StandaloneSaveSet, str] | SaveSyncBlocker | None:
+        """The ROM's standalone save set and its folder, a blocker, or ``None`` for RetroArch handling.
+
+        ``None`` when the active backend offers no standalone save folder at
+        all (checked first, so a backend without one never pays for the
+        emulator resolution) or the ROM does not launch with a standalone
+        emulator. Past that, the ROM's saves live with the emulator, so every
+        reason its exact save set cannot be derived is a
+        :class:`SaveSyncBlocker`: an emulator this plugin does not know, a save
+        folder the backend does not locate, or a save set the ROM does not
+        yield — for an emulator that files saves under the disc's code, the
+        installed image must be read exactly.
         """
         if not any(_nonempty_str(self._launcher_paths.standalone_saves_path(e)) for e in STANDALONE_EMULATOR_TAGS):
             return None
@@ -127,27 +149,45 @@ class RomInfoService:
             return None
         emulator_id = identify_standalone_emulator(emulator.command)
         if emulator_id is None:
-            return None
+            exe = emulator_executable(emulator.command)
+            return blockers.unknown_emulator(os.path.basename(exe.replace("\\", "/")) if exe else None)
         root = self._launcher_paths.standalone_saves_path(emulator_id)
         if not _nonempty_str(root):
-            return None
+            return blockers.emulator_folder_unknown(emulator_id)
         if emulator_id in DISC_FAMILIES:
-            save_set = self._disc_save_set(emulator_id, emulator.command, file_path, root)
-        else:
-            save_set = standalone_save_set(emulator_id, rom_name)
-        return (save_set, root) if save_set is not None else None
+            resolved = self._disc_save_set(emulator_id, emulator.command, file_path, root)
+            if isinstance(resolved, SaveSyncBlocker):
+                return resolved
+            return resolved, root
+        save_set = standalone_save_set(emulator_id, rom_name)
+        if save_set is None:
+            return blockers.vita_no_title_id() if emulator_id == VITA3K else blockers.unknown_emulator(None)
+        return save_set, root
 
     def _disc_save_set(
         self, emulator_id: str, command: str | None, file_path: str, root: str
-    ) -> StandaloneSaveSet | None:
-        disc = self._disc_codes.read_disc_code(file_path, DISC_FAMILIES[emulator_id])
+    ) -> StandaloneSaveSet | SaveSyncBlocker:
+        family = DISC_FAMILIES[emulator_id]
+        disc = self._disc_codes.read_disc_code(file_path, family)
         if disc is None:
-            return None
-        card = self._pcsx2_folder_card(command, root) if emulator_id == PCSX2 else None
-        return disc_save_set(emulator_id, disc, card)
+            problem = self._disc_codes.disc_code_problem(file_path, family)
+            kind, detail = problem if problem is not None else (None, None)
+            return blockers.disc_problem(emulator_id, kind, detail, os.path.splitext(file_path)[1].lower())
+        card: str | None = None
+        if emulator_id == PCSX2:
+            found = self._pcsx2_folder_card(command, root)
+            if isinstance(found, SaveSyncBlocker):
+                return found
+            card = found
+        save_set = disc_save_set(emulator_id, disc, card)
+        if save_set is not None:
+            return save_set
+        if disc.platform == GAMECUBE:
+            return blockers.disc_region_unknown(emulator_id)
+        return blockers.disc_problem(emulator_id, "no_disc_id", None, "")
 
-    def _pcsx2_folder_card(self, command: str | None, root: str) -> str | None:
-        """PCSX2's slot-1 card when it is a folder card in the EmuDeck-linked ``memcards`` folder, else ``None``.
+    def _pcsx2_folder_card(self, command: str | None, root: str) -> str | SaveSyncBlocker:
+        """PCSX2's slot-1 card when it is a folder card in the EmuDeck-linked ``memcards`` folder, else why not.
 
         Read from ``inis/PCSX2.ini`` beside the executable (PCSX2's portable
         layout, which EmuDeck for Windows installs). An unreadable ini, a
@@ -156,21 +196,24 @@ class RomInfoService:
         """
         exe = emulator_executable(command)
         if not exe:
-            return None
+            return blockers.pcsx2_settings_unreadable()
         ini = os.path.join(os.path.dirname(exe), "inis", "PCSX2.ini")
         if not self._save_file_store.is_file(ini):
-            return None
+            return blockers.pcsx2_settings_unreadable()
         try:
-            card = pcsx2_slot1_card(self._save_file_store.read_bytes(ini).decode("utf-8", errors="replace"))
+            text = self._save_file_store.read_bytes(ini).decode("utf-8", errors="replace")
         except OSError:
-            return None
+            return blockers.pcsx2_settings_unreadable()
+        card, problem = pcsx2_slot1(text)
         if card is None:
-            return None
+            return blockers.pcsx2_cards_elsewhere() if problem == PCSX2_CARDS_ELSEWHERE else blockers.pcsx2_slot_empty()
         card_dir = os.path.join(root, "saves", card)
+        if self._save_file_store.is_file(card_dir):
+            return blockers.pcsx2_file_card()
         if not self._save_file_store.is_dir(card_dir) or not self._save_file_store.is_file(
             os.path.join(card_dir, "_pcsx2_superblock")
         ):
-            return None
+            return blockers.pcsx2_card_missing(card)
         return card
 
     def upload_emulator_tag(self, rom_id: int, core_so: str | None) -> str:
@@ -245,6 +288,7 @@ class RomInfoService:
             "platform_slug": platform_slug,
             "file_path": file_path,
             "save_set": None,
+            "save_sync_blocker": None,
         }
 
     def current_save_sorting(self) -> InSaveDir:

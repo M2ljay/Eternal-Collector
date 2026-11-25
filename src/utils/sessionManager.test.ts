@@ -455,6 +455,20 @@ describe("sessionManager post-exit save-sync toast (#1481)", () => {
     );
   });
 
+  it("says why when the game's saves cannot sync at all", async () => {
+    const why = "PS2 saves aren't syncing: PCSX2 is using a single-file memory card. Switch slot 1 to a folder card.";
+    finalizeWithSync({ success: true, uploaded: 0, downloaded: 0, failure_toast: null, blocked_toast: why });
+    await runStop();
+    expect(vi.mocked(toaster.toast)).toHaveBeenCalledWith(expect.objectContaining({ body: why }));
+  });
+
+  it("prefers the failure toast over the blocked toast", async () => {
+    finalizeWithSync({ success: false, uploaded: 0, downloaded: 0, failure_toast: "Failed", blocked_toast: "Blocked" });
+    await runStop();
+    const bodies = vi.mocked(toaster.toast).mock.calls.map((c) => c[0].body);
+    expect(bodies).toEqual(["Failed"]);
+  });
+
   it("fires no toast when nothing moved and there was no failure (zero-case)", async () => {
     // IDLE_FINALIZE is success=true with zero counts and no failure_toast.
     finalizeWithSync({ success: true, uploaded: 0, downloaded: 0, failure_toast: null });

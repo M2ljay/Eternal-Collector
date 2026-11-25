@@ -91,6 +91,7 @@ import { admitPruneFrame, setPruneComplete, setPruneProgress } from "./utils/pru
 import type { PruneComplete, PruneProgress } from "./utils/pruneStore";
 import { publishCommittedVersionSwitch } from "./utils/versionSwitchApplication";
 import { startPluginUpdateWatch } from "./utils/pluginUpdate";
+import { InstallIntegrityNotice } from "./components/InstallIntegrityNotice";
 
 // Module-level page state survives QAM remounts (e.g. after modal close)
 let currentPage: Page = "main";
@@ -149,7 +150,14 @@ const QAMPanel: FC = () => {
       content = <MainPage onNavigate={(p) => setPage(p)} />;
   }
 
-  return <div ref={rootRef}>{content}</div>;
+  // The integrity notice sits above every page and asks the one callable that
+  // still answers when the rest of the backend failed to import.
+  return (
+    <div ref={rootRef}>
+      <InstallIntegrityNotice />
+      {content}
+    </div>
+  );
 };
 
 /**

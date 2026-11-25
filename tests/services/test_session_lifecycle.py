@@ -705,6 +705,48 @@ class TestFinalizeContentDirBenignSkip:
         assert result.sync.failure_toast == "Failed to sync saves after exit"
 
 
+class TestFinalizeBlockedToast:
+    """A game whose saves cannot sync at all says why after the session."""
+
+    def test_blocker_message_becomes_the_blocked_toast(self, event_loop, logger):
+        message = "PS2 saves aren't syncing: PCSX2 is using a single-file memory card. Switch slot 1 to a folder card."
+        post = FakePostExitSync(
+            payload={
+                "success": True,
+                "synced": 0,
+                "uploaded": 0,
+                "downloaded": 0,
+                "conflicts": [],
+                "save_sync_blocked": {"reason": "pcsx2_file_card", "message": message},
+            }
+        )
+        service = _make_service(
+            playtime_recorder=FakePlaytimeRecorder(),
+            post_exit_sync=post,
+            achievement_sync=FakeAchievementSync(),
+            migration_reader=FakeMigrationReader(),
+            logger=logger,
+        )
+        result = event_loop.run_until_complete(service.finalize(99))
+        event_loop.run_until_complete(_drain_background_tasks(service))
+        assert result.sync.blocked_toast == message
+        assert result.sync.failure_toast is None
+
+    @pytest.mark.parametrize("blocked", [None, "x", {"reason": "r"}, {"message": ""}, {"message": 3}])
+    def test_malformed_or_absent_blocker_gives_no_toast(self, event_loop, logger, blocked):
+        post = FakePostExitSync(payload={"success": True, "synced": 0, "conflicts": [], "save_sync_blocked": blocked})
+        service = _make_service(
+            playtime_recorder=FakePlaytimeRecorder(),
+            post_exit_sync=post,
+            achievement_sync=FakeAchievementSync(),
+            migration_reader=FakeMigrationReader(),
+            logger=logger,
+        )
+        result = event_loop.run_until_complete(service.finalize(99))
+        event_loop.run_until_complete(_drain_background_tasks(service))
+        assert result.sync.blocked_toast is None
+
+
 class TestFinalizeConflicts:
     def test_single_conflict_renders_singular_string(self, event_loop, logger):
         """One conflict → "1 save conflict need resolution" (singular form)."""

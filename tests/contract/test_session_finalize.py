@@ -177,7 +177,9 @@ async def test_finalize_sync_payload_carries_counts_not_toast_keys(harness):
         "conflicts",
         "failure_toast",
         "conflicts_toast",
+        "blocked_toast",
     }
+    assert sync["blocked_toast"] is None
     # The directional copy is rendered frontend-side now — no backend toast strings.
     assert "toast_title" not in sync
     assert "toast_body" not in sync

@@ -288,12 +288,17 @@ class StatusService:
         # When saves go to the content dir, override the display with a clear
         # "not supported" status — no local files were probed, so the normal
         # computation would report a misleading "No saves" (#239).
+        blocker = info.get("save_sync_blocker") if info is not None else None
         if savefiles_in_content_dir:
             save_sync_display = {
                 "status": "none",
                 "label": "Save sync off — saves in content dir",
                 "last_sync_check_at": None,
             }
+        elif blocker is not None and not file_statuses:
+            # The game's saves live with a standalone emulator whose save set
+            # could not be derived, so "No saves" would be a false all-clear.
+            save_sync_display = {"status": "none", "label": "Not syncing", "last_sync_check_at": None}
         else:
             save_sync_display = asdict(
                 compute_save_sync_display(
@@ -312,6 +317,11 @@ class StatusService:
             "conflicts": conflicts,
             "save_sort_changed": self._rom_info.is_save_sort_changed(),
             "savefiles_in_content_dir": savefiles_in_content_dir,
+            # Why this game's saves are not synced at all (a standalone emulator
+            # whose exact save set cannot be derived), as ``{reason, message}``,
+            # else ``None``. Additive, like ``savefiles_in_content_dir``; never
+            # a conflict, so it never gates a launch.
+            "save_sync_blocked": blocker.to_dict() if blocker is not None else None,
             "save_sync_display": save_sync_display,
             "server_query_failed": server_query_failed,
             # Why the query failed, as a :func:`classify_error` slug (None when

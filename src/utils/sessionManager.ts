@@ -281,6 +281,8 @@ async function handleGameStop(stoppedAppId: number): Promise<void> {
       showToast(directionalBody);
     } else if (result.sync.failure_toast) {
       showToast(result.sync.failure_toast);
+    } else if (result.sync.blocked_toast) {
+      showToast(result.sync.blocked_toast);
     }
 
     // Save-sync event dispatch — fires unconditionally so open surfaces refresh

@@ -116,6 +116,16 @@ export interface SaveStatus {
    *  this case `files` is `[]` and `save_sync_display` reports the "off" state
    *  (#239). */
   savefiles_in_content_dir?: boolean;
+  /** Why this game's saves are not synced at all: it launches with a standalone
+   *  emulator whose exact save set cannot be derived (a single-file PCSX2
+   *  memory card, a disc image with no readable game ID, …). `message` is the
+   *  sentence the UI shows; `null`/absent when saves can sync. Never blocks play. */
+  save_sync_blocked?: SaveSyncBlocked | null;
+}
+
+export interface SaveSyncBlocked {
+  reason: string;
+  message: string;
 }
 
 export interface SaveSlotSummary {

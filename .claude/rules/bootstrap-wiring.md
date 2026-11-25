@@ -1,6 +1,7 @@
 ---
 paths:
   - "py_modules/bootstrap/*.py"
+  - "py_modules/core_bootstrap.py"
   - "main.py"
 ---
 
@@ -23,3 +24,11 @@ deliberately out of scope for the module-size gate.
 and neither is grandfathered, so each has real headroom and a hard stop. A new adapter goes into `adapters.py`, new
 wiring into `services.py`; when either reaches the threshold the answer is the next split along the same seam (a wiring
 module per service cluster), never an allowlist entry.
+
+**The import-safe core root (`core_bootstrap.py`)**: `[ours]` The one exception to "bootstrap/ is the only composition
+root". It wires only `InstallIntegrityService` and `PluginUpdateService`, lives outside the package because importing
+any `bootstrap` module imports everything, and is built first in `_main` so a half-copied install can still report
+itself and reinstall. Its module-level imports — and those of `domain/install_manifest.py`, `adapters/install_files.py`
+and `services/install_integrity.py` — are the standard library and each other only; anything else is imported inside
+`build_core`, guarded. Nothing else goes here: a new service belongs in `bootstrap/services.py` unless it, too, must
+work when the rest of the plugin cannot import.

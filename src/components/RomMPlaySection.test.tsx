@@ -4097,6 +4097,66 @@ describe("RomMPlaySection", () => {
   // G. savefiles_in_content_dir warning banner (#239)
   // ------------------------------------------------------------------
 
+  describe("save_sync_blocked warning", () => {
+    const WHY = "PS2 saves aren't syncing: PCSX2 is using a single-file memory card. Switch slot 1 to a folder card.";
+    function stubBlocked(romId: number, blocked: { reason: string; message: string } | null) {
+      vi.mocked(backend.getSaveStatus).mockResolvedValue({
+        rom_id: romId,
+        files: [],
+        playtime: {
+          total_seconds: 0,
+          session_count: 0,
+          last_session_start: null,
+          last_session_duration_sec: null,
+          last_played: null,
+        },
+        device_id: "d",
+        last_sync_check_at: null,
+        savefiles_in_content_dir: false,
+        save_sync_blocked: blocked,
+        save_sync_display: { status: "none", label: "Not syncing", last_sync_check_at: null },
+      });
+    }
+
+    it("shows why the saves aren't syncing, with the play row still there", async () => {
+      vi.mocked(cachedStore.getCachedGameDetail).mockResolvedValue({
+        found: true,
+        rom_id: 42,
+        save_sync_enabled: true,
+      });
+      stubBlocked(42, { reason: "pcsx2_file_card", message: WHY });
+      const { container } = render(<RomMPlaySection appId={testAppId} />);
+      await flushAsync();
+      expect(container.textContent).toContain("Saves not syncing");
+      expect(container.textContent).toContain(WHY);
+      expect(container.querySelector('[data-testid="play-button"]')).not.toBeNull();
+    });
+
+    it("shows nothing when the game's saves can sync", async () => {
+      vi.mocked(cachedStore.getCachedGameDetail).mockResolvedValue({
+        found: true,
+        rom_id: 42,
+        save_sync_enabled: true,
+      });
+      stubBlocked(42, null);
+      const { container } = render(<RomMPlaySection appId={testAppId} />);
+      await flushAsync();
+      expect(container.textContent).not.toContain("Saves not syncing");
+    });
+
+    it("stays hidden while save sync is off", async () => {
+      vi.mocked(cachedStore.getCachedGameDetail).mockResolvedValue({
+        found: true,
+        rom_id: 42,
+        save_sync_enabled: false,
+      });
+      stubBlocked(42, { reason: "pcsx2_file_card", message: WHY });
+      const { container } = render(<RomMPlaySection appId={testAppId} />);
+      await flushAsync();
+      expect(container.textContent).not.toContain(WHY);
+    });
+  });
+
   describe("savefiles_in_content_dir warning banner (#239)", () => {
     // The flag reaches the section with the store's save-status fold, and the
     // backend derives it from a LOCAL retroarch.cfg read — so the banner must

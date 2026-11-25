@@ -1736,6 +1736,13 @@ only — consumers write `from bootstrap import …` and never deep-import a sub
    `min_required_version` and constructs every service, injecting each one's `*ServiceConfig`. Returns a dict of named
    service instances.
 
+A second, deliberately small root sits outside the package: **`core_bootstrap.py`** builds `InstallIntegrityService`
+and `PluginUpdateService` from modules that import the standard library only, and `main.py` builds it before
+`bootstrap()`. Importing any module of `bootstrap/` imports every adapter and service, so a half-copied install cannot
+load it at all; the core root is what still reports that and offers the reinstall
+([plugin self-update](plugin-self-update.md#half-copied-installs)). `bootstrap()` takes the core's `folder_handles`
+registry and registers the adapters that hold files inside the plugin folder.
+
 The two-phase split exists because adapter instantiation and state loading happen first (`bootstrap()`), then `main.py`
 composes the runtime bundle (event loop, `decky.emit`) and calls `wire_services()`. Services receive the `settings` dict
 (the only field on `StateBundle`) plus the SQLite Unit-of-Work factory / repository handles for all relational state —

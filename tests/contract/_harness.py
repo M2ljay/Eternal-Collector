@@ -46,6 +46,7 @@ from bootstrap import (
     bootstrap,
     wire_services,
 )
+from core_bootstrap import build_core
 from fakes.fake_game_process_control import FakeGameProcessControlAdapter
 from fakes.fake_renderer_gc import FakeRendererGc
 from fakes.fake_renderer_rss import FakeRendererRss
@@ -91,8 +92,11 @@ _BOUND_SERVICE_ATTRS = {
     "_session_lifecycle_service": "session_lifecycle_service",
     "_game_process_service": "game_process_service",
     "_relaunch_options_resolver": "relaunch_options_resolver",
-    "_plugin_update_service": "plugin_update_service",
 }
+
+
+def _no_debug(msg: str) -> None:
+    del msg
 
 
 @dataclass
@@ -148,6 +152,20 @@ def build_contract_harness(tmp_path: Any) -> ContractHarness:
     from main import Plugin
 
     logger = logging.getLogger("contract")
+    # The running loop the test executes in. The harness is built from inside an
+    # async fixture so this is the *same* loop the callables will await on —
+    # binding the loop captured at module import (a different loop) would make
+    # ``run_in_executor`` raise "got Future attached to a different loop".
+    loop = asyncio.get_event_loop()
+
+    # 0. The import-safe core root, built first exactly as main.py:_main does.
+    core = build_core(
+        loop=loop,
+        logger=logger,
+        log_debug=_no_debug,
+        plugin_dir=str(tmp_path / "plugin"),
+        runtime_dir=str(tmp_path / "runtime"),
+    )
 
     # 1. Real bootstrap — real settings dict, real SQLite + migrations, real
     #    file-store adapters, all rooted under tmp_path.
@@ -157,6 +175,7 @@ def build_contract_harness(tmp_path: Any) -> ContractHarness:
         plugin_dir=str(tmp_path / "plugin"),
         user_home=str(tmp_path / "home"),
         logger=logger,
+        folder_handles=core.folder_handles,
     )
 
     # 2. Swap only the network edges in the returned AdapterBundle. The bundle
@@ -190,11 +209,6 @@ def build_contract_harness(tmp_path: Any) -> ContractHarness:
     fake_sleeper = FakeSleeper()
 
     emit = AsyncMock()
-    # The running loop the test executes in. The harness is built from inside an
-    # async fixture so this is the *same* loop the callables will await on —
-    # binding the loop captured at module import (a different loop) would make
-    # ``run_in_executor`` raise "got Future attached to a different loop".
-    loop = asyncio.get_event_loop()
 
     # 3. Wire the real services with the patched bundle.
     cfg = WiringConfig(
@@ -220,6 +234,8 @@ def build_contract_harness(tmp_path: Any) -> ContractHarness:
     # 4. Construct the real Plugin and bind exactly as main.py:_main does.
     plugin = Plugin()
     plugin.loop = loop
+    plugin._core = core
+    plugin._plugin_update_service = core.plugin_update
     plugin.settings = result.stores.settings
     plugin._debug_logger = result.handles.debug_logger
     plugin._persistence = result.handles.persistence

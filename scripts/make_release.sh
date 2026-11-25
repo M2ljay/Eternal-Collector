@@ -12,7 +12,8 @@
 # The zip is the layout Decky installs — one top folder `romm-dock/` holding
 # main.py, plugin.json, package.json, LICENSE, README.md, dist/index.js, bin/'s
 # launcher files, every file of defaults/ except README.md copied flat into the
-# top folder (as the Decky CLI does), and py_modules/ without bytecode caches.
+# top folder (as the Decky CLI does), py_modules/ without bytecode caches, and
+# install-manifest.json listing the path, size and SHA-256 of every other file.
 # Entries carry a fixed timestamp so an unchanged tree zips byte-identically.
 #
 # SKIP_BUILD=1 reuses an existing dist/index.js instead of running `pnpm build`.
@@ -45,6 +46,8 @@ OUT=$(cd "$OUT" && pwd)
 ZIP="$OUT/romm-dock-$VERSION.zip"
 
 python3 - "$HERE" "$ZIP" <<'PY'
+import hashlib
+import json
 import os
 import sys
 import zipfile
@@ -82,17 +85,35 @@ missing = [p for _, p in entries if not os.path.isfile(p)]
 if missing:
     sys.exit(f"missing release files: {missing}")
 
+# install-manifest.json: path, size and SHA-256 of every other file, checked by
+# the plugin at start (domain/install_manifest.py) to catch a half-copied install.
+sys.path.insert(0, os.path.join(here, "py_modules"))
+from domain.install_manifest import MANIFEST_FORMAT, MANIFEST_NAME  # noqa: E402 - the format the plugin reads
+
+if MANIFEST_NAME in names:
+    sys.exit(f"{MANIFEST_NAME} must not be a source file")
+version = json.load(open(os.path.join(here, "package.json"), encoding="utf-8"))["version"]
+files = []
+for name, path in sorted(entries):
+    with open(path, "rb") as f:
+        data = f.read()
+    files.append({"path": name, "size": len(data), "sha256": hashlib.sha256(data).hexdigest()})
+manifest = json.dumps({"format": MANIFEST_FORMAT, "version": version, "files": files}, indent=1).encode() + b"\n"
+
 tmp = dest + ".part"
 with zipfile.ZipFile(tmp, "w", compression=zipfile.ZIP_DEFLATED) as zf:
-    for name, path in sorted(entries):
+    blobs = [(name, path, None) for name, path in entries] + [(MANIFEST_NAME, None, manifest)]
+    for name, path, blob in sorted(blobs, key=lambda e: e[0]):
         info = zipfile.ZipInfo(f"{top}/{name}", date_time=stamp)
         info.compress_type = zipfile.ZIP_DEFLATED
-        mode = 0o755 if os.access(path, os.X_OK) else 0o644
+        mode = 0o755 if path is not None and os.access(path, os.X_OK) else 0o644
         info.external_attr = mode << 16
-        with open(path, "rb") as f:
-            zf.writestr(info, f.read())
+        if blob is None:
+            with open(path, "rb") as f:
+                blob = f.read()
+        zf.writestr(info, blob)
 os.replace(tmp, dest)
-print(f"{len(entries)} files")
+print(f"{len(entries)} files + {MANIFEST_NAME}")
 PY
 
 SHA=$(sha256sum "$ZIP" | cut -d' ' -f1)

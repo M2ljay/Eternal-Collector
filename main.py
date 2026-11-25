@@ -1,6 +1,8 @@
 import asyncio
+import importlib.util
 import os
 import sys
+import traceback
 from dataclasses import asdict
 from typing import Any, cast
 
@@ -8,40 +10,63 @@ plugin_dir = os.path.dirname(__file__)
 sys.path.insert(0, os.path.join(plugin_dir, "py_modules"))
 sys.path.insert(0, plugin_dir)
 
-if sys.platform == "win32":
-    # Decky's Windows build is a PyInstaller bundle (Python 3.14) that can
-    # leave out pure-Python standard modules this plugin imports: tomllib is
-    # absent from the bundle's PYZ and base_library.zip as shipped. Verbatim
-    # CPython copies ship in _vendor/stdlib_compat; the folder is APPENDED, so
-    # any module the bundle does provide still wins.
-    import importlib.util
-
-    if any(importlib.util.find_spec(name) is None for name in ("tomllib", "glob")):
-        sys.path.append(os.path.join(plugin_dir, "py_modules", "_vendor", "stdlib_compat"))
+# Decky's Windows build is a PyInstaller bundle (Python 3.14) that leaves out
+# pure-Python standard modules this plugin imports: tomllib is absent from the
+# bundle's PYZ and base_library.zip as shipped (the bundled module list is pinned
+# in tests/runtime/decky_frozen_stdlib.txt). Verbatim CPython copies ship in
+# _vendor/stdlib_compat; the folder is APPENDED, and only when one is missing,
+# so any module the runtime does provide still wins.
+if any(importlib.util.find_spec(name) is None for name in ("tomllib", "glob")):
+    sys.path.append(os.path.join(plugin_dir, "py_modules", "_vendor", "stdlib_compat"))
 
 import decky
-from bootstrap import (
-    RuntimeBundle,
-    WiringConfig,
-    bootstrap,
-    wire_services,
-)
 
-from lib.migration_gate import migration_blocked
-from lib.prune_gate import (
-    acquire_prune_conflict_lease,
-    prune_active_blocked,
-    prune_exclusive_start,
-    release_orphaned_frontend_leases,
-    retain_prune_conflict,
-)
-from lib.prune_gate import (
-    release_prune_conflict_lease as release_prune_gate_lease,
-)
-from lib.prune_gate import (
-    renew_prune_conflict_lease as renew_prune_gate_lease,
-)
-from lib.sync_gate import sync_active_blocked
+# The install check and the self-update channel are imported first and on their
+# own: a half-copied install (Decky Loader's installer can leave one, see
+# docs/architecture/plugin-self-update.md) fails the full import below, and these
+# two must still load to tell the user and to offer the reinstall.
+try:
+    from core_bootstrap import build_core
+except Exception:
+    CORE_IMPORT_ERROR: str | None = traceback.format_exc()
+else:
+    CORE_IMPORT_ERROR = None
+
+try:
+    from bootstrap import (
+        RuntimeBundle,
+        WiringConfig,
+        bootstrap,
+        wire_services,
+    )
+
+    from lib.migration_gate import migration_blocked
+    from lib.prune_gate import (
+        acquire_prune_conflict_lease,
+        prune_active_blocked,
+        prune_exclusive_start,
+        release_orphaned_frontend_leases,
+        retain_prune_conflict,
+    )
+    from lib.prune_gate import (
+        release_prune_conflict_lease as release_prune_gate_lease,
+    )
+    from lib.prune_gate import (
+        renew_prune_conflict_lease as renew_prune_gate_lease,
+    )
+    from lib.sync_gate import sync_active_blocked
+except Exception:
+    FULL_IMPORT_ERROR: str | None = traceback.format_exc()
+
+    # Rescue mode: the class body below must still define, so the install-check
+    # callables exist. Every other callable fails at call time, as it would if
+    # _main had failed.
+    def _unguarded(fn):
+        return fn
+
+    migration_blocked = prune_active_blocked = prune_exclusive_start = sync_active_blocked = _unguarded
+else:
+    FULL_IMPORT_ERROR = None
 
 
 class Plugin:
@@ -72,6 +97,11 @@ class Plugin:
     _playtime_flush_tasks: set[asyncio.Task[None]]
 
     _MIN_REQUIRED_VERSION = (4, 9, 0)
+
+    # Built first in ``_main`` by ``core_bootstrap``; ``None`` on a bare
+    # ``Plugin()`` and when that root (or its update half) failed to import.
+    _core: Any = None
+    _plugin_update_service: Any = None
 
     # -- logging ---------------------------------------------------------------
     #
@@ -124,6 +154,29 @@ class Plugin:
     async def _main(self):  # Decky lifecycle — must be async
         self.loop = asyncio.get_event_loop()
 
+        # ── 0. Install check + self-update (import-safe core) ──────────────
+        self._core = None
+        self._plugin_update_service = None
+        if CORE_IMPORT_ERROR is None:
+            self._core = build_core(
+                loop=self.loop,
+                logger=decky.logger,
+                log_debug=self._log_debug,
+                plugin_dir=decky.DECKY_PLUGIN_DIR,
+                runtime_dir=decky.DECKY_PLUGIN_RUNTIME_DIR,
+            )
+            self._plugin_update_service = self._core.plugin_update
+            self._core.install_integrity.start_hash_check()
+        else:
+            decky.logger.error(f"The install check could not load:\n{CORE_IMPORT_ERROR}")
+        if FULL_IMPORT_ERROR is not None:
+            decky.logger.error(
+                f"The Collector's modules failed to import; only the install check is running:\n{FULL_IMPORT_ERROR}"
+            )
+            if self._core is not None:
+                self._core.install_integrity.record_import_failure(FULL_IMPORT_ERROR.strip().splitlines()[-1])
+            return
+
         # ── 1. Wire adapters ────────────────────────────────────────────────
         # Bootstrap loads + migrates settings as part of adapter construction
         # so RommHttpAdapter binds the live, migrated dict in one pass.
@@ -133,6 +186,7 @@ class Plugin:
             plugin_dir=decky.DECKY_PLUGIN_DIR,
             user_home=decky.DECKY_USER_HOME,
             logger=decky.logger,
+            folder_handles=self._core.folder_handles if self._core is not None else None,
         )
         self.settings = result.stores.settings
         self._debug_logger = result.handles.debug_logger
@@ -194,7 +248,6 @@ class Plugin:
         self._game_process_service = services["game_process_service"]
         self._relaunch_options_resolver = services["relaunch_options_resolver"]
         self._launcher_backend_service = services["launcher_backend_service"]
-        self._plugin_update_service = services["plugin_update_service"]
 
         # ── 4b. Legacy credential migration ─────────────────────────────────
         # Upgrade a stored-password install to a Client API Token. The
@@ -220,6 +273,8 @@ class Plugin:
         decky.logger.info("The Collector plugin loaded")
 
     async def _unload(self):  # Decky lifecycle — must be async
+        if FULL_IMPORT_ERROR is not None or not hasattr(self, "_sync_service"):
+            return
         self._sync_service.shutdown()
         await self._prune_service.shutdown()
         await self._download_service.shutdown()
@@ -302,13 +357,39 @@ class Plugin:
     # ── Plugin self-update (Windows fork builds) ──────────────────────
 
     async def check_plugin_update(self, force=False):
-        return await self._plugin_update_service.check_for_update(bool(force))
+        service = self._plugin_update_service
+        if service is None:
+            return {"success": True, "supported": False, "current": "", "update_available": False}
+        return await service.check_for_update(bool(force))
 
     async def prepare_plugin_update(self):
-        return await self._plugin_update_service.prepare_update()
+        service = self._plugin_update_service
+        if service is None:
+            return _update_unavailable()
+        return await service.prepare_update()
+
+    async def prepare_plugin_reinstall(self):
+        service = self._plugin_update_service
+        if service is None:
+            return _update_unavailable()
+        return await service.prepare_reinstall()
 
     async def get_plugin_rollback(self):
-        return await self._plugin_update_service.get_rollback()
+        service = self._plugin_update_service
+        if service is None:
+            return {"success": True, "available": False}
+        return await service.get_rollback()
+
+    async def get_install_integrity(self):
+        """Whether the installed folder matches the build's install manifest (works in rescue mode)."""
+        core = getattr(self, "_core", None)
+        if core is None:
+            return {
+                "success": False,
+                "reason": "check_unavailable",
+                "message": "The install check itself could not load; reinstall The Collector from Decky.",
+            }
+        return await core.install_integrity.get_report()
 
     async def get_retrodeck_status(self):
         """Report RetroDECK path-resolution health for the frontend banner.
@@ -1067,3 +1148,11 @@ class Plugin:
         Returns ``{"success": True}``.
         """
         return self._settings_service.dismiss_settings_reset_notice()
+
+
+def _update_unavailable() -> dict[str, Any]:
+    return {
+        "success": False,
+        "reason": "unsupported",
+        "message": "The update channel could not load; reinstall The Collector from Decky.",
+    }

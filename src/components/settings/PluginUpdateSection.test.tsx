@@ -56,6 +56,7 @@ describe("PluginUpdateSection", () => {
       artifact: "file:///n.zip",
       sha256: SHA,
       size: 10,
+      install_type: 2,
     });
     render(<PluginUpdateSection />);
     fireEvent.click(await screen.findByText("Install 0.33.0-win.17 (2.0 MB)"));

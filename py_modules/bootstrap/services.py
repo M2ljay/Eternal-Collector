@@ -35,7 +35,6 @@ from services.library import LibraryService, LibraryServiceConfig
 from services.metadata import MetadataService, MetadataServiceConfig
 from services.migration import MigrationService, MigrationServiceConfig
 from services.playtime import PlaytimeService, PlaytimeServiceConfig
-from services.plugin_update import PluginUpdateService, PluginUpdateServiceConfig
 from services.prune import PruneService, PruneServiceConfig
 from services.relaunch_options_resolver import RelaunchOptionsResolver, RelaunchOptionsResolverConfig
 from services.rom_adoption import RomAdoptionService, RomAdoptionServiceConfig
@@ -659,22 +658,6 @@ def wire_services(cfg: WiringConfig) -> dict[str, Any]:
         )
     )
 
-    # The fork's own release channel; Linux builds stay on the Decky store.
-    plugin_update_service = PluginUpdateService(
-        config=PluginUpdateServiceConfig(
-            loop=cfg.runtime.loop,
-            logger=cfg.runtime.logger,
-            log_debug=cfg.callbacks.log_debug,
-            clock=cfg.runtime.clock,
-            release_source=cfg.adapters.plugin_release,
-            files=cfg.adapters.plugin_update_files,
-            current_version=cfg.callbacks.plugin_metadata.read_version(cfg.runtime.plugin_dir),
-            plugin_dir=cfg.runtime.plugin_dir,
-            staging_dir=os.path.join(cfg.runtime.runtime_dir, "plugin-update"),
-            platform_supported=sys.platform == "win32",
-        ),
-    )
-
     return {
         "save_sync_service": save_sync_service,
         "playtime_service": playtime_service,
@@ -704,5 +687,4 @@ def wire_services(cfg: WiringConfig) -> dict[str, Any]:
         "game_process_service": game_process_service,
         "relaunch_options_resolver": relaunch_options_resolver,
         "launcher_backend_service": launcher_backend_service,
-        "plugin_update_service": plugin_update_service,
     }

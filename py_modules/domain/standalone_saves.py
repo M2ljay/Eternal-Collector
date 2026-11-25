@@ -280,14 +280,21 @@ _INI_SECTION_RE = re.compile(r"^\s*\[([^\]]+)\]\s*$")
 _INI_VALUE_RE = re.compile(r"^\s*([^=;#]+?)\s*=\s*(.*?)\s*$")
 
 
-def pcsx2_slot1_card(ini_text: str) -> str | None:
-    """The memory card PCSX2 puts in slot 1, by its ``PCSX2.ini``, or ``None``.
+PCSX2_SLOT_EMPTY = "slot_empty"
+PCSX2_CARDS_ELSEWHERE = "cards_elsewhere"
+"""Why :func:`pcsx2_slot1` found no usable card name."""
 
-    ``None`` unless ``[MemoryCards] Slot1_Enable`` is ``true``,
+
+def pcsx2_slot1(ini_text: str) -> tuple[str | None, str | None]:
+    """``(card, problem)`` for the memory card PCSX2 puts in slot 1, by its ``PCSX2.ini``.
+
+    The card is set only when ``[MemoryCards] Slot1_Enable`` is ``true``,
     ``Slot1_Filename`` is one plain name, and ``[Folders] MemoryCards`` is the
     default ``memcards`` folder (the one EmuDeck links to
-    ``$savesPath\\pcsx2\\saves``). Whether that name is a folder card is
-    for the caller to check on disk.
+    ``$savesPath\\pcsx2\\saves``); otherwise *problem* is
+    :data:`PCSX2_SLOT_EMPTY` (no card, or a name that is not one plain
+    component) or :data:`PCSX2_CARDS_ELSEWHERE`. Whether that name is a folder
+    card is for the caller to check on disk.
     """
     values: dict[tuple[str, str], str] = {}
     section = ""
@@ -300,10 +307,11 @@ def pcsx2_slot1_card(ini_text: str) -> str | None:
         if pair:
             values[(section, pair.group(1).lower())] = pair.group(2)
     if values.get(("memorycards", "slot1_enable"), "").lower() != "true":
-        return None
+        return None, PCSX2_SLOT_EMPTY
     if values.get(("folders", "memorycards"), "memcards").strip().lower() != "memcards":
-        return None
-    return safe_component(values.get(("memorycards", "slot1_filename"), "").strip())
+        return None, PCSX2_CARDS_ELSEWHERE
+    card = safe_component(values.get(("memorycards", "slot1_filename"), "").strip())
+    return (card, None) if card else (None, PCSX2_SLOT_EMPTY)
 
 
 def bundle_layout(filename: str, save_set: StandaloneSaveSet | None) -> BundleLayout | None:

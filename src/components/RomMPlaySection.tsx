@@ -1167,6 +1167,9 @@ export const RomMPlaySection: FC<RomMPlaySectionProps> = ({ appId }) => { // NOS
           message="RetroArch's 'Write Saves to Content Directory' is enabled, so saves go next to the ROM and can't be synced. Turn it off in RetroArch → Settings → Saving to re-enable save sync."
         />
       ) : null}
+      {detail.saveSyncBlocked && detail.saveSyncEnabled && !detail.savefilesInContentDir ? (
+        <WarningCard key="save-sync-blocked-warning" title="Saves not syncing" message={detail.saveSyncBlocked} />
+      ) : null}
       {playSectionRow}
     </Fragment>
   );

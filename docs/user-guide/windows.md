@@ -84,7 +84,9 @@ save states are not synced.
     PCSX2 must use a **folder** memory card (Settings → Memory Cards → create a card of type *Folder*) in slot 1, in its
     normal `memcards` folder. The plugin reads PCSX2's `inis\PCSX2.ini` to find which card is in slot 1; if slot 1 holds
     a regular file card such as `Mcd001.ps2` (EmuDeck's default), is disabled, or the ini cannot be read, PS2 saves do
-    not sync. Per-game memory-card overrides are not followed.
+    not sync. Per-game memory-card overrides are not followed. The game's page then shows _Saves not syncing_ with the
+    reason (for example _PS2 saves aren't syncing: PCSX2 is using a single-file memory card. Switch slot 1 to a folder
+    card._), and the same sentence appears as a notification when you quit the game. The game still launches.
 
 !!! note "Dolphin GameCube: GCI folders"
 
@@ -163,7 +165,7 @@ is not offered — change the setting in the emulator instead.
 ## Updates
 
 This build updates itself from the fork's own releases; it is not on the Decky store. When a newer build is published
-you get a toast when Steam starts, or within 6 hours while it runs: _Version 0.33.0-win.18 is available. Tap to
+you get a toast when Steam starts, or within 6 hours while it runs: _Version 0.33.0-win.19 is available. Tap to
 install._ The plugin looks for a new build at most once every 6 hours.
 
 **Settings → Plugin Updates** shows the installed version, an **Install &lt;version&gt;** button with the release notes
@@ -171,18 +173,29 @@ when a newer build is out, and **Check for Updates** to look right now.
 
 Installing (from the toast or the button):
 
-1. The plugin downloads the new build and checks it against the published size and SHA-256. If either differs, nothing
+1. Close any game you started from The Collector first. While one runs, the install is refused with a message saying
+   so: Windows keeps the game launcher locked, and Decky cannot replace a locked file.
+2. The plugin downloads the new build and checks it against the published size and SHA-256. If either differs, nothing
    is installed and you are told why — usually it means the build was published moments ago; try again in a few minutes.
-2. It saves a copy of the version you have now.
-3. Decky shows its own _update_ prompt. Confirm it and Decky replaces the plugin and reloads it. Cancel and nothing
+3. It saves a copy of the version you have now.
+4. Decky shows its own _update_ prompt. Confirm it and Decky replaces the plugin and reloads it. Cancel and nothing
    changes.
 
 Your settings, library, saves and covers are not part of the plugin folder and are kept. The launcher's log,
 `bin\rom-launcher.log`, starts again empty after an update.
 
-**Roll Back to &lt;version&gt;** appears in the same section after an update and reinstalls the copy saved in step 2,
+**Roll Back to &lt;version&gt;** appears in the same section after an update and reinstalls the copy saved in step 3,
 again through Decky's prompt. Only the most recent replaced version is kept. Rolling back across a release that changed
 the plugin's database is not safe.
+
+### If an update didn't finish
+
+Decky can stop part-way through replacing the plugin's files — for example when one of them is locked by another
+program — and leave a mix of old and new files behind. The Collector checks its own files every time it starts. If
+any are missing or wrong, the top of its QAM panel says _The Collector's last update didn't finish copying. Reinstall
+win.N_, with a **Reinstall win.N** button. The button downloads that version again, checks it, and hands it to Decky's
+prompt; it works even when the rest of the plugin cannot start. If files from an older version were left behind
+instead, the panel says so and offers the same button. The copy saved for **Roll Back** is not replaced by a reinstall.
 
 If your Decky Loader does not offer installing from plugins, the buttons are greyed out with a note, and no toast
 appears; install the zip from the fork's `release` branch by hand (Decky settings → Developer → Install Plugin from

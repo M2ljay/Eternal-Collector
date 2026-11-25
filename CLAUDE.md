@@ -391,6 +391,20 @@ Format: **invariant** — tier — enforced by.
   [ADR-0030](docs/adr/0030-plugin-owns-proton-invocation.md) and
   [windows-proton-launch.md](docs/architecture/windows-proton-launch.md#why-the-compat-data-prefix-is-created-in-python-not-in-the-baked-command)
 
+- **The install check and the update channel load in a half-copied install: `core_bootstrap.py` is imported before
+  anything else in `main.py`, and its module-level imports — and those of `domain/install_manifest.py`,
+  `adapters/install_files.py`, `services/install_integrity.py` — are the standard library and each other only; every
+  other plugin import happens inside `main.py`'s guarded `try` or inside `build_core`** — test —
+  `tests/test_core_bootstrap.py::test_core_files_import_only_the_stdlib_and_each_other` (AST over the four files'
+  module-level imports, `TYPE_CHECKING` blocks skipped — an `importlib.import_module` call or an import added to a fifth
+  file the core starts importing slips past it, so a new core file must be added to its `_CORE_FILES`), plus
+  `tests/test_plugin_rescue_mode.py` (deletes `services/game_mods.py` from a copy of the plugin and checks
+  `get_install_integrity` still answers) ([plugin-self-update.md](docs/architecture/plugin-self-update.md#half-copied-installs))
+- **Every module the plugin imports at module level uses only standard-library modules Decky's frozen Windows Python
+  ships, or the plugin's own fallback copy** — test — `tests/runtime/test_frozen_runtime.py` against
+  `tests/runtime/decky_frozen_stdlib.txt` (a lazily imported Windows-only module is covered only once it is listed in
+  that test's `WINDOWS_ONLY_MODULES`)
+
 When a change applies a guard / sanitize / backup / grouping pattern, sweep for sibling sites of the same pattern — the
 register is what that sweep checks against.
 

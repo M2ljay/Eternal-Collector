@@ -12,6 +12,8 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any, Literal, Protocol
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
+
     from domain.game_instance import GameInstance
     from domain.sync_action import SyncAction
 
@@ -231,3 +233,26 @@ class DownloadQueueCleanup(Protocol):
     def evict(self, rom_id: int) -> None: ...
 
     def clear(self) -> None: ...
+
+
+class RunningExecutablesFn(Protocol):
+    """Lower-cased executable names of every running process, or ``None`` when the process table cannot be read."""
+
+    def __call__(self) -> frozenset[str] | None: ...
+
+
+class PluginFolderHandles(Protocol):
+    """The handles the backend holds on files inside its own plugin folder.
+
+    Released before the folder is handed to Decky Loader's installer, which
+    deletes and rewrites it; each holder reopens lazily on its next use, so a
+    cancelled install leaves the plugin working.
+    """
+
+    def register(self, name: str, release: Callable[[], None]) -> None:
+        """Add a holder; *release* closes its handles and must be safe to call twice."""
+        ...
+
+    def release_all(self) -> list[str]:
+        """Release every holder; return the names whose release raised (each is logged, none stops the rest)."""
+        ...

@@ -6,8 +6,10 @@ import {
   DECKY_INSTALL_TYPE_UPDATE,
   UPDATE_CHECK_INTERVAL_MS,
   canSelfUpdate,
+  DECKY_INSTALL_TYPE_REINSTALL,
   installPluginUpdate,
   notifyIfPluginUpdate,
+  reinstallPlugin,
   resetPluginUpdateToastMemory,
   rollbackPlugin,
   startPluginUpdateWatch,
@@ -37,6 +39,7 @@ describe("pluginUpdate", () => {
     vi.mocked(backend.checkPluginUpdate).mockReset();
     vi.mocked(backend.preparePluginUpdate).mockReset();
     vi.mocked(backend.getPluginRollback).mockReset();
+    vi.mocked(backend.preparePluginReinstall).mockReset();
     resetPluginUpdateToastMemory();
   });
   afterEach(() => {
@@ -62,6 +65,52 @@ describe("pluginUpdate", () => {
     });
   });
 
+  describe("reinstallPlugin", () => {
+    it("hands the same-version build to Decky as a REINSTALL", async () => {
+      const call = installRouter();
+      vi.mocked(backend.preparePluginReinstall).mockResolvedValue({
+        success: true,
+        version: "0.33.0-win.19",
+        artifact: "file://C:\\x\\romm-dock-0.33.0-win.19.zip",
+        sha256: SHA,
+        size: 10,
+        install_type: DECKY_INSTALL_TYPE_REINSTALL,
+      });
+      expect(await reinstallPlugin()).toBe("");
+      expect(call).toHaveBeenCalledWith(
+        "utilities/install_plugin",
+        "file://C:\\x\\romm-dock-0.33.0-win.19.zip",
+        "RomM-Dock",
+        "0.33.0-win.19",
+        SHA,
+        DECKY_INSTALL_TYPE_REINSTALL,
+      );
+    });
+
+    it("passes the backend's refusal through and never calls Decky", async () => {
+      const call = installRouter();
+      vi.mocked(backend.preparePluginReinstall).mockResolvedValue({
+        success: false,
+        reason: "game_running",
+        message: "A game started from The Collector is still running.",
+        current: "0.33.0-win.19",
+      });
+      expect(await reinstallPlugin()).toBe("A game started from The Collector is still running.");
+      expect(call).not.toHaveBeenCalled();
+    });
+
+    it("reports a bridge failure without throwing", async () => {
+      installRouter();
+      vi.mocked(backend.preparePluginReinstall).mockRejectedValue(new Error("bridge"));
+      expect(await reinstallPlugin()).toBe("The reinstall could not be prepared.");
+    });
+
+    it("refuses without Decky's router", async () => {
+      expect(await reinstallPlugin()).toBe("This Decky Loader cannot install plugins from here.");
+      expect(backend.preparePluginReinstall).not.toHaveBeenCalled();
+    });
+  });
+
   describe("installPluginUpdate", () => {
     it("hands the verified file to Decky as an UPDATE under the plugin.json name", async () => {
       const call = installRouter();
@@ -71,6 +120,7 @@ describe("pluginUpdate", () => {
         artifact: "file://C:\\x\\romm-dock-0.33.0-win.17.zip",
         sha256: SHA,
         size: 10,
+        install_type: 2,
       });
       expect(await installPluginUpdate()).toBe("");
       expect(call).toHaveBeenCalledWith(
@@ -104,6 +154,7 @@ describe("pluginUpdate", () => {
         artifact: "file:///a.zip",
         sha256: SHA,
         size: 1,
+        install_type: 2,
       });
       expect(await installPluginUpdate()).toBe("Decky refused the install: Error: nope");
     });
@@ -159,6 +210,7 @@ describe("pluginUpdate", () => {
         artifact: "file:///n.zip",
         sha256: SHA,
         size: 10,
+        install_type: 2,
       });
       await notifyIfPluginUpdate();
       await notifyIfPluginUpdate();

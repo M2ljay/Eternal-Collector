@@ -867,6 +867,7 @@ class SyncEngine:
                     "downloaded": downloaded,
                     "errors": errors,
                     "conflicts": list(conflicts),
+                    "save_sync_blocked": await self._blocker_if_idle(rom_id, synced),
                 }
         except SaveSyncTimeoutError:
             # Device gate held past the bounded wait — skip rather than block on a stuck run. No ``offline``
@@ -927,9 +928,13 @@ class SyncEngine:
                 msg = _summarize_sync_result(
                     f"Synced {synced} save(s)", synced=synced, errors=errors, conflicts=len(conflicts)
                 )
+                blocked = await self._blocker_if_idle(rom_id, synced)
+                if blocked is not None and not errors:
+                    msg = blocked["message"]
                 return {
                     "success": len(errors) == 0,
                     "message": msg,
+                    "save_sync_blocked": blocked,
                     "synced": synced,
                     "uploaded": uploaded,
                     "downloaded": downloaded,
@@ -957,6 +962,13 @@ class SyncEngine:
                 "errors": [],
                 "conflicts": [],
             }
+
+    async def _blocker_if_idle(self, rom_id: int, synced: int) -> dict[str, str] | None:
+        """The ROM's save-sync blocker as ``{reason, message}`` when a run moved nothing, else ``None``."""
+        if synced:
+            return None
+        blocker = await self._loop.run_in_executor(None, self._rom_info.save_sync_blocker, rom_id)
+        return blocker.to_dict() if blocker is not None else None
 
     def _installed_rom_ids(self) -> list[int]:
         """Read the installed-ROM ids from the rom_installs aggregate (WS3)."""

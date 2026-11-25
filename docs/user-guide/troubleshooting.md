@@ -188,8 +188,10 @@ sync. Re-check the game in RomM (a server database reset re-registers this devic
 
 **Symptom**: The game detail page shows save status but no save file is being synced.
 
-**Fix**: Save sync only works for RetroArch `.srm` save files. If you're using a standalone emulator (PCSX2,
-DuckStation, Dolphin, etc.), saves for those systems are not yet supported.
+**Fix**: On Linux, save sync works for RetroArch save files only; games launched with a standalone emulator (PCSX2,
+DuckStation, Dolphin, etc.) are not synced. On Windows with EmuDeck, melonDS, DuckStation, Vita3K, Dolphin, PPSSPP and
+PCSX2 saves sync too ([Windows](windows.md)); when one of those games' saves cannot be synced, its page shows _Saves
+not syncing_ with the reason and how to fix it — for example switching PCSX2's slot 1 to a folder memory card.
 
 Also verify the game actually creates a `.srm` file — some games use in-game passwords instead of battery saves.
 

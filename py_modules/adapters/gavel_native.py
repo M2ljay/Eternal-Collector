@@ -38,6 +38,7 @@ from __future__ import annotations
 import ctypes
 import os
 import sys
+import threading
 from typing import Any, Literal
 
 from domain.iso_time import parse_iso_to_epoch
@@ -143,6 +144,13 @@ class GavelNativeAdapter:
     """
 
     def __init__(self, lib_path: str = _BUNDLED_LIB_PATH) -> None:
+        self._lib_path = lib_path
+        self._lock = threading.Lock()
+        self._lib: Any = None
+        self._load()
+
+    def _load(self) -> None:
+        lib_path = self._lib_path
         try:
             self._lib = ctypes.CDLL(lib_path)
         except OSError as exc:
@@ -165,6 +173,26 @@ class GavelNativeAdapter:
         ]
         self._compute.restype = None
 
+    def release(self) -> None:
+        """Unload the shared object so its file inside the plugin folder is no longer mapped.
+
+        The next decision loads it again (raising :class:`GavelNativeLoadError`
+        if it is gone), so a plugin update the user cancels in Decky's prompt
+        leaves save sync working. Calling it twice is harmless.
+        """
+        with self._lock:
+            lib = self._lib
+            if lib is None:
+                return
+            # The bound function objects stay but are never called while _lib is
+            # None: every call holds the lock and reloads (rebinding them) first.
+            self._lib = None
+            _unload_library(lib._handle)
+
+    def _ensure_loaded(self) -> None:
+        if self._lib is None:
+            self._load()
+
     def _bind(self, lib_path: str, symbol: str) -> Any:
         """Resolve *symbol* in the loaded library, or fail the load loudly."""
         try:
@@ -179,12 +207,14 @@ class GavelNativeAdapter:
         server_content_hash: str | None,
         last_sync_server_hash: str | None,
     ) -> Literal["download", "conflict"]:
-        result = self._resolve(
-            _encode(local_hash),
-            _encode(last_sync_hash),
-            _encode(server_content_hash),
-            _encode(last_sync_server_hash),
-        )
+        with self._lock:
+            self._ensure_loaded()
+            result = self._resolve(
+                _encode(local_hash),
+                _encode(last_sync_hash),
+                _encode(server_content_hash),
+                _encode(last_sync_server_hash),
+            )
         return "download" if result == 0 else "conflict"
 
     def compute_sync_action(
@@ -218,15 +248,18 @@ class GavelNativeAdapter:
         keepalive: list[object] = []
         saves, saves_by_id = _build_saves(server_saves_in_slot, keepalive)
         result = _SyncActionResult()
-        self._compute(
-            _build_local_file(local_file),
-            saves,
-            len(server_saves_in_slot),
-            _build_bookkeeping(files_state, keepalive),
-            _encode(device_id),
-            _encode(local_hash),
-            ctypes.byref(result),
-        )
+        bookkeeping = _build_bookkeeping(files_state, keepalive)
+        with self._lock:
+            self._ensure_loaded()
+            self._compute(
+                _build_local_file(local_file),
+                saves,
+                len(server_saves_in_slot),
+                bookkeeping,
+                _encode(device_id),
+                _encode(local_hash),
+                ctypes.byref(result),
+            )
         return _decode_action(result, saves_by_id)
 
 
@@ -364,3 +397,17 @@ def _decode_action(result: _SyncActionResult, saves_by_id: dict[int, dict[str, A
     if result.action == _ACTION_DOWNLOAD:
         return Download(server_save=server_save)
     return Conflict(server_save=server_save)
+
+
+def _unload_library(handle: int) -> None:
+    """Drop the process's reference to a library ``ctypes.CDLL`` loaded (FreeLibrary / dlclose)."""
+    if sys.platform == "win32":
+        kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)  # type: ignore[attr-defined]  # Windows-only ctypes API
+        kernel32.FreeLibrary.argtypes = [ctypes.c_void_p]
+        kernel32.FreeLibrary.restype = ctypes.c_int
+        if not kernel32.FreeLibrary(ctypes.c_void_p(handle)):
+            raise OSError(f"FreeLibrary failed ({ctypes.get_last_error()})")  # type: ignore[attr-defined]  # Windows-only
+    else:
+        import _ctypes
+
+        _ctypes.dlclose(handle)

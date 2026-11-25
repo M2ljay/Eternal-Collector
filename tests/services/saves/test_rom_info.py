@@ -6,6 +6,7 @@ from fakes.fake_active_core_resolver import FakeActiveCoreResolver
 from fakes.fake_disc_code_reader import FakeDiscCodeReader
 from fakes.fake_retrodeck_paths import FakeRetroDeckPaths
 
+from domain.save_sync_blockers import SaveSyncBlocker
 from domain.shortcut_data import EmulatorInvocation
 from tests.services.saves._helpers import (
     STANDALONE_COMMANDS,
@@ -17,6 +18,24 @@ from tests.services.saves._helpers import (
     make_service,
     make_standalone_service,
 )
+
+
+def _reader(svc) -> FakeDiscCodeReader:
+    reader = svc._rom_info._disc_codes
+    assert isinstance(reader, FakeDiscCodeReader)
+    return reader
+
+
+def _info_blocker(info) -> SaveSyncBlocker:
+    blocker = info["save_sync_blocker"]
+    assert isinstance(blocker, SaveSyncBlocker)
+    return blocker
+
+
+def _blocker(svc) -> SaveSyncBlocker:
+    blocker = svc._rom_info.save_sync_blocker(42)
+    assert blocker is not None
+    return blocker
 
 
 class TestFindSaveFiles:
@@ -443,6 +462,7 @@ class TestStandaloneSaveSetSelection:
         assert info is not None
         assert info["save_set"] is None
         assert info["saves_dir"].startswith(str(tmp_path / "saves"))
+        assert _info_blocker(info).reason == "vita_no_title_id"
 
     def test_libretro_core_keeps_retroarch_handling(self, tmp_path):
 
@@ -467,6 +487,7 @@ class TestStandaloneSaveSetSelection:
         info = svc._rom_info.get_rom_save_info(42)
         assert info is not None
         assert info["save_set"] is None
+        assert info["save_sync_blocker"] is None
         assert active.emulator_calls == []  # Linux/RetroDECK path: no extra resolution
 
     def test_unrecognised_standalone_keeps_retroarch_handling(self, tmp_path):
@@ -481,6 +502,34 @@ class TestStandaloneSaveSetSelection:
         info = svc._rom_info.get_rom_save_info(42)
         assert info is not None
         assert info["save_set"] is None
+        blocker = info["save_sync_blocker"]
+        assert blocker.reason == "emulator_folder_unknown"
+        assert blocker.message == "PS2 saves aren't syncing: couldn't find PCSX2's save folder in EmuDeck's settings."
+
+    def test_unknown_standalone_executable_is_named(self, tmp_path):
+        paths = FakeRetroDeckPaths(saves=str(tmp_path / "saves"))
+        paths.standalone_saves["melonds"] = str(tmp_path / "emu")
+        active = FakeActiveCoreResolver(
+            default_emulator=EmulatorInvocation.standalone('"C:\\tools\\xenia\\xenia_canary.exe" "%ROM%"', "Xenia")
+        )
+        svc, _ = make_service(tmp_path, launcher_paths=paths, active_core=active)
+        _install_rom(svc, tmp_path, system="xbox360", file_name="Game.iso")
+        blocker = _blocker(svc)
+        assert blocker.reason == "unknown_emulator"
+        assert "xenia_canary.exe" in blocker.message
+
+    def test_libretro_core_has_no_blocker(self, tmp_path):
+        paths = FakeRetroDeckPaths(saves=str(tmp_path / "saves"), roms=str(tmp_path / "retrodeck" / "roms"))
+        paths.standalone_saves["duckstation"] = str(tmp_path / "emu")
+        svc, _ = make_service(
+            tmp_path, launcher_paths=paths, active_core=FakeActiveCoreResolver(default=("swanstation_libretro", "SS"))
+        )
+        _install_rom(svc, tmp_path, system="psx", file_name="Tekken 3.chd")
+        assert svc._rom_info.save_sync_blocker(42) is None
+
+    def test_not_installed_has_no_blocker(self, tmp_path):
+        svc, _ = make_service(tmp_path)
+        assert svc._rom_info.save_sync_blocker(999) is None
 
 
 class TestFindStandaloneSaveFiles:
@@ -565,6 +614,40 @@ class TestDiscCodeSaveSetSelection:
         assert info is not None
         assert info["save_set"] is None
         assert info["saves_dir"].startswith(str(tmp_path / "saves"))
+        assert _info_blocker(info).reason == "disc_id_missing"
+
+    def test_unsupported_chd_names_the_cause(self, tmp_path):
+        svc, _, _ = make_standalone_service(
+            tmp_path, "pcsx2", system="ps2", file_name="g.chd", command='"C:\\PCSX2\\pcsx2-qt.exe"'
+        )
+        _reader(svc).problem = ("unsupported_image", "unsupported CHD codec b'zstd'")
+        blocker = _blocker(svc)
+        assert blocker.reason == "disc_image_unsupported"
+        assert "unsupported CHD codec" in blocker.message
+        assert blocker.message.startswith("PS2 saves aren't syncing")
+
+    def test_unsupported_format_names_the_extension(self, tmp_path):
+        svc, _, _ = make_standalone_service(tmp_path, "ppsspp", system="psp", file_name="Game.pbp")
+        _reader(svc).problem = ("unsupported_format", ".pbp")
+        blocker = _blocker(svc)
+        assert blocker.reason == "disc_format_unsupported"
+        assert ".pbp" in blocker.message
+
+    def test_unreadable_image(self, tmp_path):
+        svc, _, _ = make_standalone_service(tmp_path, "dolphin", system="gc", file_name="g.rvz")
+        _reader(svc).problem = ("unreadable", "Permission denied")
+        assert _blocker(svc).reason == "disc_unreadable"
+
+    def test_gamecube_region_unknown(self, tmp_path):
+        from domain.disc_ids import DiscCode
+
+        svc, _, _ = make_standalone_service(
+            tmp_path, "dolphin", system="gc", file_name="g.rvz", disc=DiscCode("gc", "GRS@AF")
+        )
+        info = svc._rom_info.get_rom_save_info(42)
+        assert info is not None
+        assert info["save_set"] is None
+        assert _info_blocker(info).reason == "disc_region_unknown"
 
     def test_member_bundle_is_packed_by_find_save_files(self, tmp_path):
         from domain.disc_ids import DiscCode
@@ -611,6 +694,59 @@ class TestDiscCodeSaveSetSelection:
         assert info is not None
         (source,) = info["save_set"].entries[0].layout.sources
         assert source.directory == "saves/folder.ps2"
+
+    def _pcsx2(self, tmp_path, ini_text, *, card_kind=None):
+        from domain.disc_ids import DiscCode
+
+        exe_dir = tmp_path / "PCSX2"
+        (exe_dir / "inis").mkdir(parents=True)
+        if ini_text is not None:
+            (exe_dir / "inis" / "PCSX2.ini").write_text(ini_text)
+        svc, _, saves_dir = make_standalone_service(
+            tmp_path,
+            "pcsx2",
+            system="ps2",
+            file_name="g.chd",
+            disc=DiscCode("ps2", "SLUS-20062"),
+            command=f'"{exe_dir / "pcsx2-qt.exe"}"',
+        )
+        cards = saves_dir / "saves"
+        cards.mkdir(parents=True, exist_ok=True)
+        if card_kind == "file":
+            (cards / "Mcd001.ps2").write_bytes(b"\0" * 64)
+        elif card_kind == "unformatted":
+            (cards / "Mcd001.ps2").mkdir()
+        return svc
+
+    _SLOT1 = "[MemoryCards]\nSlot1_Enable = true\nSlot1_Filename = Mcd001.ps2\n"
+
+    def test_pcsx2_single_file_card_is_reported(self, tmp_path):
+        svc = self._pcsx2(tmp_path, self._SLOT1, card_kind="file")
+        info = svc._rom_info.get_rom_save_info(42)
+        assert info is not None
+        assert info["save_set"] is None
+        assert _info_blocker(info).reason == "pcsx2_file_card"
+        assert _info_blocker(info).message == (
+            "PS2 saves aren't syncing: PCSX2 is using a single-file memory card. Switch slot 1 to a folder card."
+        )
+
+    def test_pcsx2_missing_ini(self, tmp_path):
+        svc = self._pcsx2(tmp_path, None)
+        assert _blocker(svc).reason == "pcsx2_settings_unreadable"
+
+    def test_pcsx2_empty_slot(self, tmp_path):
+        svc = self._pcsx2(tmp_path, self._SLOT1.replace("true", "false"))
+        assert _blocker(svc).reason == "pcsx2_slot_empty"
+
+    def test_pcsx2_cards_elsewhere(self, tmp_path):
+        svc = self._pcsx2(tmp_path, "[Folders]\nMemoryCards = D:\\cards\n" + self._SLOT1)
+        assert _blocker(svc).reason == "pcsx2_cards_elsewhere"
+
+    def test_pcsx2_card_without_superblock(self, tmp_path):
+        svc = self._pcsx2(tmp_path, self._SLOT1, card_kind="unformatted")
+        blocker = _blocker(svc)
+        assert blocker.reason == "pcsx2_card_missing"
+        assert "Mcd001.ps2" in blocker.message
 
     def test_upload_tag_is_the_emulator_id(self, tmp_path):
         from domain.disc_ids import DiscCode

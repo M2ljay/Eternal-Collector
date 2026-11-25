@@ -64,7 +64,15 @@ def clock():
 
 @pytest.fixture
 def make_service(tmp_path, plugin_dir, source, clock):
-    def _make(*, current=CURRENT, platform_supported=True, release_source=source, files=None):
+    def _make(
+        *,
+        current=CURRENT,
+        platform_supported=True,
+        release_source=source,
+        files=None,
+        running_executables=None,
+        folder_handles=None,
+    ):
         return PluginUpdateService(
             config=PluginUpdateServiceConfig(
                 loop=asyncio.get_running_loop(),
@@ -77,6 +85,9 @@ def make_service(tmp_path, plugin_dir, source, clock):
                 plugin_dir=plugin_dir,
                 staging_dir=str(tmp_path / "runtime" / "plugin-update"),
                 platform_supported=platform_supported,
+                running_executables=running_executables,
+                launcher_name="rom-launcher.exe",
+                folder_handles=folder_handles,
             )
         )
 
@@ -269,3 +280,112 @@ class TestRollback:
 def _downloads(tmp_path) -> list[str]:
     folder = tmp_path / "runtime" / "plugin-update" / "download"
     return os.listdir(folder) if folder.exists() else []
+
+
+class _Handles:
+    def __init__(self, failing=()):
+        self.released = 0
+        self.failing = list(failing)
+
+    def register(self, name, release):
+        raise AssertionError("not used")
+
+    def release_all(self):
+        self.released += 1
+        return self.failing
+
+
+class TestPrepareGuards:
+    async def test_refuses_while_a_launched_game_runs(self, make_service, source):
+        handles = _Handles()
+        svc = make_service(
+            running_executables=lambda: frozenset({"explorer.exe", "rom-launcher.exe"}), folder_handles=handles
+        )
+        result = await svc.prepare_update()
+        assert result["success"] is False
+        assert result["reason"] == "game_running"
+        assert "Close it first" in result["message"]
+        assert source.download_urls == []
+        assert handles.released == 0
+
+    async def test_other_processes_do_not_block(self, make_service):
+        handles = _Handles()
+        svc = make_service(running_executables=lambda: frozenset({"explorer.exe"}), folder_handles=handles)
+        result = await svc.prepare_update()
+        assert result["success"] is True
+        assert result["install_type"] == 2
+        assert handles.released == 1
+
+    async def test_unreadable_process_table_does_not_block(self, make_service):
+        result = await make_service(running_executables=lambda: None).prepare_update()
+        assert result["success"] is True
+
+    async def test_game_started_during_download_refuses_and_discards(self, make_service, tmp_path):
+        answers = iter([frozenset(), frozenset({"rom-launcher.exe"})])
+        handles = _Handles()
+        svc = make_service(running_executables=lambda: next(answers), folder_handles=handles)
+        result = await svc.prepare_update()
+        assert result["reason"] == "game_running"
+        assert handles.released == 0
+        download = tmp_path / "runtime" / "plugin-update" / "download"
+        assert list(download.iterdir()) == []
+
+    async def test_handle_release_failure_is_logged_not_fatal(self, make_service, caplog):
+        svc = make_service(folder_handles=_Handles(failing=["gavel native core"]))
+        with caplog.at_level(logging.WARNING):
+            result = await svc.prepare_update()
+        assert result["success"] is True
+        assert "gavel native core" in caplog.text
+
+    async def test_refused_download_releases_nothing(self, make_service, source):
+        source.manifest = _manifest_bytes(size=len(ARTIFACT) + 1)
+        handles = _Handles()
+        result = await make_service(folder_handles=handles).prepare_update()
+        assert result["reason"] == "size_mismatch"
+        assert handles.released == 0
+
+
+class TestPrepareReinstall:
+    async def test_same_version_is_a_reinstall_without_snapshot(self, make_service, source, tmp_path):
+        source.manifest = _manifest_bytes(version=CURRENT)
+        handles = _Handles()
+        result = await make_service(folder_handles=handles).prepare_reinstall()
+        assert result["success"] is True
+        assert result["version"] == CURRENT
+        assert result["install_type"] == 1
+        assert result["artifact"].startswith("file://")
+        assert handles.released == 1
+        assert not (tmp_path / "runtime" / "plugin-update" / "previous").exists()
+
+    async def test_newer_version_is_an_update(self, make_service):
+        result = await make_service().prepare_reinstall()
+        assert result["success"] is True
+        assert result["install_type"] == 2
+
+    async def test_older_channel_is_refused(self, make_service, source):
+        source.manifest = _manifest_bytes(version="0.33.0-win.15")
+        result = await make_service().prepare_reinstall()
+        assert result["success"] is False
+        assert result["reason"] == "channel_older"
+        assert source.download_urls == []
+
+    async def test_reinstall_keeps_the_previous_snapshot(self, make_service, source, tmp_path):
+        assert (await make_service().prepare_update())["success"] is True
+        record = tmp_path / "runtime" / "plugin-update" / "previous" / "previous.json"
+        before = record.read_bytes()
+        source.manifest = _manifest_bytes(version=CURRENT)
+        assert (await make_service().prepare_reinstall())["success"] is True
+        assert record.read_bytes() == before
+
+    async def test_reinstall_refuses_while_a_game_runs(self, make_service):
+        svc = make_service(running_executables=lambda: frozenset({"rom-launcher.exe"}))
+        assert (await svc.prepare_reinstall())["reason"] == "game_running"
+
+    async def test_hash_mismatch_is_refused(self, make_service, source):
+        source.manifest = _manifest_bytes(version=CURRENT, sha256="0" * 64)
+        result = await make_service().prepare_reinstall()
+        assert result["reason"] == "hash_mismatch"
+
+    async def test_unsupported_platform(self, make_service):
+        result = await make_service(platform_supported=False).prepare_reinstall()
+        assert result["reason"] == "unsupported"

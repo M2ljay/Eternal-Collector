@@ -81,6 +81,7 @@ class SessionFinalizeSyncResult:
     conflicts: list[dict[str, Any]]
     failure_toast: str | None
     conflicts_toast: str | None
+    blocked_toast: str | None = None
 
 
 @dataclass(frozen=True)
@@ -349,6 +350,9 @@ class SessionLifecycleService:
 
         failure_toast = _render_failure_toast(offline=offline, success=success, message=message, reason=reason)
         conflicts_toast = _render_conflicts_toast(conflicts)
+        raw_blocked = result.get("save_sync_blocked")
+        blocked_message = raw_blocked.get("message") if isinstance(raw_blocked, dict) else None
+        blocked_toast = blocked_message if isinstance(blocked_message, str) and blocked_message else None
 
         return SessionFinalizeSyncResult(
             offline=offline,
@@ -359,6 +363,7 @@ class SessionLifecycleService:
             conflicts=conflicts,
             failure_toast=failure_toast,
             conflicts_toast=conflicts_toast,
+            blocked_toast=blocked_toast,
         )
 
     async def _refresh_migration(self) -> SessionFinalizeMigration | None:

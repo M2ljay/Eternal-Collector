@@ -171,6 +171,28 @@ class TestSaveStatus:
         assert 200 not in [f["server_save_id"] for f in result["files"]]
 
 
+class TestSaveStatusBlocked:
+    """A standalone game whose save set cannot be derived reports why, never a conflict."""
+
+    @pytest.mark.asyncio
+    async def test_blocker_is_surfaced_with_a_not_syncing_display(self, tmp_path):
+        from tests.services.saves._helpers import make_standalone_service
+
+        svc, _, _ = make_standalone_service(tmp_path, "vita3k", system="psvita", file_name="Persona 3.vpk")
+        result = await svc.get_save_status(42)
+        assert result["save_sync_blocked"]["reason"] == "vita_no_title_id"
+        assert result["save_sync_blocked"]["message"].startswith("Vita saves aren't syncing")
+        assert result["save_sync_display"] == {"status": "none", "label": "Not syncing", "last_sync_check_at": None}
+        assert result["conflicts"] == []
+
+    @pytest.mark.asyncio
+    async def test_syncable_game_has_no_blocker(self, tmp_path):
+        svc, _ = make_service(tmp_path)
+        _install_rom(svc, tmp_path)
+        result = await svc.get_save_status(42)
+        assert result["save_sync_blocked"] is None
+
+
 class TestSaveStatusContentDir:
     """get_save_status surfaces the additive ``savefiles_in_content_dir`` flag
     and a "not supported" display when RetroArch writes saves next to the ROM,

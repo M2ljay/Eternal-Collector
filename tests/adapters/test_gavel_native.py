@@ -289,3 +289,34 @@ class TestDecisionTable:
         ``nothing_to_sync`` and leave the only copy of that save unsynced.
         """
         assert adapter.compute_sync_action({}, [], {}, _DEVICE, None) == Upload(target_save_id=None)
+
+
+class TestRelease:
+    """``release()`` unmaps the core before a plugin update; the next decision loads it again."""
+
+    def test_decisions_work_after_release(self):
+        adapter = GavelNativeAdapter()
+        before = adapter("a", "a", "b", "b")
+        adapter.release()
+        assert adapter._lib is None
+        assert adapter("a", "a", "b", "b") == before
+        assert adapter._lib is not None
+
+    def test_release_twice_is_harmless(self):
+        adapter = GavelNativeAdapter()
+        adapter.release()
+        adapter.release()
+        assert adapter._lib is None
+
+    def test_reload_failure_raises_load_error(self, tmp_path):
+        import shutil
+
+        from adapters.gavel_native import _BUNDLED_LIB_PATH, GavelNativeLoadError
+
+        copy = tmp_path / Path(_BUNDLED_LIB_PATH).name
+        shutil.copy(_BUNDLED_LIB_PATH, copy)
+        adapter = GavelNativeAdapter(str(copy))
+        adapter.release()
+        copy.unlink()
+        with pytest.raises(GavelNativeLoadError):
+            adapter("a", "a", "b", "b")

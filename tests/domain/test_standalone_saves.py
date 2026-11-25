@@ -10,6 +10,8 @@ from domain.standalone_saves import (
     DUCKSTATION,
     MELONDS,
     PCSX2,
+    PCSX2_CARDS_ELSEWHERE,
+    PCSX2_SLOT_EMPTY,
     PPSSPP,
     STANDALONE_EMULATOR_TAGS,
     VITA3K,
@@ -20,7 +22,7 @@ from domain.standalone_saves import (
     emulator_executable,
     identify_standalone_emulator,
     is_bundle_filename,
-    pcsx2_slot1_card,
+    pcsx2_slot1,
     standalone_save_set,
     standalone_target_for,
     strip_romm_timestamp_tag,
@@ -253,23 +255,23 @@ class TestPcsx2Slot1Card:
     _INI = "[Folders]\nMemoryCards = memcards\n\n[MemoryCards]\nSlot1_Enable = true\nSlot1_Filename = memcard.ps2\n"
 
     def test_folder_card_name(self):
-        assert pcsx2_slot1_card(self._INI) == "memcard.ps2"
+        assert pcsx2_slot1(self._INI) == ("memcard.ps2", None)
 
     def test_memcards_folder_defaults_when_absent(self):
-        assert pcsx2_slot1_card("[MemoryCards]\nSlot1_Enable = true\nSlot1_Filename = Mcd001.ps2\n") == "Mcd001.ps2"
+        assert pcsx2_slot1("[MemoryCards]\nSlot1_Enable = true\nSlot1_Filename = Mcd001.ps2\n") == ("Mcd001.ps2", None)
 
     def test_disabled_slot(self):
-        assert pcsx2_slot1_card(self._INI.replace("Slot1_Enable = true", "Slot1_Enable = false")) is None
+        assert pcsx2_slot1(self._INI.replace("Slot1_Enable = true", "Slot1_Enable = false")) == (None, PCSX2_SLOT_EMPTY)
 
     def test_relocated_memcards_folder(self):
-        assert pcsx2_slot1_card(self._INI.replace("= memcards", "= D:\\cards")) is None
+        assert pcsx2_slot1(self._INI.replace("= memcards", "= D:\\cards")) == (None, PCSX2_CARDS_ELSEWHERE)
 
     @pytest.mark.parametrize("name", ["", "..\\x", "a/b"])
     def test_unsafe_filename(self, name):
-        assert pcsx2_slot1_card(self._INI.replace("memcard.ps2", name)) is None
+        assert pcsx2_slot1(self._INI.replace("memcard.ps2", name)) == (None, PCSX2_SLOT_EMPTY)
 
     def test_slot2_is_ignored(self):
-        assert pcsx2_slot1_card("[MemoryCards]\nSlot2_Enable = true\nSlot2_Filename = x.ps2\n") is None
+        assert pcsx2_slot1("[MemoryCards]\nSlot2_Enable = true\nSlot2_Filename = x.ps2\n") == (None, PCSX2_SLOT_EMPTY)
 
 
 class TestBundleLayoutLookup:
