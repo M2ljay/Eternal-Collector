@@ -16,8 +16,9 @@ regaining focus.
 
 It adds a **launch curtain**: the Core mark on AMOLED black (`curtain-logo.bmp`, embedded by `rom-launcher.rc`), kept
 topmost from launch until the emulator's fullscreen window has been frontmost for 0.8 s, so neither Dolphin's unpainted
-white render window nor an emulator's menu window flashes up. It never takes focus, passes clicks through, and lifts
-when the emulator exits or after 8 s.
+white render window nor an emulator's menu window flashes up. It comes back when the game's fullscreen window closes
+while the emulator is still shutting down, and stays until Big Picture is in front again. It never takes focus, passes
+clicks through, and lifts after 8 s at launch or 4 s after the game left fullscreen without quitting.
 
 Differences from the original: it links Windows' own C runtime (present on Windows 10 and 11) and embeds the curtain
 logo, so it is about 1.1 MB instead of 12 KB.

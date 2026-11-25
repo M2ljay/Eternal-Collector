@@ -9,8 +9,9 @@ Loader for Windows (Playhub), launching games through EmuDeck for Windows instea
   through EmuDeck's PowerShell launcher scripts, which run a `git pull` and EmuDeck Cloud Sync on every launch), stops
   the emulator when you stop the game in Steam, and brings Big Picture back to the front when the emulator exits. Each
   launch is logged to `bin\rom-launcher.log`.
-- **Launch curtain.** While the emulator starts, the screen shows the Core logo on black, so its menu window or a blank
-  white window never flashes up; it lifts as soon as the game is fullscreen, so console boot screens still play. PS2
+- **Launch curtain.** While the emulator starts and while it shuts down, the screen shows the Core logo on black, so its
+  menu window or a blank white window never flashes up; it lifts as soon as the game is fullscreen, so console boot
+  screens still play. PS2
   games start PCSX2 with `-nogui -fullscreen`, which skips its menu window entirely (a library sync applies this to
   existing shortcuts).
 - **PS Vita.** A downloaded Vita game is linked into Vita3K's `ux0/app/<TITLE_ID>` and launched by title ID.
