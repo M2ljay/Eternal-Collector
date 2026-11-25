@@ -71,6 +71,9 @@ export interface PluginSettings {
   romm_allow_insecure_ssl: boolean;
   retroarch_input_check?: RetroArchInputCheck;
   collection_create_platform_groups?: boolean;
+  // Warn once per launch when the emulator's RetroAchievements is not working.
+  // Optional: older payloads may omit it, treated as on.
+  retroachievements_warning?: boolean;
   // QAM collection owner-scope (#1532): "all" (default) or "own" (only the
   // signed-in user's own collections). Optional: older payloads may omit it,
   // treated as "all". Mirrors the CollectionOwnerScope type in sync.ts.

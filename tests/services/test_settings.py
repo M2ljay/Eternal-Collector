@@ -207,6 +207,7 @@ class TestGetSettings:
         assert result["collection_owner_scope"] == "all"
         assert result["collection_naming_mode"] == "merge"
         assert result["preferred_region"] == "auto"
+        assert result["retroachievements_warning"] is True
 
     def test_includes_retroarch_input_check_payload(self, service, steam_config):
         steam_config.check_retroarch_input_driver.return_value = {
@@ -526,6 +527,19 @@ class TestSaveCollectionPlatformGroups:
     def test_coerces_falsy(self, service, settings):
         service.save_collection_platform_groups(0)  # type: ignore[arg-type]
         assert settings["collection_create_platform_groups"] is False
+
+
+class TestSaveRetroAchievementsWarning:
+    def test_disables(self, service, settings, settings_persister):
+        assert service.save_retroachievements_warning(False) == {"success": True}
+        assert settings["retroachievements_warning"] is False
+        assert service.get_settings()["retroachievements_warning"] is False
+        settings_persister.save_settings.assert_called_once_with()
+
+    def test_enables_and_coerces(self, service, settings):
+        settings["retroachievements_warning"] = False
+        service.save_retroachievements_warning(1)  # type: ignore[arg-type]
+        assert settings["retroachievements_warning"] is True
 
 
 class TestSetCollectionOwnerScope:

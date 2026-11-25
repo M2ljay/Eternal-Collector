@@ -248,6 +248,7 @@ class Plugin:
         self._game_process_service = services["game_process_service"]
         self._relaunch_options_resolver = services["relaunch_options_resolver"]
         self._launcher_backend_service = services["launcher_backend_service"]
+        self._retroachievements_check_service = services["retroachievements_check_service"]
 
         # ── 4b. Legacy credential migration ─────────────────────────────────
         # Upgrade a stored-password install to a Client API Token. The
@@ -645,6 +646,9 @@ class Plugin:
     async def save_collection_platform_groups(self, enabled):
         return self._settings_service.save_collection_platform_groups(enabled)
 
+    async def save_retroachievements_warning(self, enabled):
+        return self._settings_service.save_retroachievements_warning(enabled)
+
     async def set_collection_owner_scope(self, scope):
         return self._settings_service.set_collection_owner_scope(scope)
 
@@ -993,6 +997,14 @@ class Plugin:
     @prune_active_blocked
     async def copy_save_to_slot(self, rom_id, save_id, target_slot):
         return await self._save_sync_service.copy_save_to_slot(rom_id, save_id, target_slot)
+
+    async def check_retroachievements_start(self, rom_id):
+        """Return ``{"warning": str | None}``: one notice when RetroAchievements will not work this session."""
+        return await self._retroachievements_check_service.check_session_start(int(rom_id))
+
+    async def check_retroachievements_end(self, rom_id):
+        """Return ``{"warning": str | None}``: one notice when the session's RetroAchievements login failed."""
+        return await self._retroachievements_check_service.check_session_end(int(rom_id))
 
     @prune_active_blocked
     async def record_session_start(self, rom_id):

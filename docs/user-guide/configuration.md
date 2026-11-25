@@ -176,6 +176,12 @@ collections and playtime. Already-synced games keep their bound version and name
 to new games. See [Multiple versions of a game](syncing-your-library.md#multiple-versions-of-a-game) for the full
 picture.
 
+## RetroAchievements warning
+
+**Warn when RetroAchievements isn't working**, in the **Library** section of the settings page (on by default), shows
+one notice when a game starts if its emulator has RetroAchievements turned off or is not signed in. It applies to the
+Windows build; see [RetroAchievements check](windows.md#retroachievements-check) for what is checked.
+
 ## Launcher
 
 Two dropdowns in the **Launcher** section on the main page: **Launcher** (which app your games actually run through) and

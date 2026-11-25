@@ -807,6 +807,7 @@ _MIGRATION_BLOCKED_WHITELIST: set[str] = {
     "get_whitelist_settings",
     "update_whitelist_settings",
     "save_collection_platform_groups",
+    "save_retroachievements_warning",
     # Collection owner-scope (#1532) — a settings.json-only write, never touches
     # RetroDECK state; takes effect on the next sync's work-queue build.
     "set_collection_owner_scope",
@@ -964,6 +965,9 @@ _MIGRATION_BLOCKED_WHITELIST: set[str] = {
     "get_all_playtime",
     "reconcile_playtime",
     "get_playtime_scope_notice",
+    # RetroAchievements notice: reads emulator settings only, never ROM files.
+    "check_retroachievements_start",
+    "check_retroachievements_end",
     # SteamGridDB / Steam shortcut artwork (Steam-side, not retrodeck).
     "get_sgdb_artwork_base64",
     "verify_sgdb_api_key",
@@ -1135,6 +1139,7 @@ class TestMainStartupOrdering:
             "game_process_service": MagicMock(),
             "relaunch_options_resolver": MagicMock(),
             "launcher_backend_service": MagicMock(),
+            "retroachievements_check_service": MagicMock(),
         }
 
         bootstrap_result = BootstrapResult(
@@ -1164,6 +1169,7 @@ class TestMainStartupOrdering:
                 proton_locator=MagicMock(),
                 retrodeck_launcher_backend_factory=FakeLauncherBackendFactory("retrodeck"),
                 emudeck_launcher_backend_factory=FakeLauncherBackendFactory("emudeck", installations=[]),
+                retroachievements_config=MagicMock(),
             ),
             stores=StateBundle(
                 settings={},

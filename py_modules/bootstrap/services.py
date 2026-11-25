@@ -37,6 +37,7 @@ from services.migration import MigrationService, MigrationServiceConfig
 from services.playtime import PlaytimeService, PlaytimeServiceConfig
 from services.prune import PruneService, PruneServiceConfig
 from services.relaunch_options_resolver import RelaunchOptionsResolver, RelaunchOptionsResolverConfig
+from services.retroachievements_check import RetroAchievementsCheckService, RetroAchievementsCheckServiceConfig
 from services.rom_adoption import RomAdoptionService, RomAdoptionServiceConfig
 from services.rom_install_recorder import RomInstallRecorder, RomInstallRecorderConfig
 from services.rom_removal import RomRemovalService, RomRemovalServiceConfig
@@ -658,6 +659,17 @@ def wire_services(cfg: WiringConfig) -> dict[str, Any]:
         )
     )
 
+    retroachievements_check_service = RetroAchievementsCheckService(
+        config=RetroAchievementsCheckServiceConfig(
+            loop=cfg.runtime.loop,
+            uow_factory=cfg.callbacks.uow_factory,
+            settings=cfg.stores.settings,
+            config_reader=cfg.adapters.retroachievements_config,
+            clock=cfg.runtime.clock,
+            log_debug=cfg.callbacks.log_debug,
+        )
+    )
+
     return {
         "save_sync_service": save_sync_service,
         "playtime_service": playtime_service,
@@ -687,4 +699,5 @@ def wire_services(cfg: WiringConfig) -> dict[str, Any]:
         "game_process_service": game_process_service,
         "relaunch_options_resolver": relaunch_options_resolver,
         "launcher_backend_service": launcher_backend_service,
+        "retroachievements_check_service": retroachievements_check_service,
     }

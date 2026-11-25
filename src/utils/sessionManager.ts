@@ -9,7 +9,16 @@
  */
 
 import { showToast } from "./toast";
-import { recordSessionStart, getAppIdRomIdMap, finalizeGameSession, logInfo, logError, debugLog } from "../api/backend";
+import {
+  recordSessionStart,
+  getAppIdRomIdMap,
+  finalizeGameSession,
+  checkRetroAchievementsStart,
+  checkRetroAchievementsEnd,
+  logInfo,
+  logError,
+  debugLog,
+} from "../api/backend";
 import { saveSyncToastBody } from "./saveSyncToast";
 import { setMigrationStatus } from "./migrationStore";
 import { setSaveSortMigrationStatus } from "./saveSortMigrationStore";
@@ -224,7 +233,24 @@ async function handleGameStart(appId: number): Promise<void> {
   } catch (e) {
     logError(`Failed to record session start: ${e}`);
   }
+  detach(warnIfRetroAchievementsBroken(checkRetroAchievementsStart, romId));
   // Pre-launch sync moved to CustomPlayButton.handlePlay
+}
+
+/**
+ * Raise the backend's RetroAchievements notice for this session, if it has one.
+ * Never throws and never delays the game: a failed check is only logged.
+ */
+export async function warnIfRetroAchievementsBroken(
+  check: (romId: number) => Promise<{ warning: string | null }>,
+  romId: number,
+): Promise<void> {
+  try {
+    const { warning } = await check(romId);
+    if (warning) showToast(warning);
+  } catch (e) {
+    logError(`RetroAchievements check failed for romId=${romId}: ${e}`);
+  }
 }
 
 /**
@@ -309,6 +335,7 @@ async function handleGameStop(stoppedAppId: number): Promise<void> {
   } catch (e) {
     logError(`Failed to finalize game session: ${e}`);
   }
+  detach(warnIfRetroAchievementsBroken(checkRetroAchievementsEnd, romId));
 }
 
 // Adoption polls Steam's running-app before deciding a session's fate: after a

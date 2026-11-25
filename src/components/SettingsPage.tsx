@@ -18,6 +18,7 @@ import {
   saveLogLevel,
   savePreferredRegion,
   saveCollectionPlatformGroups,
+  saveRetroAchievementsWarning,
   setCollectionNamingMode,
   getKnownRegions,
   fixRetroarchInputDriver,
@@ -106,6 +107,7 @@ export const SettingsPage: FC<SettingsPageProps> = ({ onBack }) => {
   const [libraryRegions, setLibraryRegions] = useState<string[]>([]);
   // Collection platform-groups toggle (relocated from the Collections tab, #1539).
   const [platformGroups, setPlatformGroups] = useState(false);
+  const [raWarning, setRaWarning] = useState(true);
   // Steam-collection naming mode (#1539): "merge" (default) or "by_label".
   const [namingMode, setNamingMode] = useState<CollectionNamingMode>("merge");
 
@@ -121,6 +123,7 @@ export const SettingsPage: FC<SettingsPageProps> = ({ onBack }) => {
         setLogLevel(s.log_level);
         setPreferredRegion(s.preferred_region ?? AUTO_REGION);
         setPlatformGroups(!!s.collection_create_platform_groups);
+        setRaWarning(s.retroachievements_warning ?? true);
         setNamingMode(s.collection_naming_mode ?? "merge");
         if (s.retroarch_input_check) {
           setRetroarchWarning(s.retroarch_input_check);
@@ -448,6 +451,19 @@ export const SettingsPage: FC<SettingsPageProps> = ({ onBack }) => {
     );
   };
 
+  const handleRaWarningChange = (value: boolean) => {
+    setRaWarning(value);
+    detach(
+      (async () => {
+        try {
+          await saveRetroAchievementsWarning(value);
+        } catch {
+          setRaWarning(!value);
+        }
+      })(),
+    );
+  };
+
   // --- Collection naming-mode handler (#1539) ---
   const handleNamingModeChange = (mode: CollectionNamingMode) => {
     const previous = namingMode;
@@ -579,6 +595,8 @@ export const SettingsPage: FC<SettingsPageProps> = ({ onBack }) => {
         onPlatformGroupsChange={handlePlatformGroupsChange}
         namingMode={namingMode}
         onNamingModeChange={handleNamingModeChange}
+        raWarning={raWarning}
+        onRaWarningChange={handleRaWarningChange}
       />
 
       <LauncherBackendSection />

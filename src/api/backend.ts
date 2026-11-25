@@ -373,6 +373,7 @@ export const setAllCollectionsSync = callable<
 export const saveCollectionPlatformGroups = callable<[boolean], { success: boolean }>(
   "save_collection_platform_groups",
 );
+export const saveRetroAchievementsWarning = callable<[boolean], { success: boolean }>("save_retroachievements_warning");
 // Owner-scope for the Collections tab (#1532). "all" (default) or "own" (only
 // the signed-in user's own collections). Read via getSettings().collection_owner_scope.
 export const setCollectionOwnerScope = callable<
@@ -1080,6 +1081,12 @@ export const resolveSyncConflict = callable<
   { success: boolean; message?: string; reason?: "stale_conflict"; action?: "keep_local" | "use_server" }
 >("resolve_sync_conflict");
 export const recordSessionStart = callable<[number], { success: boolean }>("record_session_start");
+// At most one notice per session: the end check only runs for a session the
+// start check passed (RetroAchievementsCheckService).
+export const checkRetroAchievementsStart = callable<[number], { warning: string | null }>(
+  "check_retroachievements_start",
+);
+export const checkRetroAchievementsEnd = callable<[number], { warning: string | null }>("check_retroachievements_end");
 export const getSaveSyncSettings = callable<[], SaveSyncSettings>("get_save_sync_settings");
 export const updateSaveSyncSettings = callable<[SaveSyncSettings], { success: boolean }>("update_save_sync_settings");
 // `last_known` is present ONLY on the failed-server-fetch branch, and is null

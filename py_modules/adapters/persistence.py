@@ -80,6 +80,9 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     # next normal sync via the reporter key + complete-set reconcile.
     "collection_naming_mode": "merge",
     "preferred_region": "auto",
+    # Warn once per launch when the emulator's RetroAchievements is off, signed
+    # out, or (PCSX2) failed to log in.
+    "retroachievements_warning": True,
     "steam_input_mode": "default",
     "steamgriddb_api_key": "",
     "romm_allow_insecure_ssl": False,

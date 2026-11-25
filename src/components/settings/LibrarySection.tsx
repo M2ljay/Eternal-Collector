@@ -2,7 +2,7 @@
  * Library-wide sync preferences. Houses set-and-forget library toggles: the
  * preferred-region dropdown (ADR-0021 §3, which region wins when a game has
  * several dumps and the plugin must pick one to bind + name the shortcut after)
- * and the collection platform-groups toggle. Pure renderer: parent owns every
+ * the collection toggles, and the RetroAchievements launch warning. Pure renderer: parent owns every
  * value and the save/confirm flow.
  */
 
@@ -27,6 +27,8 @@ interface LibrarySectionProps {
   // toggle (checked === "by_label").
   namingMode: CollectionNamingMode;
   onNamingModeChange: (mode: CollectionNamingMode) => void;
+  raWarning: boolean;
+  onRaWarningChange: (enabled: boolean) => void;
 }
 
 // The internal sentinel for "no preference — use the fixed build-time order".
@@ -74,6 +76,8 @@ export const LibrarySection: FC<LibrarySectionProps> = ({
   onPlatformGroupsChange,
   namingMode,
   onNamingModeChange,
+  raWarning,
+  onRaWarningChange,
 }) => {
   return (
     <PanelSection title="Library">
@@ -100,6 +104,14 @@ export const LibrarySection: FC<LibrarySectionProps> = ({
           description="Adds the collection type (e.g. Franchise, IGDB Collection) to the Steam collection name so collections that share a name stay separate instead of merging into one. Applies on the next sync."
           checked={namingMode === "by_label"}
           onChange={(v) => onNamingModeChange(v ? "by_label" : "merge")}
+        />
+      </PanelSectionRow>
+      <PanelSectionRow>
+        <ToggleField
+          label="Warn when RetroAchievements isn't working"
+          description="When a game starts, show one notice if its emulator has RetroAchievements turned off or isn't signed in (PCSX2 also after a failed login). Never stops the game."
+          checked={raWarning}
+          onChange={onRaWarningChange}
         />
       </PanelSectionRow>
     </PanelSection>

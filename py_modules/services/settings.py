@@ -109,6 +109,7 @@ class SettingsService:
             "collection_owner_scope": self._settings.get("collection_owner_scope", "all"),
             "collection_naming_mode": self._settings.get("collection_naming_mode", "merge"),
             "preferred_region": self._settings.get("preferred_region", AUTO_REGION),
+            "retroachievements_warning": self._settings.get("retroachievements_warning", True),
         }
 
     # ── Log level ────────────────────────────────────────────────────────
@@ -241,6 +242,14 @@ class SettingsService:
     def save_collection_platform_groups(self, enabled: bool) -> dict[str, Any]:
         """Persist the collection platform-group toggle."""
         self._settings["collection_create_platform_groups"] = bool(enabled)
+        self._settings_persister.save_settings()
+        return {"success": True}
+
+    # ── RetroAchievements warning ───────────────────────────────────────
+
+    def save_retroachievements_warning(self, enabled: bool) -> dict[str, Any]:
+        """Persist whether a launch warns when the emulator's RetroAchievements is not working."""
+        self._settings["retroachievements_warning"] = bool(enabled)
         self._settings_persister.save_settings()
         return {"success": True}
 

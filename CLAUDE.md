@@ -399,7 +399,16 @@ Format: **invariant** — tier — enforced by.
   module-level imports, `TYPE_CHECKING` blocks skipped — an `importlib.import_module` call or an import added to a fifth
   file the core starts importing slips past it, so a new core file must be added to its `_CORE_FILES`), plus
   `tests/test_plugin_rescue_mode.py` (deletes `services/game_mods.py` from a copy of the plugin and checks
-  `get_install_integrity` still answers) ([plugin-self-update.md](docs/architecture/plugin-self-update.md#half-copied-installs))
+  `get_install_integrity` still answers)
+  ([plugin-self-update.md](docs/architecture/plugin-self-update.md#half-copied-installs))
+- **An emulator's RetroAchievements username or token is only ever tested for presence: the parsers in
+  `domain/retroachievements.py` and `RetroAchievementsConfigReader` (`adapters/retroachievements_config.py`) answer in
+  booleans, so no credential value reaches `services/retroachievements_check.py`, a callable, an emit or a log; PPSSPP's
+  token file is measured, never opened** — test + prompt-only — `tests/domain/test_retroachievements.py`
+  (`TestNoCredentialLeavesTheParser`) and `tests/adapters/test_retroachievements_config.py` (`TestNoCredentialEscapes`:
+  results and captured logs never contain the token, the PPSSPP token file is never passed to `open`). A new emulator, a
+  new reader method or a log line that formats parsed text is prompt-only: the tests pin today's parsers, not every
+  future one
 - **Every module the plugin imports at module level uses only standard-library modules Decky's frozen Windows Python
   ships, or the plugin's own fallback copy** — test — `tests/runtime/test_frozen_runtime.py` against
   `tests/runtime/decky_frozen_stdlib.txt` (a lazily imported Windows-only module is covered only once it is listed in

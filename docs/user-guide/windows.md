@@ -11,9 +11,8 @@ Loader for Windows (Playhub), launching games through EmuDeck for Windows instea
   launch is logged to `bin\rom-launcher.log`.
 - **Launch curtain.** While the emulator starts and while it shuts down, the screen shows the Core logo on black, so its
   menu window or a blank white window never flashes up; it lifts as soon as the game is fullscreen, so console boot
-  screens still play. PS2
-  games start PCSX2 with `-nogui -fullscreen`, which skips its menu window entirely (a library sync applies this to
-  existing shortcuts).
+  screens still play. PS2 games start PCSX2 with `-nogui -fullscreen`, which skips its menu window entirely (a library
+  sync applies this to existing shortcuts).
 - **PS Vita.** A downloaded Vita game is linked into Vita3K's `ux0/app/<TITLE_ID>` and launched by title ID.
 - **Game page.** On Windows the Play, Install and menu buttons use Steam's own button styles, so they follow your Steam
   theme.
@@ -101,6 +100,26 @@ save states are not synced.
 
 Removing a game from your library does not touch these standalone save folders.
 
+## RetroAchievements check
+
+When a game starts, The Collector looks at the settings of the emulator that runs it and shows **one** notice if
+RetroAchievements will not work there, for example _RetroAchievements isn't working in PCSX2: not signed in._ It never
+stops or delays the game.
+
+- **Checked:** PCSX2, DuckStation, Dolphin (GameCube only; RetroAchievements has no Wii games), PPSSPP and RetroArch.
+  Emulators without RetroAchievements (Azahar, RPCS3, melonDS, Cemu, xemu, Vita3K, Eden) and systems RetroAchievements
+  does not cover are never checked.
+- **What counts as not working:** achievements turned off in the emulator, or no login stored. The check only looks at
+  whether a username and token are present; it never reads them out, copies them or writes them to a log.
+- **PCSX2 only:** if the settings look fine, PCSX2's own log (`logs\emulog.txt`) is checked once after the game closes,
+  and a failed login during that session gets the notice instead. The other emulators do not keep a log file by default.
+- **Silent cases:** if the emulator's settings file cannot be found (for example an emulator never opened), nothing is
+  shown. A game that already got a notice at start gets no second one when it closes.
+- **Turning it off:** _Settings → Library → Warn when RetroAchievements isn't working_.
+
+PPSSPP can turn achievements on per game; the check reads only the global setting. In RetroArch, a core without
+achievement support is not detected.
+
 ## Mods
 
 An installed game's page has a **Mods** button (the puzzle piece, next to the RomM and Steam menus). It opens a panel
@@ -178,8 +197,8 @@ when a newer build is out, and **Check for Updates** to look right now.
 
 Installing (from the toast or the button):
 
-1. Close any game you started from The Collector first. While one runs, the install is refused with a message saying
-   so: Windows keeps the game launcher locked, and Decky cannot replace a locked file.
+1. Close any game you started from The Collector first. While one runs, the install is refused with a message saying so:
+   Windows keeps the game launcher locked, and Decky cannot replace a locked file.
 2. The plugin downloads the new build and checks it against the published size and SHA-256. If either differs, nothing
    is installed and you are told why — usually it means the build was published moments ago; try again in a few minutes.
 3. It saves a copy of the version you have now.
@@ -195,12 +214,12 @@ the plugin's database is not safe.
 
 ### If an update didn't finish
 
-Decky can stop part-way through replacing the plugin's files — for example when one of them is locked by another
-program — and leave a mix of old and new files behind. The Collector checks its own files every time it starts. If
-any are missing or wrong, the top of its QAM panel says _The Collector's last update didn't finish copying. Reinstall
-win.N_, with a **Reinstall win.N** button. The button downloads that version again, checks it, and hands it to Decky's
-prompt; it works even when the rest of the plugin cannot start. If files from an older version were left behind
-instead, the panel says so and offers the same button. The copy saved for **Roll Back** is not replaced by a reinstall.
+Decky can stop part-way through replacing the plugin's files — for example when one of them is locked by another program
+— and leave a mix of old and new files behind. The Collector checks its own files every time it starts. If any are
+missing or wrong, the top of its QAM panel says _The Collector's last update didn't finish copying. Reinstall win.N_,
+with a **Reinstall win.N** button. The button downloads that version again, checks it, and hands it to Decky's prompt;
+it works even when the rest of the plugin cannot start. If files from an older version were left behind instead, the
+panel says so and offers the same button. The copy saved for **Roll Back** is not replaced by a reinstall.
 
 If your Decky Loader does not offer installing from plugins, the buttons are greyed out with a note, and no toast
 appears; install the zip from the fork's `release` branch by hand (Decky settings → Developer → Install Plugin from

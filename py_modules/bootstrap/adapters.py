@@ -47,6 +47,7 @@ from adapters.recovery_bundle import RecoveryBundleAdapter
 from adapters.renderer_gc import RendererGcAdapter
 from adapters.renderer_rss import RendererRssAdapter
 from adapters.repositories.unit_of_work import SqliteUnitOfWork
+from adapters.retroachievements_config import RetroAchievementsConfigAdapter
 from adapters.retroarch_config import RetroArchConfigAdapter
 from adapters.retroarch_core_info import RetroArchCoreInfoAdapter
 from adapters.retrodeck_launcher_backend import RetroDeckLauncherBackendFactory
@@ -99,6 +100,7 @@ if TYPE_CHECKING:
         RendererGcFn,
         RendererRssFn,
         ResolveUploadConflictFn,
+        RetroAchievementsConfigReader,
         RetroArchSaveLayoutProvider,
         RetroArchSavestateLayoutProvider,
         RetroDeckPaths,
@@ -153,6 +155,7 @@ class AdapterBundle:
     proton_locator: ProtonLocator
     retrodeck_launcher_backend_factory: LauncherBackendFactory
     emudeck_launcher_backend_factory: LauncherBackendFactory
+    retroachievements_config: RetroAchievementsConfigReader
     vita_app_linker: VitaAppLinker | None = None
     game_mods: GameModStore | None = None
 
@@ -457,6 +460,7 @@ def bootstrap(
         proton_locator=proton_locator,
         retrodeck_launcher_backend_factory=retrodeck_launcher_backend_factory,
         emudeck_launcher_backend_factory=emudeck_launcher_backend_factory,
+        retroachievements_config=RetroAchievementsConfigAdapter(logger=logger),
         vita_app_linker=Vita3kAppLinker(logger=logger),
         game_mods=game_mods,
     )

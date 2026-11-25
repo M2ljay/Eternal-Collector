@@ -95,6 +95,8 @@ describe("LibrarySection", () => {
         onPlatformGroupsChange={vi.fn()}
         namingMode="merge"
         onNamingModeChange={vi.fn()}
+        raWarning={true}
+        onRaWarningChange={vi.fn()}
       />,
     );
     expect(captured.items).toHaveLength(1);
@@ -113,6 +115,8 @@ describe("LibrarySection", () => {
         onPlatformGroupsChange={vi.fn()}
         namingMode="merge"
         onNamingModeChange={vi.fn()}
+        raWarning={true}
+        onRaWarningChange={vi.fn()}
       />,
     );
     expect(captured.items[0]?.selectedOption).toBe("Japan");
@@ -129,6 +133,8 @@ describe("LibrarySection", () => {
         onPlatformGroupsChange={vi.fn()}
         namingMode="merge"
         onNamingModeChange={vi.fn()}
+        raWarning={true}
+        onRaWarningChange={vi.fn()}
       />,
     );
     captured.items[0]?.onChange?.({ data: "Japan", label: "Japan" });
@@ -147,6 +153,8 @@ describe("LibrarySection", () => {
         onPlatformGroupsChange={vi.fn()}
         namingMode="merge"
         onNamingModeChange={vi.fn()}
+        raWarning={true}
+        onRaWarningChange={vi.fn()}
       />,
     );
     captured.items[0]?.onChange?.({ data: AUTO_REGION, label: DEFAULT_REGION_LABEL });
@@ -163,6 +171,8 @@ describe("LibrarySection", () => {
         onPlatformGroupsChange={vi.fn()}
         namingMode="merge"
         onNamingModeChange={vi.fn()}
+        raWarning={true}
+        onRaWarningChange={vi.fn()}
       />,
     );
     const toggle = container.querySelector<HTMLInputElement>(
@@ -183,6 +193,8 @@ describe("LibrarySection", () => {
         onPlatformGroupsChange={onChange}
         namingMode="merge"
         onNamingModeChange={vi.fn()}
+        raWarning={true}
+        onRaWarningChange={vi.fn()}
       />,
     );
     const toggle = container.querySelector<HTMLInputElement>(
@@ -203,6 +215,8 @@ describe("LibrarySection", () => {
         onPlatformGroupsChange={vi.fn()}
         namingMode="by_label"
         onNamingModeChange={vi.fn()}
+        raWarning={true}
+        onRaWarningChange={vi.fn()}
       />,
     );
     const toggle = container.querySelector<HTMLInputElement>(
@@ -222,6 +236,8 @@ describe("LibrarySection", () => {
         onPlatformGroupsChange={vi.fn()}
         namingMode="merge"
         onNamingModeChange={vi.fn()}
+        raWarning={true}
+        onRaWarningChange={vi.fn()}
       />,
     );
     const toggle = container.querySelector<HTMLInputElement>(
@@ -241,6 +257,8 @@ describe("LibrarySection", () => {
         onPlatformGroupsChange={vi.fn()}
         namingMode="merge"
         onNamingModeChange={onChange}
+        raWarning={true}
+        onRaWarningChange={vi.fn()}
       />,
     );
     const toggle = container.querySelector<HTMLInputElement>(
@@ -262,6 +280,8 @@ describe("LibrarySection", () => {
         onPlatformGroupsChange={vi.fn()}
         namingMode="by_label"
         onNamingModeChange={onChange}
+        raWarning={true}
+        onRaWarningChange={vi.fn()}
       />,
     );
     const toggle = container.querySelector<HTMLInputElement>(
@@ -270,5 +290,28 @@ describe("LibrarySection", () => {
     fireEvent.click(toggle);
     expect(onChange).toHaveBeenCalledTimes(1);
     expect(onChange).toHaveBeenCalledWith("merge");
+  });
+
+  it("renders the RetroAchievements warning toggle and dispatches its change", () => {
+    const onChange = vi.fn();
+    const { container } = render(
+      <LibrarySection
+        preferredRegion={AUTO_REGION}
+        libraryRegions={[]}
+        onPreferredRegionChange={vi.fn()}
+        platformGroups={false}
+        onPlatformGroupsChange={vi.fn()}
+        namingMode="merge"
+        onNamingModeChange={vi.fn()}
+        raWarning={true}
+        onRaWarningChange={onChange}
+      />,
+    );
+    const toggle = container.querySelector<HTMLInputElement>(
+      '[data-label="Warn when RetroAchievements isn\'t working"] input',
+    )!;
+    expect(toggle.checked).toBe(true);
+    fireEvent.click(toggle);
+    expect(onChange).toHaveBeenCalledWith(false);
   });
 });

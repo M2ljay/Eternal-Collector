@@ -14,6 +14,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any, Protocol
 
 if TYPE_CHECKING:
+    from domain.retroachievements import RaStatus
     from domain.save_layout import SaveLayout
     from domain.shortcut_data import EmulatorInvocation
     from lib.retrodeck_health import RetroDeckConfigHealth
@@ -209,6 +210,23 @@ class XemuConfigReader(Protocol):
     """
 
     def get_sys_files(self) -> tuple[dict[str, str] | None, str | None]: ...
+
+
+class RetroAchievementsConfigReader(Protocol):
+    """Object seam for an emulator's own RetroAchievements settings and log.
+
+    Held by ``RetroAchievementsCheckService``. Answers in booleans only: no
+    method returns, stores or logs a username or token value. Implemented by
+    :class:`adapters.retroachievements_config.RetroAchievementsConfigAdapter`.
+    """
+
+    def read_status(self, emulator_id: str, emulator_dir: str) -> RaStatus | None:
+        """Whether RetroAchievements is enabled and signed in, or ``None`` when the settings file is missing."""
+        ...
+
+    def login_failed_since(self, emulator_id: str, emulator_dir: str, since: float) -> bool:
+        """Whether the emulator's log, written at or after *since*, records a failed login."""
+        ...
 
 
 class RetroArchCoreInfoReader(Protocol):

@@ -17,6 +17,8 @@ vi.mock("../api/backend", () => ({
   recordSessionStart: vi.fn().mockResolvedValue({ success: true }),
   getAppIdRomIdMap: vi.fn(),
   finalizeGameSession: vi.fn(),
+  checkRetroAchievementsStart: vi.fn().mockResolvedValue({ warning: null }),
+  checkRetroAchievementsEnd: vi.fn().mockResolvedValue({ warning: null }),
   logInfo: vi.fn(),
   logError: vi.fn(),
   debugLog: vi.fn(),
@@ -497,6 +499,74 @@ describe("sessionManager post-exit save-sync toast (#1481)", () => {
     const bodies = vi.mocked(toaster.toast).mock.calls.map((c) => c[0].body);
     expect(bodies).toContain("Saves uploaded to RomM");
     expect(bodies).toContain("2 save conflicts need resolution");
+  });
+});
+
+describe("sessionManager RetroAchievements notice", () => {
+  const START_WARNING = "RetroAchievements isn't working in PCSX2: not signed in.";
+  const END_WARNING = "RetroAchievements didn't work in PCSX2 last session: login failed.";
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.useFakeTimers();
+    vi.setSystemTime(0);
+    stubLifecycleSteamClient();
+    vi.mocked(backend.getAppIdRomIdMap).mockResolvedValue({ [String(APP_ID)]: ROM_ID });
+    vi.mocked(backend.finalizeGameSession).mockResolvedValue({ ...IDLE_FINALIZE });
+    vi.mocked(backend.checkRetroAchievementsStart).mockResolvedValue({ warning: null });
+    vi.mocked(backend.checkRetroAchievementsEnd).mockResolvedValue({ warning: null });
+  });
+
+  afterEach(() => {
+    destroySessionManager();
+    vi.useRealTimers();
+  });
+
+  it("checks the started rom and shows the start warning once", async () => {
+    vi.mocked(backend.checkRetroAchievementsStart).mockResolvedValue({ warning: START_WARNING });
+    await initDrainingAdoptionPoll();
+    const lifetime = captureLifetimeCb();
+    await startGame(lifetime);
+    // A repeated start notification for the open session is not a new launch.
+    await startGame(lifetime);
+
+    expect(vi.mocked(backend.checkRetroAchievementsStart)).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(backend.checkRetroAchievementsStart)).toHaveBeenCalledWith(ROM_ID);
+    const bodies = vi.mocked(toaster.toast).mock.calls.map((c) => c[0].body);
+    expect(bodies).toEqual([START_WARNING]);
+  });
+
+  it("asks the end check after the session and shows its warning", async () => {
+    vi.mocked(backend.checkRetroAchievementsEnd).mockResolvedValue({ warning: END_WARNING });
+    await initDrainingAdoptionPoll();
+    const lifetime = captureLifetimeCb();
+    await startGame(lifetime);
+    await stopGame(lifetime);
+
+    expect(vi.mocked(backend.checkRetroAchievementsEnd)).toHaveBeenCalledWith(ROM_ID);
+    const bodies = vi.mocked(toaster.toast).mock.calls.map((c) => c[0].body);
+    expect(bodies).toEqual([END_WARNING]);
+  });
+
+  it("does not check a foreign app", async () => {
+    await initDrainingAdoptionPoll();
+    const lifetime = captureLifetimeCb();
+    await startApp(lifetime, UNRELATED_APP_ID);
+    await stopApp(lifetime, UNRELATED_APP_ID);
+
+    expect(vi.mocked(backend.checkRetroAchievementsStart)).not.toHaveBeenCalled();
+    expect(vi.mocked(backend.checkRetroAchievementsEnd)).not.toHaveBeenCalled();
+  });
+
+  it("logs a failed check and lets the game run without a toast", async () => {
+    vi.mocked(backend.checkRetroAchievementsStart).mockRejectedValue(new Error("boom"));
+    await initDrainingAdoptionPoll();
+    const lifetime = captureLifetimeCb();
+    await startGame(lifetime);
+
+    expect(vi.mocked(toaster.toast)).not.toHaveBeenCalled();
+    expect(vi.mocked(backend.logError)).toHaveBeenCalledWith(expect.stringContaining("RetroAchievements check failed"));
+    expect(isSessionActive(ROM_ID)).toBe(true);
   });
 });
 

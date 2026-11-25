@@ -136,6 +136,7 @@ modules =
     services.plugin_update
     services.prune
     services.relaunch_options_resolver
+    services.retroachievements_check
     services.rom_adoption
     services.rom_install_recorder
     services.rom_removal
