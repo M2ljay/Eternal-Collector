@@ -1,7 +1,7 @@
 {
- "version": "0.33.0-win.17",
- "sha256": "f12b3ea1edb0d894385f5e3350204cc5bff034bfa90662f00b07f19af96e1e7e",
- "size": 2213786,
- "notes": "Self-update: RomM-Dock now offers new fork builds in its settings and installs them through Decky, with a rollback to the previous build.",
+ "version": "0.33.0-win.20",
+ "sha256": "7120e0c95d025b469a8cb02698e18da7b7003a068193bf8759c72f370bf46412",
+ "size": 2304763,
+ "notes": "The Collector win.20: safe updates with an install check, a warning when a game's saves can't sync, and the Core logo while emulators start and close; PS2 games open straight into the game.",
  "url": "https://raw.githubusercontent.com/M2ljay/Eternal-Romm/release/romm-dock.zip"
 }
