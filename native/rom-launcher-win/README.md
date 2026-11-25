@@ -10,12 +10,14 @@ Build: `native/rom-launcher-win/build.sh` (tests, then cross-compiles with Zig; 
 ## Status
 
 The original exe's source was lost; this is a rewrite from its behaviour (its log output, its imported Windows calls,
-and the command lines the plugin bakes). The command-line handling is tested here; the Windows half (starting the
-process, the job object, refocusing Big Picture) has **not yet been run on a PC**.
+and the command lines the plugin bakes). It replaced the original in 0.33.0-win.19 after testing on the user's PC
+(2026-11-25): a PS2 game (PCSX2, CHD), GameCube and Wii games (Dolphin), launching and quitting, and Big Picture
+regaining focus.
 
-Until it has, `bin/rom-launcher.exe` is still the original build (SHA-256 in `bin/rom-launcher.exe.sha256`). To switch,
-run `build.sh`, which overwrites both, and test at least one RetroArch core, one standalone emulator, a PS Vita title
-(`--title-id-file`), and Steam's "Stop game".
+It adds a **launch curtain**: the Core mark on AMOLED black (`curtain-logo.bmp`, embedded by `rom-launcher.rc`), kept
+topmost from launch until the emulator's fullscreen window has been frontmost for 0.8 s, so neither Dolphin's unpainted
+white render window nor an emulator's menu window flashes up. It never takes focus, passes clicks through, and lifts
+when the emulator exits or after 8 s.
 
-Known differences from the original: the rebuild links Windows' own C runtime (present on Windows 10 and 11), so it is
-about 64 KB instead of 12 KB.
+Differences from the original: it links Windows' own C runtime (present on Windows 10 and 11) and embeds the curtain
+logo, so it is about 1.1 MB instead of 12 KB.

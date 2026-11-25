@@ -55,3 +55,26 @@ class TestStandaloneSavesPath:
     def test_retroarch_saves_path_unchanged(self):
         backend = _backend({"savesPath": "C:\\Emulation\\saves"})
         assert backend.saves_path() == os.path.join("C:\\Emulation\\saves", "retroarch", "saves")
+
+
+class TestCouchArgs:
+    """PCSX2 opens straight into the game: no menu window, fullscreen."""
+
+    def test_pcsx2_gets_nogui_and_fullscreen_in_front(self):
+        from adapters.emudeck_windows_launcher_backend import couch_args
+
+        exe = r"C:\Users\u\AppData\Roaming\emudeck\Emulators\PCSX2-Qt\pcsx2-qtx64.exe"
+        assert couch_args(exe, []) == ["-nogui", "-fullscreen"]
+        assert couch_args(exe, ["-batch"]) == ["-nogui", "-fullscreen", "-batch"]
+
+    def test_flags_already_present_are_not_repeated(self):
+        from adapters.emudeck_windows_launcher_backend import couch_args
+
+        assert couch_args(r"C:\x\pcsx2-qt.exe", ["-fullscreen"]) == ["-nogui", "-fullscreen"]
+        assert couch_args(r"C:\x\pcsx2-qt.exe", ["-NOGUI", "-fullscreen"]) == ["-NOGUI", "-fullscreen"]
+
+    def test_other_emulators_are_untouched(self):
+        from adapters.emudeck_windows_launcher_backend import couch_args
+
+        assert couch_args(r"C:\x\Dolphin.exe", ["-b", "-e"]) == ["-b", "-e"]
+        assert couch_args(r"C:\x\duckstation-qt-x64-ReleaseLTCG.exe", []) == []

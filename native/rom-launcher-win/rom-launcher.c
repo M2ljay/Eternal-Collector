@@ -16,6 +16,9 @@
  *      that kills it when this process goes away — so Steam's "Stop game",
  *      which ends the shortcut's process, also ends the emulator.
  *   4. Waits, then returns the emulator's exit code to Steam.
+ *   4b. While the emulator starts, covers the screen with a black curtain so its
+ *      menu window never flashes up; the curtain lifts the moment the game is
+ *      fullscreen (see the curtain section).
  *   5. Puts the Steam Big Picture window back in front: an emulator quitting
  *      to the desktop otherwise leaves Big Picture behind other windows.
  *
@@ -165,6 +168,188 @@ static void refocus_big_picture(void) {
     log_line(ok ? L"brought window to front" : L"could not bring window to front", NULL);
 }
 
+/* ------------------------------------------------------------- curtain -- */
+
+/* Emulators show their own menu window, or an unpainted white render window,
+   for a moment before the game goes fullscreen. A click-through
+   never-focused window showing the Core mark on true black covers the screen
+   from launch and lifts once the
+   emulator has had, for CURTAIN_SETTLE_MS without a break, a borderless window
+   covering the whole monitor with none of its title-bar windows (its menu)
+   in front of it. The emulator's own windows may also be topmost, and a newer topmost
+   window lands above an older one, so the curtain re-asserts its place on
+   every tick. It also lifts if the emulator exits or after CURTAIN_MAX_MS, so
+   it can never hide a game that runs windowed. */
+
+#define CURTAIN_MAX_MS 8000
+#define CURTAIN_SETTLE_MS 800
+
+#define CURTAIN_LOGO_ID 101 /* rom-launcher.rc */
+#define CURTAIN_BLACK RGB(0, 0, 0) /* AMOLED black */
+
+/* True black with the Core mark centred, a fifth of the screen's height. */
+static void curtain_paint(HWND hwnd) {
+    PAINTSTRUCT ps;
+    HDC dc = BeginPaint(hwnd, &ps);
+    RECT r;
+    GetClientRect(hwnd, &r);
+    HBRUSH black = CreateSolidBrush(CURTAIN_BLACK);
+    FillRect(dc, &r, black);
+    DeleteObject(black);
+    HBITMAP logo = LoadBitmapW(GetModuleHandleW(NULL), MAKEINTRESOURCEW(CURTAIN_LOGO_ID));
+    if (logo) {
+        BITMAP bm;
+        GetObjectW(logo, sizeof bm, &bm);
+        int h = (r.bottom - r.top) / 5;
+        int w = bm.bmHeight ? h * bm.bmWidth / bm.bmHeight : h;
+        int x = (r.right - r.left - w) / 2, y = (r.bottom - r.top - h) / 2;
+        HDC mem = CreateCompatibleDC(dc);
+        HGDIOBJ old = SelectObject(mem, logo);
+        SetStretchBltMode(dc, HALFTONE);
+        SetBrushOrgEx(dc, 0, 0, NULL);
+        StretchBlt(dc, x, y, w, h, mem, 0, 0, bm.bmWidth, bm.bmHeight, SRCCOPY);
+        SelectObject(mem, old);
+        DeleteDC(mem);
+        DeleteObject(logo);
+    }
+    EndPaint(hwnd, &ps);
+}
+
+static LRESULT CALLBACK curtain_proc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
+    if (msg == WM_NCHITTEST)
+        return HTTRANSPARENT;
+    if (msg == WM_MOUSEACTIVATE)
+        return MA_NOACTIVATE;
+    if (msg == WM_ERASEBKGND)
+        return 1;
+    if (msg == WM_PAINT) {
+        curtain_paint(hwnd);
+        return 0;
+    }
+    return DefWindowProcW(hwnd, msg, wp, lp);
+}
+
+static RECT curtain_monitor(void) {
+    FindBpm ctx = {NULL};
+    EnumWindows(find_bpm, (LPARAM)&ctx);
+    POINT origin = {0, 0};
+    HMONITOR mon = ctx.found ? MonitorFromWindow(ctx.found, MONITOR_DEFAULTTOPRIMARY)
+                             : MonitorFromPoint(origin, MONITOR_DEFAULTTOPRIMARY);
+    MONITORINFO mi;
+    mi.cbSize = sizeof mi;
+    RECT r = {0, 0, GetSystemMetrics(SM_CXSCREEN), GetSystemMetrics(SM_CYSCREEN)};
+    if (GetMonitorInfoW(mon, &mi))
+        r = mi.rcMonitor;
+    return r;
+}
+
+static HWND curtain_raise(RECT mon) {
+    WNDCLASSW wc;
+    for (SIZE_T i = 0; i < sizeof wc; i++)
+        ((char *)&wc)[i] = 0;
+    wc.lpfnWndProc = curtain_proc;
+    wc.hInstance = GetModuleHandleW(NULL);
+    wc.lpszClassName = L"RomLauncherCurtain";
+    RegisterClassW(&wc);
+    HWND w = CreateWindowExW(WS_EX_TOPMOST | WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE | WS_EX_TRANSPARENT,
+                             wc.lpszClassName, L"", WS_POPUP, mon.left, mon.top, mon.right - mon.left,
+                             mon.bottom - mon.top, NULL, NULL, wc.hInstance, NULL);
+    if (w) {
+        ShowWindow(w, SW_SHOWNOACTIVATE);
+        UpdateWindow(w);
+        log_line(L"curtain up", NULL);
+    }
+    return w;
+}
+
+typedef struct {
+    HANDLE job;
+    HWND curtain;
+    RECT mon;
+    BOOL found;    /* a borderless job window covers the monitor, frontmost */
+    BOOL menu_up;  /* a job window with a title bar is in front of it */
+} FindGame;
+
+static BOOL in_job(HWND hwnd, HANDLE job) {
+    DWORD pid = 0;
+    GetWindowThreadProcessId(hwnd, &pid);
+    HANDLE p = pid ? OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, pid) : NULL;
+    if (!p)
+        return FALSE;
+    BOOL inside = FALSE;
+    IsProcessInJob(p, job, &inside);
+    CloseHandle(p);
+    return inside;
+}
+
+static BOOL CALLBACK find_game(HWND hwnd, LPARAM lp) {
+    FindGame *ctx = (FindGame *)lp;
+    if (hwnd == ctx->curtain || !IsWindowVisible(hwnd) || GetWindow(hwnd, GW_OWNER) != NULL)
+        return TRUE;
+    LONG style = GetWindowLongW(hwnd, GWL_STYLE);
+    if (style & WS_MINIMIZE)
+        return TRUE;
+    BOOL captioned = (style & WS_CAPTION) == WS_CAPTION;
+    RECT r;
+    BOOL covers = !captioned && GetWindowRect(hwnd, &r) && r.left <= ctx->mon.left && r.top <= ctx->mon.top &&
+                  r.right >= ctx->mon.right && r.bottom >= ctx->mon.bottom;
+    if (!captioned && !covers)
+        return TRUE;
+    if (!in_job(hwnd, ctx->job))
+        return TRUE;
+    /* EnumWindows walks the z-order front to back: a menu window counts only
+       if it sits in front of the game, not left open behind it. */
+    if (captioned && !ctx->found)
+        ctx->menu_up = TRUE;
+    else if (!captioned && !ctx->menu_up)
+        ctx->found = TRUE;
+    return TRUE;
+}
+
+static void pump_messages(void) {
+    MSG m;
+    while (PeekMessageW(&m, NULL, 0, 0, PM_REMOVE)) {
+        TranslateMessage(&m);
+        DispatchMessageW(&m);
+    }
+}
+
+/* Waits for the emulator, keeping the curtain up until its game is
+   fullscreen. Returns when the emulator process has exited. */
+static void wait_with_curtain(HANDLE process, HANDLE job) {
+    RECT mon = curtain_monitor();
+    HWND curtain = job ? curtain_raise(mon) : NULL;
+    DWORD start = GetTickCount();
+    DWORD seen_at = 0;
+    while (curtain) {
+        DWORD r = MsgWaitForMultipleObjects(1, &process, FALSE, 50, QS_ALLINPUT);
+        pump_messages();
+        if (r == WAIT_OBJECT_0)
+            break;
+        DWORD now = GetTickCount();
+        SetWindowPos(curtain, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+        FindGame ctx = {job, curtain, mon, FALSE, FALSE};
+        EnumWindows(find_game, (LPARAM)&ctx);
+        if (ctx.found && !ctx.menu_up) {
+            if (!seen_at)
+                seen_at = now;
+        } else {
+            seen_at = 0;
+        }
+        if ((seen_at && now - seen_at >= CURTAIN_SETTLE_MS) || now - start >= CURTAIN_MAX_MS) {
+            log_line(seen_at ? L"curtain down: game is fullscreen" : L"curtain down: timed out", NULL);
+            DestroyWindow(curtain);
+            pump_messages();
+            curtain = NULL;
+        }
+    }
+    if (curtain) {
+        log_line(L"curtain down: emulator exited", NULL);
+        DestroyWindow(curtain);
+    }
+    WaitForSingleObject(process, INFINITE);
+}
+
 /* ---------------------------------------------------------------- main -- */
 
 static void log_error(const wchar_t *msg) {
@@ -172,6 +357,7 @@ static void log_error(const wchar_t *msg) {
 }
 
 static int run(void) {
+    SetProcessDPIAware();
     log_open();
     const wchar_t *full = GetCommandLineW();
     log_line(L"start: ", full);
@@ -228,7 +414,7 @@ static int run(void) {
     CloseHandle(pi.hThread);
     log_number(L"started pid ", pi.dwProcessId);
 
-    WaitForSingleObject(pi.hProcess, INFINITE);
+    wait_with_curtain(pi.hProcess, job);
     DWORD code = 0;
     GetExitCodeProcess(pi.hProcess, &code);
     CloseHandle(pi.hProcess);
@@ -241,7 +427,7 @@ static int run(void) {
 }
 
 /* A GUI-subsystem program, so no console window flashes up when Steam
-   starts a game. It never creates a window of its own. */
+   starts a game. Its only window is the launch curtain. */
 int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR args, int show) {
     (void)inst;
     (void)prev;

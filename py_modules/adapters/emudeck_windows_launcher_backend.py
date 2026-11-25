@@ -74,6 +74,26 @@ _ROMS_DIR_TOKEN = "${romsdirglobal}"
 _ROM_SENTINEL = "\x00ROM\x00"
 _RETROARCH_EXE = "retroarch.exe"
 _CORE_SUFFIX = "_libretro.dll"
+
+# Flags added in front of EmuDeck's own arguments so a standalone emulator opens
+# straight into the game on the TV. PCSX2 otherwise shows its menu window for a
+# moment before the game (on the screen, between the launch curtain and the PS2
+# boot animation): -nogui never shows that window and exits with the game, and
+# -fullscreen starts fullscreen whatever its settings say. Matched by the exe's
+# file name; EmuDeck ships PCSX2 as pcsx2-qt.exe or pcsx2-qtx64.exe.
+_COUCH_ARGS: tuple[tuple[str, tuple[str, ...]], ...] = (("pcsx2-qt", ("-nogui", "-fullscreen")),)
+
+
+def couch_args(exe: str, args: list[str]) -> list[str]:
+    """Return *args* with the couch flags for *exe* in front, each at most once."""
+    name = os.path.basename(exe.replace("\\", "/")).lower()
+    for prefix, flags in _COUCH_ARGS:
+        if name.startswith(prefix):
+            missing = [f for f in flags if f.lower() not in {a.lower() for a in args}]
+            return [*missing, *args]
+    return args
+
+
 _VITA3K_SCRIPT = "vita3k"
 # Understood by bin\rom-launcher.exe: replace the trailing quoted ROM path with
 # the title ID that file holds (see native/rom-launcher-win/rom-launcher.c).
@@ -507,6 +527,8 @@ class EmuDeckWindowsLauncherBackend:
             if base.lower().endswith(_CORE_SUFFIX):
                 core_so = base[: -len(".dll")]
         kind = "libretro" if core_so else "standalone"
+        if kind == "standalone":
+            args = couch_args(exe, args)
         command = " ".join([quote_windows_arg(exe, always=True), *(quote_windows_arg(a) for a in args)])
 
         installed = self._exists(exe) and (core_so is None or self._exists(args[args.index("-L") + 1]))

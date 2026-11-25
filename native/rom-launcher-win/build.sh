@@ -23,7 +23,7 @@ cc="${CC:-cc}"
 
 "${zig[@]}" cc -target x86_64-windows-gnu -Os -s -std=c11 -Wall -Wextra -Werror \
     -Wl,--subsystem,windows \
-    -o "$tmp/rom-launcher.exe" "$here/rom-launcher.c" -lkernel32 -luser32
+    -o "$tmp/rom-launcher.exe" "$here/rom-launcher.c" "$here/rom-launcher.rc" -lkernel32 -luser32 -lgdi32
 
 mkdir -p "$(dirname "$out")"
 cp "$tmp/rom-launcher.exe" "$out"

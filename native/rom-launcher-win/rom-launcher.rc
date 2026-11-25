@@ -1,0 +1,3 @@
+/* The Core mark the launch curtain shows (docs/eternal/brand in Eternal-Core:
+   core-logo-mark.svg rendered at 600x600 on AMOLED black #000000). */
+101 BITMAP "curtain-logo.bmp"
