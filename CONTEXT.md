@@ -90,8 +90,9 @@ key.
 
 Residents (per [ADR-0003](docs/adr/0003-json-sqlite-persistence-boundary.md)): the RetroDECK home path marker
 (`retrodeck_home_path` + its pending-migration `_previous`), the save-sort settings markers (`save_sort_settings` +
-`_previous`), `device_id` (server-issued identity), and `platform_names` (platform_slug → display_name cache). The
-schema version is **not** a `kv_config` key — it lives in `PRAGMA user_version`.
+`_previous`), `device_id` (server-issued identity), `platform_names` (platform_slug → display_name cache), and
+`steam_collections_adopted` (set once the one-time adoption of pre-record Steam collections is done). The schema version
+is **not** a `kv_config` key — it lives in `PRAGMA user_version`.
 
 **Not** a dumping ground: anything with its own lifecycle, invariants, or repeat-row potential gets its own aggregate.
 `kv_config` is for the truly small, the truly singleton, and the truly miscellaneous.
@@ -502,3 +503,21 @@ IGDB-collection are both `kind="virtual"`, distinguished by `virtual_type` (see 
 Computed backend-side at the reporter's union key (`domain/collection_label.py`), so the wire payload stays name→appIds
 and the frontend needs no change; the mode flip is applied by the ordinary complete-set reconcile on the next normal
 sync (no Force Full Sync). Same-name-**within-one-label** still unions.
+
+### Collection name style (Classic / Clean)
+
+How the plugin's own Steam collections are **named** — the `collection_name_style` setting valued `classic` (default:
+the names the plugin has always used, `RomM: <platform> (<host>)` / `RomM: [<name>] (<host>)`, plain `<platform>` /
+`[<name>]` on Windows) or `clean` (the source's own name, no prefix or hostname). Orthogonal to the **Collection naming
+mode**, which decides the source key a RomM collection is named from; the style decides what is wrapped around it.
+Applies on the next sync by renaming owned collections.
+
+### Owned Steam collection
+
+A Steam collection the plugin made on this device, proven only by the **ownership record** — the `OwnedSteamCollection`
+aggregate (`owned_steam_collections`), keyed by Steam's collection id, one per source (`family` `platform` / `romm` +
+case-folded source name). Never inferred from a name: a collection without a record is the **user's**, and the plugin
+never renames, refills or deletes it. When a source's wanted name is held by a user's collection, the plugin's
+collection takes a suffixed name (`<name> (RomM)`) and the record keeps the user's name in `yielded_to`. Pre-record
+collections are brought under the record once (**adoption**), by name plus proof (the `RomM:` prefix, or RomM-only
+contents).

@@ -313,7 +313,7 @@ Each entry has these key fields:
 | `LaunchOptions` | string       | The full launch command the `bin/rom-launcher` exec wrapper runs, e.g. `flatpak run net.retrodeck.retrodeck "/path/to/game.iso"` — or `""` (placeholder) for an uninstalled ROM. No `romm:<id>` marker; ownership is detected by the exe path instead |
 | `appid`         | signed int32 | Assigned by Steam when `AddShortcut` runs; stored as the signed int32 form (`to_signed_app_id`)                                                                                                                                                       |
 | `icon`          | string       | Icon path or hash                                                                                                                                                                                                                                     |
-| `tags`          | object       | Steam collection tags. The plugin manages collections via `collectionStore` (machine-scoped names like `RomM: N64 (steamdeck)`), not by writing this VDF field.                                                                                       |
+| `tags`          | object       | Steam collection tags. The plugin manages collections via `collectionStore` (see [Collection management](#collection-management)), not by writing this VDF field.                                                                                     |
 
 ### shortcuts.vdf is memory-authoritative
 
@@ -329,27 +329,111 @@ See: `py_modules/adapters/steam_config.py`
 ## Collection management
 
 Steam collections are managed entirely on the frontend via `collectionStore`, not by writing the shortcut's `tags` VDF
-field. The plugin owns machine-scoped collections named `RomM: <platform> (<hostname>)` for platforms and
-`RomM: [<name>] (<hostname>)` for synced RomM collections. The `sync_complete` event carries `platform_app_ids` and
-`romm_collection_app_ids` maps; `onSyncComplete` (`src/index.tsx`) creates/updates the collections for the maps it
-receives and then runs a **stale-collection cleanup** that deletes any `RomM: …` collection for this machine whose
-platform/collection name is absent from those maps.
+field. `src/utils/collections.ts` owns them. The `sync_complete` event carries `platform_app_ids` and
+`romm_collection_app_ids` maps; `onSyncComplete` (`src/index.tsx`) hands both, with the run's `cancelled` flag, to
+`reconcileSteamCollections`, which makes one collection per source (each platform, each synced RomM collection) and runs
+a **stale-collection cleanup** for sources absent from the maps.
 
-The cleanup is **gated on a completed (non-cancelled) sync** (`!data.cancelled`). On a cancelled run the maps are
-**partial** — they list only the platforms the run reached before the cancel (empty if the cancel fired before the first
-unit), because the backend builds `platform_app_ids` from the cross-unit accumulator of reached platforms. Treating a
-partial map as the authoritative active-set would delete the collections for unreached platforms — an early cancel would
-wipe the entire library organization. The additive create/update path stays ungated, so the platforms that did complete
-still get their collections; only the destructive deletion is skipped on cancel. Steam collections are not backed up, so
-the safe behavior on a partial/cancelled run is to delete nothing.
+### Ownership is a record, never a name
+
+A Steam collection carries no owner, and a name proves nothing: the user can make a collection called `PlayStation 2`
+(or `VR`, or `Completed`) just as the plugin can. So the plugin keeps an explicit **ownership record** — the
+`OwnedSteamCollection` aggregate in the backend's SQLite (`owned_steam_collections`, migration `028`; see
+[Database Design](database-design.md)) — of the Steam collection id it made for each source on this device. The frontend
+reads it through `get_owned_steam_collections` and writes it through `record_owned_steam_collection` /
+`forget_owned_steam_collection` (`services/steam_collections.py`).
+
+**The plugin renames, refills or deletes a collection only when a record names its Steam id.** A collection without a
+record is the user's, whatever it is called and whatever it holds, and nothing in `collections.ts` touches it. Each
+source has at most one record (`UNIQUE (family, source_key)`, the case-folded source name); recording a source against a
+new collection id replaces the old record. The record is per device because the database is: Steam Cloud syncs a
+collection to every machine on the account, and a collection made on another machine has no record here, so it is never
+touched here.
+
+If the record cannot be read (the callable fails), the reconcile touches nothing at all — creating without a record
+would leave an unrecorded collection that the next run must treat as the user's.
+
+### Collection names: Classic or Clean
+
+The `collection_name_style` setting (**Collection names** in the Library section) decides the name a source wants:
+
+| Style                 | Platform collection                                        | RomM collection                                              |
+| --------------------- | ---------------------------------------------------------- | ------------------------------------------------------------ |
+| **Classic** (default) | `RomM: Nintendo 64 (<hostname>)`; on Windows `Nintendo 64` | `RomM: [Favourites] (<hostname>)`; on Windows `[Favourites]` |
+| **Clean**             | `Nintendo 64` (the platform name as RomM gives it)         | `Favourites`                                                 |
+
+Classic is the default for every install, so an upgrade renames nothing. On Windows the Classic platform name was
+already the plain platform name, so there Clean changes only the RomM collections (the brackets go).
+
+### Name collisions
+
+A name is **taken** when another live collection holds it (case-insensitively — Steam folds collection names by case,
+#1569) or another source already took it in this run. When the wanted name is taken, the collection gets the next free
+of `<name> (RomM)`, `<name> (RomM 2)`, … `(RomM 9)`; if all are taken the source is skipped with a logged warning.
+Platforms are named before RomM collections, so a platform keeps the bare name when a RomM collection shares it.
+
+When the wanted name was taken by a collection of the **user's** (no record), the record stores that collection's name
+in `yielded_to`, a warning is logged, and the settings page shows a note under **Collection names** ("You already have a
+collection called "VR", so The Collector's is "VR (RomM)""). The user's collection is never merged into, refilled or
+renamed. Once the user's collection is gone, the next sync gives the plugin's collection its wanted name back (an
+in-place rename) and clears `yielded_to`.
+
+Roads not taken: **skipping** the source leaves its games without a collection and is invisible on the TV; **merging**
+into the user's collection is exactly the takeover the rule forbids, and its later cleanup would delete the user's
+collection.
+
+### Switching style — migration
+
+The setting applies on the next sync. For each source whose recorded collection carries a different name than it now
+wants, the reconcile renames it:
+
+1. **In place** where Steam allows it, keeping the collection id and every game in it. The collection object has no
+   rename method in our typings; setting its internal `m_strName` and saving is an unverified guess at where Steam keeps
+   the name, so the rename counts only when the store then reports the new name, and is put back otherwise.
+2. Otherwise **copy, record, delete**: a new collection takes a copy of every game in the old one (including any the
+   user added by hand), the record moves to it, and only then is the old one deleted. If the record cannot be written
+   the old collection is kept. Only the plugin's own (recorded) collection is ever deleted.
+
+The membership is then set from the sync's map as on any run.
+
+### One-time adoption of pre-record collections
+
+An install that predates the record has plugin-made collections with no record. On the first runs after the upgrade
+(until a completed run marks it done — the `steam_collections_adopted` `kv_config` row), each source without a record
+adopts a live, unrecorded collection under a name this device used for it — its Classic name,
+`RomM: <name>
+(<hostname>)` or the legacy host-less `RomM: <name>` (brackets for RomM collections) — but only when that
+collection carries the plugin's own `RomM:` prefix **or** holds nothing but RomM shortcuts. A plain-named collection
+holding any other game stays the user's (and the plugin's collection for that source gets a suffix). Another device's
+`RomM: <name>
+(<otherhost>)` is never a candidate. When a Windows install has both an old `RomM: …` collection and a
+plain one for the same source, only one is adopted; the other is left alone for the user to delete.
+
+### Stale cleanup and cancellation
+
+The cleanup deletes the recorded collections whose source is absent from the maps, then forgets their records; a record
+whose collection is already gone is just forgotten. It runs before the creates and renames, so a freed name is available
+to them. A failed delete keeps the record, so it is retried on a later run.
+
+The cleanup is **gated on a completed (non-cancelled) sync** (`!data.cancelled`, carried as `cancelled` into the
+reconcile). On a cancelled run the maps are **partial** — they list only the platforms the run reached before the cancel
+(empty if the cancel fired before the first unit), because the backend builds `platform_app_ids` from the cross-unit
+accumulator of reached platforms. Treating a partial map as the authoritative active-set would delete the collections
+for unreached platforms — an early cancel would wipe the entire library organization. The additive create/update/rename
+path stays ungated, so the platforms that did complete still get their collections; only the destructive deletion is
+skipped on cancel, and the one-time adoption is not marked done. Steam collections are not backed up, so the safe
+behavior on a partial/cancelled run is to delete nothing.
+
+The Danger Zone's **Remove shortcuts** (one platform) and **Remove all** clear only recorded collections
+(`clearPlatformCollection` / `clearAllRomMCollections`), never one found by name.
 
 ### Collection naming mode — `merge` vs `by_label` (#1539)
 
 The `romm_collection_app_ids` wire payload is `name → appIds` **only** — kind/virtual_type are collapsed away before the
-frontend sees them, and the frontend simply wraps each key as `RomM: [<key>] (<hostname>)`. So the Steam-collection name
-is decided **entirely by the reporter's dict key**, computed backend-side in
-`SyncReporter._resolve_collection_memberships` (`services/library/reporter.py`) from the `collection_naming_mode`
-setting:
+frontend sees them, and the frontend names the collection from the key alone (see
+[Collection names](#collection-names-classic-or-clean)). So the Steam-collection name is decided **entirely by the
+reporter's dict key**, computed backend-side in `SyncReporter._resolve_collection_memberships`
+(`services/library/reporter.py`) from the `collection_naming_mode` setting:
 
 - **`merge`** (default) — the key is the bare collection display name. Same-named RomM collections of any kind union
   into one `RomM: [<name>]` Steam collection (RomM permits same-named collections across kinds/users, #1503).
@@ -364,16 +448,16 @@ The label strings **must** match the frontend collection-type vocabulary (`SUB_T
 The reporter needs the kind/virtual_type at its union key, so `WorkUnit.virtual_type` and `CollectionMembership.kind` +
 `CollectionMembership.virtual_type` thread that identity through the fetcher → orchestrator → reporter.
 
-**Label-format constraint:** the reconcile parses the collection name with `/^RomM: \[([^\]]+)\]/` (`src/index.tsx`), so
-a label must contain **no** `]` character — it sits inside the single existing bracket pair. Parens (`(Franchise)`) are
-safe; a bracket would truncate the parsed name and orphan the collection. Every produced label is bracket-free (asserted
-in `tests/domain/test_collection_label.py`).
+**Label-format constraint:** a label must contain **no** `]` character — it sits inside the single bracket pair of a
+Classic name. Parens (`(Franchise)`) are safe. Ownership no longer depends on parsing the name (it is the
+[record](#ownership-is-a-record-never-a-name)), but a bracket would still make a Classic name ambiguous to read. Every
+produced label is bracket-free (asserted in `tests/domain/test_collection_label.py`).
 
 **No Force Full Sync on a mode flip.** Because the create-name and the reconcile's `activeNames` both derive from the
 same `romm_collection_app_ids` keys, flipping the mode is applied by the ordinary **complete-set reconcile** on the next
-normal sync: the reporter re-emits the complete set of enabled collections under the new keys, `onSyncComplete` creates
-the new-named collections and deletes any old-named collection absent from the new complete set. No skip-state
-invalidation is involved (same mechanism owner-scope reshaping uses).
+normal sync: the reporter re-emits the complete set of enabled collections under the new keys, the reconcile creates
+(and records) the new-keyed collections and deletes the recorded old-keyed ones absent from the new complete set. No
+skip-state invalidation is involved (same mechanism owner-scope reshaping uses).
 
 **Name identity is case-insensitive (#1569).** Steam collapses collection names by a **case-insensitive** identity — two
 collections whose display names differ only in case (`RomM: [7 up]` vs `RomM: [7 Up]`) are the same Steam collection, so
@@ -381,11 +465,11 @@ creating the second silently overwrites the first and loses its games. To match,
 identity is treated case-insensitively **everywhere** the plugin compares names: the reporter groups both
 `romm_collection_app_ids` and `platform_app_ids` by a case-folded key (`str.casefold()`), keeping the first-seen
 original casing for display (which exact casing wins is irrelevant — Steam uppercases collection names anyway); the
-frontend create/find (`createOrUpdateCollections` / `createOrUpdateRomMCollections`), the cleanup matchers
-(`clearPlatformCollection` / `clearAllRomMCollections`), and the `onSyncComplete` stale-delete comparisons all match by
-`toLowerCase()`. This is always safe precisely because Steam's identity is case-insensitive: two collections differing
-only by case can never coexist, so there is never an ambiguous match to disambiguate. The DB is unaffected —
-`collection_sync_state` is keyed by `(collection_id, collection_kind)`, never by name — so there is no migration.
+frontend's name lookups, its record lookups by source and the stale cleanup's active-set comparison in
+`src/utils/collections.ts` all match by `toLowerCase()`, and the record's own uniqueness is on the case-folded source.
+This is always safe precisely because Steam's identity is case-insensitive: two collections differing only by case can
+never coexist, so there is never an ambiguous match to disambiguate. The DB is unaffected — `collection_sync_state` is
+keyed by `(collection_id, collection_kind)`, never by name — so there is no migration.
 
 ## App IDs and Artwork
 
@@ -480,7 +564,7 @@ immediate remount cannot let the old chain write launch options or invoke `RunGa
 | `src/utils/steamShortcuts.ts`             | `addShortcut()`, `removeShortcut()`, `getExistingRomMShortcuts()`, `getLiveRomMShortcutAppIds()` (raw live appId scan for the sync-start reconcile) — frontend shortcut CRUD. The existing-shortcut scan emits a sync heartbeat every 10s between batches so a large library can't stall the run past the backend's per-unit heartbeat timeout |
 | `src/utils/syncManager.ts`                | Listens for sync events, orchestrates shortcut creation/removal, artwork application, collection management. `reconcileStaleShortcuts()` runs the sync-start reconcile of Steam-UI-deleted shortcuts. Caches the existing-shortcut scan per run (keyed by the `sync_apply_unit` `run_id`) so it scans Steam once per run, not once per unit    |
 | `py_modules/services/shortcut_removal.py` | `ShortcutRemovalService` — resolves shortcut-removal sets, unbinds removed ROMs, and runs `reconcile_live_shortcuts` (the sync-start reconcile of Steam-UI-deleted bindings)                                                                                                                                                                   |
-| `src/utils/collections.ts`                | Machine-scoped Steam collection management                                                                                                                                                                                                                                                                                                     |
+| `src/utils/collections.ts`                | The plugin's own Steam collections: naming, collisions, renames, stale cleanup — all gated on the ownership record                                                                                                                                                                                                                             |
 | `src/patches/gameDetailPatch.tsx`         | Route patch for `/library/app/:appid` — injects RomMPlaySection for custom game detail UI                                                                                                                                                                                                                                                      |
 | `src/patches/homeShelfPatch.tsx`          | Route patch for `/library/home` — inserts The Collector's console shelf under Recent games ([Home console shelf](home-console-shelf.md))                                                                                                                                                                                                       |
 | `src/patches/metadataPatches.ts`          | Store patches for description, associations, categories, release date display                                                                                                                                                                                                                                                                  |

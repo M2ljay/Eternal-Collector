@@ -254,6 +254,12 @@ describe("SettingsPage", () => {
     // Defaults — many tests override per case.
     vi.mocked(backend.getSettings).mockResolvedValue(defaultSettings());
     vi.mocked(backend.getKnownRegions).mockResolvedValue([]);
+    vi.mocked(backend.getOwnedSteamCollections).mockResolvedValue({
+      success: true,
+      name_style: "classic",
+      adoption_done: true,
+      collections: [],
+    });
     vi.mocked(showPreferredRegionModal).mockResolvedValue(true);
     vi.mocked(backend.getSaveSyncSettings).mockResolvedValue(defaultSaveSyncSettings());
     vi.mocked(backend.getSavestateBackupSettings).mockResolvedValue({ enabled: false, scope: "auto" });
@@ -1711,6 +1717,82 @@ describe("SettingsPage", () => {
       });
       // CATCH-REJECTION assert: rolled back to the pre-toggle "merge".
       expect(capturedLibrary[capturedLibrary.length - 1]?.namingMode).toBe("merge");
+    });
+
+    it("hydrates nameStyle from getSettings and defaults it to classic", async () => {
+      vi.mocked(backend.getSettings).mockResolvedValue({ ...defaultSettings(), collection_name_style: "clean" });
+      render(<SettingsPage onBack={vi.fn()} />);
+      await flushAsync();
+      expect(capturedLibrary[capturedLibrary.length - 1]?.nameStyle).toBe("clean");
+    });
+
+    it("defaults nameStyle to classic when getSettings omits it", async () => {
+      render(<SettingsPage onBack={vi.fn()} />);
+      await flushAsync();
+      expect(capturedLibrary[capturedLibrary.length - 1]?.nameStyle).toBe("classic");
+    });
+
+    it("onNameStyleChange persists via setCollectionNameStyle", async () => {
+      vi.mocked(backend.setCollectionNameStyle).mockResolvedValue({ success: true });
+      render(<SettingsPage onBack={vi.fn()} />);
+      await flushAsync();
+      await act(async () => {
+        capturedLibrary[capturedLibrary.length - 1]?.onNameStyleChange("clean");
+        await Promise.resolve();
+      });
+      expect(vi.mocked(backend.setCollectionNameStyle)).toHaveBeenCalledWith("clean");
+      expect(capturedLibrary[capturedLibrary.length - 1]?.nameStyle).toBe("clean");
+    });
+
+    it("reverts nameStyle when setCollectionNameStyle refuses", async () => {
+      vi.mocked(backend.setCollectionNameStyle).mockResolvedValue({
+        success: false,
+        reason: "invalid_style",
+        message: "no",
+      });
+      render(<SettingsPage onBack={vi.fn()} />);
+      await flushAsync();
+      await act(async () => {
+        capturedLibrary[capturedLibrary.length - 1]?.onNameStyleChange("clean");
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+      expect(capturedLibrary[capturedLibrary.length - 1]?.nameStyle).toBe("classic");
+    });
+
+    it("reverts nameStyle when setCollectionNameStyle rejects", async () => {
+      vi.mocked(backend.setCollectionNameStyle).mockRejectedValue(new Error("boom"));
+      render(<SettingsPage onBack={vi.fn()} />);
+      await flushAsync();
+      await act(async () => {
+        capturedLibrary[capturedLibrary.length - 1]?.onNameStyleChange("clean");
+        await Promise.resolve();
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+      expect(capturedLibrary[capturedLibrary.length - 1]?.nameStyle).toBe("classic");
+    });
+
+    it("forwards the collections that yielded their name to LibrarySection", async () => {
+      const yielded = {
+        collection_id: "uc-1",
+        family: "romm" as const,
+        source_name: "VR",
+        display_name: "VR (RomM)",
+        yielded_to: "VR",
+      };
+      vi.mocked(backend.getOwnedSteamCollections).mockResolvedValue({
+        success: true,
+        name_style: "clean",
+        adoption_done: true,
+        collections: [
+          yielded,
+          { ...yielded, collection_id: "uc-2", source_name: "N64", display_name: "N64", yielded_to: null },
+        ],
+      });
+      render(<SettingsPage onBack={vi.fn()} />);
+      await flushAsync();
+      expect(capturedLibrary[capturedLibrary.length - 1]?.yieldedCollections).toEqual([yielded]);
     });
   });
 

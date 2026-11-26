@@ -233,6 +233,7 @@ class Plugin:
         self._migration_service = services["migration_service"]
         self._game_detail_service = services["game_detail_service"]
         self._console_shelf_service = services["console_shelf_service"]
+        self._steam_collection_service = services["steam_collection_service"]
         self._artwork_service = services["artwork_service"]
         self._shortcut_removal_service = services["shortcut_removal_service"]
         self._settings_service = services["settings_service"]
@@ -656,6 +657,33 @@ class Plugin:
 
     async def set_collection_naming_mode(self, mode):
         return self._settings_service.set_collection_naming_mode(mode)
+
+    async def set_collection_name_style(self, style):
+        return self._settings_service.set_collection_name_style(style)
+
+    # ── The plugin's own Steam collections (ownership record) ──
+
+    async def get_owned_steam_collections(self):
+        return await self.loop.run_in_executor(None, self._steam_collection_service.get_owned_steam_collections)
+
+    async def record_owned_steam_collection(self, collection_id, family, source_name, display_name, yielded_to):
+        return await self.loop.run_in_executor(
+            None,
+            self._steam_collection_service.record_owned_steam_collection,
+            collection_id,
+            family,
+            source_name,
+            display_name,
+            yielded_to,
+        )
+
+    async def forget_owned_steam_collection(self, collection_id):
+        return await self.loop.run_in_executor(
+            None, self._steam_collection_service.forget_owned_steam_collection, collection_id
+        )
+
+    async def finish_steam_collection_adoption(self):
+        return await self.loop.run_in_executor(None, self._steam_collection_service.finish_steam_collection_adoption)
 
     @migration_blocked
     @prune_active_blocked

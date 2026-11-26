@@ -205,7 +205,7 @@ Format: **invariant** — tier — enforced by.
   confinement holds `session_budget`'s stated promise that no renderer-RSS reading is taken anywhere else in the package
 - **A module declared read-only calls no repository write — `services/library/local_library_reader.py` and
   `services/console_shelf.py`** — check — `scripts/check_read_only_module.py` (AST over the declared file's own calls,
-  matching the two-attribute `<...>.<repo>.<method>` shape against the thirteen repositories the UoW exposes). Read or
+  matching the two-attribute `<...>.<repo>.<method>` shape against the fourteen repositories the UoW exposes). Read or
   write is decided **by the name's shape** — `get` / `get_*` / `iter_*` / `count` plus the explicitly listed reads — and
   `tests/scripts/test_check_read_only_module.py` re-derives every method name from `services/protocols/repositories.py`
   and pins its classification, so a new repository method fails there until it is classified. **The two directions are
@@ -286,6 +286,20 @@ Format: **invariant** — tier — enforced by.
   quarantining a ROM (gigabytes, no sensible retention, re-fetchable from RomM) inverts for a save, and a savestate is
   synced nowhere at all. It is the first caller to hand that funnel a directory outside the saves root: it takes the
   directory it is given, so a savestate's backup lands in `<states>/.romm-backup/`
+- **The plugin renames, refills or deletes a Steam collection only when the ownership record (`owned_steam_collections`,
+  the `OwnedSteamCollection` aggregate) names its Steam id — never on the strength of a name; a collection without a
+  record is the user's, a wanted name the user's collection holds gets a `(RomM)` suffix instead of a merge, the stale
+  cleanup deletes only recorded collections and only after a non-cancelled sync, a record is forgotten only once its
+  collection is gone, and a rename that cannot happen in place copies every game into the new collection and records it
+  before the old one is deleted (the backup leg of the destructive-op rule)** — test + prompt-only —
+  `src/utils/collectionsConfinement.test.ts` (structural: every collectionStore write — `NewUnsavedCollection`,
+  `AsDragDropCollection`, `.Delete(`, `m_strName` — stays in `src/utils/collections.ts`; an alias or a computed property
+  slips past it) and `src/utils/collections.test.ts` (user collections never written, collisions, cancelled runs,
+  migration order, adoption proof). Inside `collections.ts` the record gate is prompt-only: a new write path there that
+  looks a collection up by name rather than through the record passes both tests unless a case is added. The one-time
+  adoption of pre-record collections is the one place a name is consulted, and only with a second proof (the `RomM:`
+  prefix, or RomM-only contents)
+  ([Collection management](docs/architecture/steam-non-steam-shortcuts.md#ownership-is-a-record-never-a-name))
 - **Every read-mutate-write of a `RomSaveSyncState` runs under `SyncEngine.rom_lock(rom_id)`** — prompt-only — sync
   paths, `get_save_status`, and the four slot mutations hold the lock; mechanize via a `rom_save_sync_states.save`
   call-site audit

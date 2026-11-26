@@ -79,6 +79,11 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     # same-named collections of different types stay separate). Applies on the
     # next normal sync via the reporter key + complete-set reconcile.
     "collection_naming_mode": "merge",
+    # How the plugin's own Steam collections are named: ``"classic"`` (default —
+    # the names the plugin has always used, so an upgrade renames nothing) or
+    # ``"clean"`` (the platform's or RomM collection's own name, no prefix, no
+    # hostname). Applies on the next sync.
+    "collection_name_style": "classic",
     "preferred_region": "auto",
     # Warn once per launch when the emulator's RetroAchievements is off, signed
     # out, or (PCSX2) failed to log in.

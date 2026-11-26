@@ -48,6 +48,39 @@ export type CollectionOwnerScope = "own" | "all";
  */
 export type CollectionNamingMode = "merge" | "by_label";
 
+/**
+ * How the plugin's own Steam collections are named. `"classic"` (default) keeps
+ * the names the plugin has always used; `"clean"` names a platform collection
+ * after the platform and a RomM collection after itself, with no prefix or
+ * hostname. Applies on the next sync.
+ */
+export type CollectionNameStyle = "classic" | "clean";
+
+/** Which kind of source an owned Steam collection was made for. */
+export type SteamCollectionFamily = "platform" | "romm";
+
+/**
+ * The record that a Steam collection was made by the plugin on this device —
+ * the only ownership proof the plugin acts on. `yielded_to` names the user's
+ * collection that already held the wanted name, when there was one.
+ */
+export interface OwnedSteamCollection {
+  collection_id: string;
+  family: SteamCollectionFamily;
+  source_name: string;
+  display_name: string;
+  yielded_to: string | null;
+}
+
+export interface OwnedSteamCollectionsAnswer {
+  success: boolean;
+  name_style: CollectionNameStyle;
+  adoption_done: boolean;
+  collections: OwnedSteamCollection[];
+  reason?: string;
+  message?: string;
+}
+
 export interface CollectionSyncSetting {
   id: string;
   name: string;

@@ -108,6 +108,7 @@ class SettingsService:
             "collection_create_platform_groups": self._settings.get("collection_create_platform_groups", False),
             "collection_owner_scope": self._settings.get("collection_owner_scope", "all"),
             "collection_naming_mode": self._settings.get("collection_naming_mode", "merge"),
+            "collection_name_style": self._settings.get("collection_name_style", "classic"),
             "preferred_region": self._settings.get("preferred_region", AUTO_REGION),
             "retroachievements_warning": self._settings.get("retroachievements_warning", True),
             "collector_home_shelf": self._settings.get("collector_home_shelf", True),
@@ -292,6 +293,22 @@ class SettingsService:
         if mode not in ("merge", "by_label"):
             return {"success": False, "reason": "invalid_mode", "message": f"Invalid naming mode: {mode}"}
         self._settings["collection_naming_mode"] = mode
+        self._settings_persister.save_settings()
+        return {"success": True}
+
+    def set_collection_name_style(self, style: object) -> dict[str, Any]:
+        """Validate and persist how the plugin's own Steam collections are named.
+
+        ``"classic"`` (the default) keeps the names the plugin has always used;
+        ``"clean"`` names a platform collection after the platform and a RomM
+        collection after itself, with no prefix or hostname. The next sync renames
+        the plugin's recorded collections; a name the user's own collection
+        already holds gets a suffix instead. An unrecognised value from the
+        untrusted frontend wire is rejected with the canonical failure shape.
+        """
+        if style not in ("classic", "clean"):
+            return {"success": False, "reason": "invalid_style", "message": f"Invalid collection name style: {style}"}
+        self._settings["collection_name_style"] = style
         self._settings_persister.save_settings()
         return {"success": True}
 

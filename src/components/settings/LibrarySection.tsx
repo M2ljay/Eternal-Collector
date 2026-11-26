@@ -8,7 +8,7 @@
 
 import { FC } from "react";
 import { PanelSection, PanelSectionRow, DropdownItem, ToggleField } from "@decky/ui";
-import type { CollectionNamingMode } from "../../types";
+import type { CollectionNameStyle, CollectionNamingMode, OwnedSteamCollection } from "../../types";
 
 interface LibrarySectionProps {
   preferredRegion: string;
@@ -27,6 +27,11 @@ interface LibrarySectionProps {
   // toggle (checked === "by_label").
   namingMode: CollectionNamingMode;
   onNamingModeChange: (mode: CollectionNamingMode) => void;
+  nameStyle: CollectionNameStyle;
+  onNameStyleChange: (style: CollectionNameStyle) => void;
+  // The plugin's collections that took a suffixed name because one of the
+  // user's own collections already had the name they wanted.
+  yieldedCollections: OwnedSteamCollection[];
   raWarning: boolean;
   onRaWarningChange: (enabled: boolean) => void;
 }
@@ -68,6 +73,14 @@ export function buildRegionOptions(libraryRegions: string[], selected: string): 
   return options;
 }
 
+export const NAME_STYLE_OPTIONS: { data: CollectionNameStyle; label: string }[] = [
+  { data: "classic", label: "Classic" },
+  { data: "clean", label: "Clean" },
+];
+
+export const NAME_STYLE_DESCRIPTION =
+  'Classic keeps the names The Collector has always used. Clean names each collection after the console ("PlayStation 2") or the RomM collection, with no prefix or device name. Only collections The Collector made are renamed; if one of your own collections already has the name, The Collector\'s gets "(RomM)" added. Applies on the next sync.';
+
 export const LibrarySection: FC<LibrarySectionProps> = ({
   preferredRegion,
   libraryRegions,
@@ -76,6 +89,9 @@ export const LibrarySection: FC<LibrarySectionProps> = ({
   onPlatformGroupsChange,
   namingMode,
   onNamingModeChange,
+  nameStyle,
+  onNameStyleChange,
+  yieldedCollections,
   raWarning,
   onRaWarningChange,
 }) => {
@@ -106,6 +122,26 @@ export const LibrarySection: FC<LibrarySectionProps> = ({
           onChange={(v) => onNamingModeChange(v ? "by_label" : "merge")}
         />
       </PanelSectionRow>
+      <PanelSectionRow>
+        <DropdownItem
+          label="Collection names"
+          description={NAME_STYLE_DESCRIPTION}
+          rgOptions={NAME_STYLE_OPTIONS}
+          selectedOption={nameStyle}
+          onChange={(option) => onNameStyleChange(option.data as CollectionNameStyle)}
+        />
+      </PanelSectionRow>
+      {yieldedCollections.length > 0 && (
+        <PanelSectionRow>
+          <div data-testid="yielded-collections" style={{ fontSize: "12px", opacity: 0.8 }}>
+            {yieldedCollections.map((c) => (
+              <div key={c.collection_id}>
+                {`You already have a collection called "${c.yielded_to}", so The Collector's is "${c.display_name}".`}
+              </div>
+            ))}
+          </div>
+        </PanelSectionRow>
+      )}
       <PanelSectionRow>
         <ToggleField
           label="Warn when RetroAchievements isn't working"

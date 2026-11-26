@@ -83,12 +83,13 @@ def _set_user_version(db_path: str, version: int) -> None:
 # + 021_add_rom_fs_size + 022_rename_collection_kind_user_to_standard
 # + 023_add_rom_install_launchable + 024_emulator_override_per_backend
 # + 025_add_selected_exe + 026_add_rom_savestate_sync_states
-# + 027_add_rom_achievement_progress).
-_SHIPPED_VERSION = 27
+# + 027_add_rom_achievement_progress + 028_add_owned_steam_collections).
+_SHIPPED_VERSION = 28
 
 # Tables after every shipped migration: the v1 set plus 006's play-session outbox,
 # 012's per-platform completion stamp, 019's per-collection completion stamp, and
-# 026's savestate backup records and 027's achievement snapshot, with 018 renaming the save-sync scalar table
+# 026's savestate backup records, 027's achievement snapshot and 028's Steam-collection
+# ownership record, with 018 renaming the save-sync scalar table
 # rom_save_states -> rom_save_sync_states.
 _SHIPPED_TABLES = (_V1_TABLES - {"rom_save_states"}) | {
     "rom_save_sync_states",
@@ -97,6 +98,7 @@ _SHIPPED_TABLES = (_V1_TABLES - {"rom_save_states"}) | {
     "collection_sync_state",
     "rom_savestate_sync_states",
     "rom_achievement_progress",
+    "owned_steam_collections",
 }
 
 
@@ -1767,6 +1769,72 @@ class Test027AddRomAchievementProgress:
             )
             conn.execute("DELETE FROM roms WHERE rom_id = 1")
             assert conn.execute("SELECT COUNT(*) FROM rom_achievement_progress").fetchone()[0] == 0
+        finally:
+            conn.close()
+
+
+class Test028AddOwnedSteamCollections:
+    """028 — adds the record of the plugin's own Steam collections."""
+
+    _INSERT = (
+        "INSERT INTO owned_steam_collections "
+        "(collection_id, family, source_name, source_key, display_name, yielded_to) "
+        "VALUES (?, ?, ?, ?, ?, ?)"
+    )
+
+    def test_table_absent_before_028(self, tmp_path: Path):
+        db_path = str(tmp_path / "romm_sync.db")
+        apply_migrations(db_path, str(_only_migrations_through(tmp_path, 27)))
+
+        assert _user_version(db_path) == 27
+        assert "owned_steam_collections" not in _tables(db_path)
+
+    def test_existing_rom_survives_and_nothing_is_owned(self, tmp_path: Path):
+        db_path = str(tmp_path / "romm_sync.db")
+        apply_migrations(db_path, str(_only_migrations_through(tmp_path, 27)))
+        conn = sqlite3.connect(db_path, isolation_level=None)
+        try:
+            _insert_rom(conn, 1, 5000)
+        finally:
+            conn.close()
+
+        assert apply_migrations(db_path) == _SHIPPED_VERSION
+
+        conn = sqlite3.connect(db_path)
+        try:
+            assert conn.execute("SELECT COUNT(*) FROM roms").fetchone()[0] == 1
+            assert conn.execute("SELECT COUNT(*) FROM owned_steam_collections").fetchone()[0] == 0
+        finally:
+            conn.close()
+
+    def test_one_collection_per_source_and_family(self, tmp_path: Path):
+        db_path = str(tmp_path / "romm_sync.db")
+        apply_migrations(db_path)
+        conn = sqlite3.connect(db_path, isolation_level=None)
+        try:
+            conn.execute(self._INSERT, ("uc-1", "platform", "Arcade", "arcade", "Arcade", None))
+            conn.execute(self._INSERT, ("uc-2", "romm", "Arcade", "arcade", "Arcade (RomM)", None))
+            with pytest.raises(sqlite3.IntegrityError):
+                conn.execute(self._INSERT, ("uc-3", "platform", "ARCADE", "arcade", "ARCADE", None))
+        finally:
+            conn.close()
+
+    @pytest.mark.parametrize(
+        "row",
+        [
+            ("", "platform", "N64", "n64", "N64", None),
+            ("uc-1", "shelf", "N64", "n64", "N64", None),
+            ("uc-1", "platform", "", "", "N64", None),
+            ("uc-1", "platform", "N64", "n64", "", None),
+        ],
+    )
+    def test_rejects_an_incomplete_record(self, tmp_path: Path, row: tuple[object, ...]):
+        db_path = str(tmp_path / "romm_sync.db")
+        apply_migrations(db_path)
+        conn = sqlite3.connect(db_path, isolation_level=None)
+        try:
+            with pytest.raises(sqlite3.IntegrityError):
+                conn.execute(self._INSERT, row)
         finally:
             conn.close()
 

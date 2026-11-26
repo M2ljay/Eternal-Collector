@@ -84,6 +84,9 @@ export interface PluginSettings {
   // separate. Optional: older payloads may omit it, treated as "merge". Mirrors
   // the CollectionNamingMode type in sync.ts.
   collection_naming_mode?: "merge" | "by_label";
+  // How the plugin's own Steam collections are named. Optional: older payloads
+  // may omit it, treated as "classic". Mirrors CollectionNameStyle in sync.ts.
+  collection_name_style?: "classic" | "clean";
   // Preferred sibling-group region (ADR-0021 §3). "auto" = the fixed build-time
   // default order (World > USA > Europe > Japan); any other value heads the
   // ranking with that region on the next sync. Optional: the backend always

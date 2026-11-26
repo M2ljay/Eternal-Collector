@@ -2,6 +2,7 @@ import { describe, it, expect, vi } from "vitest";
 import { render, fireEvent } from "@testing-library/react";
 import { createElement } from "react";
 import { LibrarySection, buildRegionOptions, DEFAULT_REGION_LABEL, AUTO_REGION } from "./LibrarySection";
+import type { OwnedSteamCollection } from "../../types";
 
 // DropdownItem isn't in the global @decky/ui stub. Capture rgOptions +
 // selectedOption + onChange so we can drive the onChange callback and assert
@@ -95,11 +96,14 @@ describe("LibrarySection", () => {
         onPlatformGroupsChange={vi.fn()}
         namingMode="merge"
         onNamingModeChange={vi.fn()}
+        nameStyle="classic"
+        onNameStyleChange={vi.fn()}
+        yieldedCollections={[]}
         raWarning={true}
         onRaWarningChange={vi.fn()}
       />,
     );
-    expect(captured.items).toHaveLength(1);
+    expect(captured.items).toHaveLength(2);
     const item = captured.items[0];
     expect(item?.label).toBe("Preferred region");
     expect(item?.rgOptions?.map((o) => o.data)).toEqual([AUTO_REGION, "World", "USA", "Europe", "Japan", "Korea"]);
@@ -115,6 +119,9 @@ describe("LibrarySection", () => {
         onPlatformGroupsChange={vi.fn()}
         namingMode="merge"
         onNamingModeChange={vi.fn()}
+        nameStyle="classic"
+        onNameStyleChange={vi.fn()}
+        yieldedCollections={[]}
         raWarning={true}
         onRaWarningChange={vi.fn()}
       />,
@@ -133,6 +140,9 @@ describe("LibrarySection", () => {
         onPlatformGroupsChange={vi.fn()}
         namingMode="merge"
         onNamingModeChange={vi.fn()}
+        nameStyle="classic"
+        onNameStyleChange={vi.fn()}
+        yieldedCollections={[]}
         raWarning={true}
         onRaWarningChange={vi.fn()}
       />,
@@ -153,6 +163,9 @@ describe("LibrarySection", () => {
         onPlatformGroupsChange={vi.fn()}
         namingMode="merge"
         onNamingModeChange={vi.fn()}
+        nameStyle="classic"
+        onNameStyleChange={vi.fn()}
+        yieldedCollections={[]}
         raWarning={true}
         onRaWarningChange={vi.fn()}
       />,
@@ -171,6 +184,9 @@ describe("LibrarySection", () => {
         onPlatformGroupsChange={vi.fn()}
         namingMode="merge"
         onNamingModeChange={vi.fn()}
+        nameStyle="classic"
+        onNameStyleChange={vi.fn()}
+        yieldedCollections={[]}
         raWarning={true}
         onRaWarningChange={vi.fn()}
       />,
@@ -193,6 +209,9 @@ describe("LibrarySection", () => {
         onPlatformGroupsChange={onChange}
         namingMode="merge"
         onNamingModeChange={vi.fn()}
+        nameStyle="classic"
+        onNameStyleChange={vi.fn()}
+        yieldedCollections={[]}
         raWarning={true}
         onRaWarningChange={vi.fn()}
       />,
@@ -215,6 +234,9 @@ describe("LibrarySection", () => {
         onPlatformGroupsChange={vi.fn()}
         namingMode="by_label"
         onNamingModeChange={vi.fn()}
+        nameStyle="classic"
+        onNameStyleChange={vi.fn()}
+        yieldedCollections={[]}
         raWarning={true}
         onRaWarningChange={vi.fn()}
       />,
@@ -236,6 +258,9 @@ describe("LibrarySection", () => {
         onPlatformGroupsChange={vi.fn()}
         namingMode="merge"
         onNamingModeChange={vi.fn()}
+        nameStyle="classic"
+        onNameStyleChange={vi.fn()}
+        yieldedCollections={[]}
         raWarning={true}
         onRaWarningChange={vi.fn()}
       />,
@@ -257,6 +282,9 @@ describe("LibrarySection", () => {
         onPlatformGroupsChange={vi.fn()}
         namingMode="merge"
         onNamingModeChange={onChange}
+        nameStyle="classic"
+        onNameStyleChange={vi.fn()}
+        yieldedCollections={[]}
         raWarning={true}
         onRaWarningChange={vi.fn()}
       />,
@@ -280,6 +308,9 @@ describe("LibrarySection", () => {
         onPlatformGroupsChange={vi.fn()}
         namingMode="by_label"
         onNamingModeChange={onChange}
+        nameStyle="classic"
+        onNameStyleChange={vi.fn()}
+        yieldedCollections={[]}
         raWarning={true}
         onRaWarningChange={vi.fn()}
       />,
@@ -303,6 +334,9 @@ describe("LibrarySection", () => {
         onPlatformGroupsChange={vi.fn()}
         namingMode="merge"
         onNamingModeChange={vi.fn()}
+        nameStyle="classic"
+        onNameStyleChange={vi.fn()}
+        yieldedCollections={[]}
         raWarning={true}
         onRaWarningChange={onChange}
       />,
@@ -313,5 +347,64 @@ describe("LibrarySection", () => {
     expect(toggle.checked).toBe(true);
     fireEvent.click(toggle);
     expect(onChange).toHaveBeenCalledWith(false);
+  });
+
+  function renderWithStyle(
+    nameStyle: "classic" | "clean",
+    onNameStyleChange = vi.fn(),
+    yieldedCollections: OwnedSteamCollection[] = [],
+  ) {
+    return render(
+      <LibrarySection
+        preferredRegion={AUTO_REGION}
+        libraryRegions={[]}
+        onPreferredRegionChange={vi.fn()}
+        platformGroups={false}
+        onPlatformGroupsChange={vi.fn()}
+        namingMode="merge"
+        onNamingModeChange={vi.fn()}
+        nameStyle={nameStyle}
+        onNameStyleChange={onNameStyleChange}
+        yieldedCollections={yieldedCollections}
+        raWarning={true}
+        onRaWarningChange={vi.fn()}
+      />,
+    );
+  }
+
+  it("renders the Collection names dropdown with Classic and Clean, current style selected", () => {
+    renderWithStyle("clean");
+    const item = captured.items.find((i) => i.label === "Collection names");
+    expect(item?.rgOptions?.map((o) => o.data)).toEqual(["classic", "clean"]);
+    expect(item?.rgOptions?.map((o) => o.label)).toEqual(["Classic", "Clean"]);
+    expect(item?.selectedOption).toBe("clean");
+  });
+
+  it("forwards a Collection names choice", () => {
+    const onChange = vi.fn();
+    renderWithStyle("classic", onChange);
+    const item = captured.items.find((i) => i.label === "Collection names");
+    item?.onChange?.({ data: "clean", label: "Clean" });
+    expect(onChange).toHaveBeenCalledWith("clean");
+  });
+
+  it("shows a note for each collection that yielded its name to one of the user's", () => {
+    const { getByTestId } = renderWithStyle("clean", vi.fn(), [
+      {
+        collection_id: "uc-1",
+        family: "romm",
+        source_name: "VR",
+        display_name: "VR (RomM)",
+        yielded_to: "VR",
+      },
+    ]);
+    expect(getByTestId("yielded-collections")).toHaveTextContent(
+      'You already have a collection called "VR", so The Collector\'s is "VR (RomM)".',
+    );
+  });
+
+  it("shows no note when nothing yielded", () => {
+    const { queryByTestId } = renderWithStyle("clean");
+    expect(queryByTestId("yielded-collections")).toBeNull();
   });
 });

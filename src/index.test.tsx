@@ -83,17 +83,11 @@ vi.mock("./utils/syncManager", () => ({
   resetSyncCancel: vi.fn(),
 }));
 
-// Observe the collection create/update + stale-cleanup calls fired by
-// onSyncComplete. getHostname resolves a fixed hostname so the machine-scoped
-// `RomM: <platform> (steamdeck)` suffix is deterministic.
-const createOrUpdateCollections = vi.fn().mockResolvedValue(undefined);
-const createOrUpdateRomMCollections = vi.fn().mockResolvedValue(undefined);
-const clearPlatformCollection = vi.fn().mockResolvedValue(undefined);
+// Observe the one collection reconcile onSyncComplete hands its maps to; the
+// reconcile itself is covered in src/utils/collections.test.ts.
+const reconcileSteamCollections = vi.fn().mockResolvedValue(undefined);
 vi.mock("./utils/collections", () => ({
-  createOrUpdateCollections: (...args: unknown[]) => createOrUpdateCollections(...args),
-  createOrUpdateRomMCollections: (...args: unknown[]) => createOrUpdateRomMCollections(...args),
-  clearPlatformCollection: (...args: unknown[]) => clearPlatformCollection(...args),
-  getHostname: vi.fn().mockResolvedValue("steamdeck"),
+  reconcileSteamCollections: (...args: unknown[]) => reconcileSteamCollections(...args),
 }));
 
 // Observe the launch-options confirm-poll.
@@ -690,7 +684,7 @@ describe("index.tsx — sync_stale listener", () => {
     vi.mocked(releasePruneConflictLease).mockClear();
     removeShortcut.mockClear();
     logError.mockClear();
-    createOrUpdateCollections.mockClear();
+    reconcileSteamCollections.mockClear();
 
     try {
       // A tombstoned plugin generation refuses the tail's continuation outright,
@@ -723,7 +717,7 @@ describe("index.tsx — sync_stale listener", () => {
       });
       await flush();
 
-      expect(createOrUpdateCollections).toHaveBeenCalled();
+      expect(reconcileSteamCollections).toHaveBeenCalled();
       await vi.waitFor(() => expect(releasePruneConflictLease).toHaveBeenCalledWith("completion-after-failed-tail"));
     } finally {
       mountPruneLeasePlugin();
@@ -974,7 +968,7 @@ describe("index.tsx — sync_complete launch-options reconcile (#1151)", () => {
 
   it("holds the sync event lease until collection and sibling Steam continuations settle", async () => {
     let finishCollections: (() => void) | undefined;
-    createOrUpdateCollections.mockImplementationOnce(
+    reconcileSteamCollections.mockImplementationOnce(
       () =>
         new Promise<void>((resolve) => {
           finishCollections = resolve;
@@ -992,7 +986,10 @@ describe("index.tsx — sync_complete launch-options reconcile (#1151)", () => {
       });
     });
     await vi.waitFor(() =>
-      expect(createOrUpdateCollections).toHaveBeenCalledWith({ SNES: [100] }, undefined, expect.any(AbortSignal)),
+      expect(reconcileSteamCollections).toHaveBeenCalledWith(
+        { platformAppIds: { SNES: [100] }, rommCollectionAppIds: {}, cancelled: false },
+        expect.any(AbortSignal),
+      ),
     );
     expect(releasePruneConflictLease).not.toHaveBeenCalledWith("sync-complete-lease");
 
@@ -1003,7 +1000,8 @@ describe("index.tsx — sync_complete launch-options reconcile (#1151)", () => {
 
   it("plugin dismount defers sync lease release until a started collection save settles", async () => {
     let finishCollections: (() => void) | undefined;
-    createOrUpdateCollections.mockImplementationOnce(
+    reconcileSteamCollections.mockClear();
+    reconcileSteamCollections.mockImplementationOnce(
       () =>
         new Promise<void>((resolve) => {
           finishCollections = resolve;
@@ -1012,7 +1010,6 @@ describe("index.tsx — sync_complete launch-options reconcile (#1151)", () => {
     const plugin = pluginFactory();
     await flush();
     vi.mocked(releasePruneConflictLease).mockClear();
-    createOrUpdateRomMCollections.mockClear();
 
     act(() => {
       emitDeckyEvent<[SyncCompletePayload]>("sync_complete", {
@@ -1022,7 +1019,8 @@ describe("index.tsx — sync_complete launch-options reconcile (#1151)", () => {
         prune_lease_token: "dismount-sync-lease",
       });
     });
-    await vi.waitFor(() => expect(createOrUpdateCollections).toHaveBeenCalled());
+    await vi.waitFor(() => expect(reconcileSteamCollections).toHaveBeenCalled());
+    const signal = reconcileSteamCollections.mock.calls[0]![1] as AbortSignal;
 
     plugin.onDismount();
     await Promise.resolve();
@@ -1030,7 +1028,7 @@ describe("index.tsx — sync_complete launch-options reconcile (#1151)", () => {
 
     finishCollections?.();
     await vi.waitFor(() => expect(releasePruneConflictLease).toHaveBeenCalledWith("dismount-sync-lease"));
-    expect(createOrUpdateRomMCollections).not.toHaveBeenCalled();
+    expect(signal.aborted).toBe(true);
   });
 
   it("plugin dismount releases an installed-reconcile token that arrives afterward", async () => {
@@ -1230,22 +1228,7 @@ describe("index.tsx — corrupt-settings reset notice", () => {
   });
 });
 
-describe("index.tsx — sync_complete stale-collection cleanup (#1040)", () => {
-  // A SNES platform collection and a [Faves] RomM smart-collection, both
-  // machine-scoped to "steamdeck" (the getHostname mock). Delete is a vi.fn so
-  // the smart-collection delete is observable; the platform collection is
-  // removed via the mocked clearPlatformCollection, so only its presence in
-  // userCollections matters for the stale filter.
-  function seedCollections(): {
-    snes: { Delete: ReturnType<typeof vi.fn> };
-    faves: { Delete: ReturnType<typeof vi.fn> };
-  } {
-    const snes = { id: "snes-id", displayName: "RomM: Super Nintendo (steamdeck)", Delete: vi.fn() };
-    const faves = { id: "faves-id", displayName: "RomM: [Faves] (steamdeck)", Delete: vi.fn() };
-    vi.stubGlobal("collectionStore", { userCollections: [snes, faves] });
-    return { snes, faves };
-  }
-
+describe("index.tsx — sync_complete hands its maps to the collection reconcile (#1040)", () => {
   type SyncCompletePayload = {
     platform_app_ids: Record<string, number[]>;
     romm_collection_app_ids?: Record<string, number[]>;
@@ -1260,105 +1243,61 @@ describe("index.tsx — sync_complete stale-collection cleanup (#1040)", () => {
   }
 
   beforeEach(() => {
-    createOrUpdateCollections.mockClear();
-    createOrUpdateRomMCollections.mockClear();
-    clearPlatformCollection.mockClear();
+    reconcileSteamCollections.mockClear();
+    reconcileSteamCollections.mockResolvedValue(undefined);
     vi.mocked(applyAllPlaytime).mockClear();
     vi.mocked(applyAllPlaytime).mockResolvedValue(undefined);
     vi.mocked(toaster.toast).mockClear();
     logError.mockClear();
-    // Give the playtime re-apply detach a well-shaped payload so it reaches
-    // applyAllPlaytime instead of throwing on a destructure of undefined.
     vi.mocked(getAllPlaytime).mockResolvedValue({ playtime: {} });
     vi.mocked(getAppIdRomIdMap).mockResolvedValue({});
   });
 
-  it("runs the stale cleanup on a completed (non-cancelled) sync", async () => {
-    const { faves } = seedCollections();
+  it("passes a completed run's maps as the complete set", async () => {
     const plugin = pluginFactory();
 
-    // Only "Nintendo 64" is active — SNES and [Faves] are stale and removed.
-    emitSyncComplete({ platform_app_ids: { "Nintendo 64": [1] }, total_games: 1 });
-    await flush();
-
-    expect(clearPlatformCollection).toHaveBeenCalledWith("Super Nintendo", expect.any(AbortSignal));
-    expect(faves.Delete).toHaveBeenCalledTimes(1);
-    plugin.onDismount();
-  });
-
-  it("keeps a case-variant ACTIVE RomM collection (does not delete it) (#1569)", async () => {
-    const { snes, faves } = seedCollections();
-    const plugin = pluginFactory();
-
-    // The live collection is "[Faves]"; the active map keys it as "faves" (the
-    // reporter's folded-first-seen casing). Case-insensitive identity → it is
-    // ACTIVE and must survive. SNES has no active platform → still stale.
     emitSyncComplete({
       platform_app_ids: { "Nintendo 64": [1] },
-      romm_collection_app_ids: { faves: [1] },
+      romm_collection_app_ids: { Faves: [1] },
       total_games: 1,
     });
     await flush();
 
-    expect(faves.Delete).not.toHaveBeenCalled();
-    // Non-vacuous: the stale SNES platform IS still cleaned, so cleanup ran.
-    expect(clearPlatformCollection).toHaveBeenCalledWith("Super Nintendo", expect.any(AbortSignal));
-    expect(snes.Delete).not.toHaveBeenCalled(); // platform delete routes via clearPlatformCollection
+    expect(reconcileSteamCollections).toHaveBeenCalledWith(
+      { platformAppIds: { "Nintendo 64": [1] }, rommCollectionAppIds: { Faves: [1] }, cancelled: false },
+      expect.any(AbortSignal),
+    );
     plugin.onDismount();
   });
 
-  it("keeps a case-variant ACTIVE platform collection (does not clear it) (#1569)", async () => {
-    const { faves } = seedCollections();
+  it("marks a cancelled run's partial maps as cancelled so nothing stale is deleted (regression)", async () => {
     const plugin = pluginFactory();
 
-    // Live "RomM: Super Nintendo (steamdeck)"; active map keys it "super nintendo".
-    // Case-insensitive → ACTIVE, must not be cleared. [Faves] has no active RomM
-    // entry → stale and removed (non-vacuous: cleanup ran).
-    emitSyncComplete({
-      platform_app_ids: { "super nintendo": [1] },
-      total_games: 1,
-    });
-    await flush();
-
-    expect(clearPlatformCollection).not.toHaveBeenCalled();
-    expect(faves.Delete).toHaveBeenCalledTimes(1);
-    plugin.onDismount();
-  });
-
-  it("skips the stale cleanup on a cancelled sync with a partial map (regression)", async () => {
-    const { snes, faves } = seedCollections();
-    const plugin = pluginFactory();
-
-    // Cancel reached only "Nintendo 64"; SNES + [Faves] must SURVIVE.
     emitSyncComplete({ platform_app_ids: { "Nintendo 64": [1] }, total_games: 1, cancelled: true });
     await flush();
 
-    expect(clearPlatformCollection).not.toHaveBeenCalled();
-    expect(snes.Delete).not.toHaveBeenCalled();
-    expect(faves.Delete).not.toHaveBeenCalled();
+    expect(reconcileSteamCollections).toHaveBeenCalledWith(
+      { platformAppIds: { "Nintendo 64": [1] }, rommCollectionAppIds: {}, cancelled: true },
+      expect.any(AbortSignal),
+    );
     plugin.onDismount();
   });
 
-  it("skips the stale cleanup on an early cancel with an empty map (full-wipe case)", async () => {
-    const { snes, faves } = seedCollections();
+  it("marks an early cancel's empty maps as cancelled (full-wipe case)", async () => {
     const plugin = pluginFactory();
 
-    // Cancel fired before unit 1 — the map is empty. Treating it as the active
-    // set would wipe EVERY RomM collection; nothing must be deleted.
     emitSyncComplete({ platform_app_ids: {}, total_games: 0, cancelled: true });
     await flush();
 
-    expect(clearPlatformCollection).not.toHaveBeenCalled();
-    expect(snes.Delete).not.toHaveBeenCalled();
-    expect(faves.Delete).not.toHaveBeenCalled();
+    expect(reconcileSteamCollections).toHaveBeenCalledWith(
+      { platformAppIds: {}, rommCollectionAppIds: {}, cancelled: true },
+      expect.any(AbortSignal),
+    );
     plugin.onDismount();
   });
 
   it("still fires the cancelled toast and re-applies playtime on a cancelled sync", async () => {
-    seedCollections();
     const plugin = pluginFactory();
-    // The factory's own init runs one initial playtime apply; clear it so the
-    // assertion counts only the apply triggered by sync_complete.
     await flush();
     vi.mocked(applyAllPlaytime).mockClear();
     vi.mocked(toaster.toast).mockClear();
@@ -1371,16 +1310,16 @@ describe("index.tsx — sync_complete stale-collection cleanup (#1040)", () => {
     plugin.onDismount();
   });
 
-  it("still creates/updates the reached platforms' collections on a cancelled sync", async () => {
-    seedCollections();
+  it("a failing reconcile does not stop the playtime re-apply", async () => {
+    reconcileSteamCollections.mockRejectedValueOnce(new Error("store gone"));
     const plugin = pluginFactory();
+    await flush();
+    vi.mocked(applyAllPlaytime).mockClear();
 
-    emitSyncComplete({ platform_app_ids: { "Nintendo 64": [1] }, total_games: 1, cancelled: true });
+    emitSyncComplete({ platform_app_ids: { "Nintendo 64": [1] }, total_games: 1 });
     await flush();
 
-    // The additive create/update path is NOT gated on cancel — the platforms
-    // that DID complete still get their collections.
-    expect(createOrUpdateCollections).toHaveBeenCalledWith({ "Nintendo 64": [1] }, undefined, expect.any(AbortSignal));
+    expect(applyAllPlaytime).toHaveBeenCalledTimes(1);
     plugin.onDismount();
   });
 });

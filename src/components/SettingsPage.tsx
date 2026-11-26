@@ -23,6 +23,8 @@ import {
   saveRetroAchievementsWarning,
   saveCollectorHomeShelf,
   setCollectionNamingMode,
+  setCollectionNameStyle,
+  getOwnedSteamCollections,
   getKnownRegions,
   fixRetroarchInputDriver,
   ensureDeviceRegistered,
@@ -35,6 +37,9 @@ import {
 import type {
   RegisteredDevice,
   CollectionNamingMode,
+  CollectionNameStyle,
+  OwnedSteamCollection,
+  OwnedSteamCollectionsAnswer,
   SaveSyncSettings as SaveSyncSettingsType,
   SavestateBackupSettings,
   RetroArchInputCheck,
@@ -118,6 +123,8 @@ export const SettingsPage: FC<SettingsPageProps> = ({ onBack }) => {
   const [homeShelf, setHomeShelf] = useState(true);
   // Steam-collection naming mode (#1539): "merge" (default) or "by_label".
   const [namingMode, setNamingMode] = useState<CollectionNamingMode>("merge");
+  const [nameStyle, setNameStyle] = useState<CollectionNameStyle>("classic");
+  const [yieldedCollections, setYieldedCollections] = useState<OwnedSteamCollection[]>([]);
 
   useEffect(() => {
     getSettings()
@@ -134,6 +141,7 @@ export const SettingsPage: FC<SettingsPageProps> = ({ onBack }) => {
         setRaWarning(s.retroachievements_warning ?? true);
         setHomeShelf(s.collector_home_shelf ?? true);
         setNamingMode(s.collection_naming_mode ?? "merge");
+        setNameStyle(s.collection_name_style ?? "classic");
         if (s.retroarch_input_check) {
           setRetroarchWarning(s.retroarch_input_check);
         }
@@ -142,6 +150,14 @@ export const SettingsPage: FC<SettingsPageProps> = ({ onBack }) => {
         logError(`Failed to load settings: ${e}`);
         setStatus("Failed to load settings");
       });
+
+    // The plugin's collections that took a suffixed name because one of the
+    // user's own collections already had the name they wanted.
+    getOwnedSteamCollections()
+      .then((answer: OwnedSteamCollectionsAnswer | undefined) =>
+        setYieldedCollections(answer?.success ? answer.collections.filter((c) => c.yielded_to) : []),
+      )
+      .catch((e) => logError(`Failed to load the collection-name notes: ${e}`));
 
     // Distinct regions in the locally synced library — the non-anchor options
     // for the Preferred-region dropdown. Failure degrades to anchors only.
@@ -525,6 +541,21 @@ export const SettingsPage: FC<SettingsPageProps> = ({ onBack }) => {
     );
   };
 
+  const handleNameStyleChange = (style: CollectionNameStyle) => {
+    const previous = nameStyle;
+    setNameStyle(style);
+    detach(
+      (async () => {
+        try {
+          const result = await setCollectionNameStyle(style);
+          if (!result.success) setNameStyle(previous);
+        } catch {
+          setNameStyle(previous);
+        }
+      })(),
+    );
+  };
+
   // --- Save sort migration handlers ---
   const handleMigrateSaveSort = async () => {
     setSaveSortMigrating(true);
@@ -645,6 +676,9 @@ export const SettingsPage: FC<SettingsPageProps> = ({ onBack }) => {
         onPlatformGroupsChange={handlePlatformGroupsChange}
         namingMode={namingMode}
         onNamingModeChange={handleNamingModeChange}
+        nameStyle={nameStyle}
+        onNameStyleChange={handleNameStyleChange}
+        yieldedCollections={yieldedCollections}
         raWarning={raWarning}
         onRaWarningChange={handleRaWarningChange}
       />

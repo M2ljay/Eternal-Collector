@@ -16,9 +16,13 @@ Loader for Windows (Playhub), launching games through EmuDeck for Windows instea
 - **PS Vita.** A downloaded Vita game is linked into Vita3K's `ux0/app/<TITLE_ID>` and launched by title ID.
 - **Game page.** On Windows the Play, Install and menu buttons use Steam's own button styles, so they follow your Steam
   theme.
-- **Collections.** Platform collections use the plain platform name (`Nintendo 64`) and RomM collections use
-  `[Collection name]`, instead of `RomM: Nintendo 64 (host)`. Older-style collections that hold only RomM games are
-  removed once their new-style replacement exists.
+- **Collections.** With the default **Classic** [collection names](configuration.md#collection-names), platform
+  collections use the plain platform name (`Nintendo 64`) and RomM collections use `[Collection name]`, instead of
+  `RomM: Nintendo 64 (host)`; **Clean** drops the brackets too. The Collector only renames, refills or deletes the
+  collections it made itself. After updating, the first sync takes over the collections an earlier version made — one
+  that carries the `RomM:` prefix, or a plain-named one holding nothing but RomM games; a plain-named collection holding
+  any other game stays yours. An old `RomM: …` collection left beside its plain-named replacement is no longer deleted
+  automatically; delete it yourself if you no longer want it.
 - **Wording.** Setup and health messages name EmuDeck instead of RetroDECK, and BIOS deletion refers to your BIOS
   folder.
 - **Logos.** A logo downloaded for a RomM game gets Steam's default bottom-left placement once, so it shows on the game

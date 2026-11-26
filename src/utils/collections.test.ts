@@ -1,10 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import {
-  createOrUpdateRomMCollections,
-  createOrUpdateCollections,
-  clearPlatformCollection,
-  clearAllRomMCollections,
-} from "./collections";
+import { reconcileSteamCollections, clearPlatformCollection, clearAllRomMCollections } from "./collections";
+import type { OwnedSteamCollection } from "../types";
 
 // The real module pulls in @decky/ui + the route patch; only RomM-shortcut
 // membership is read here.
@@ -13,318 +9,523 @@ vi.mock("../patches/gameDetailPatch", () => ({
   isRomMAppId: (appId: number) => rommAppIds.has(appId),
 }));
 
-// Steam's collection identity is case-insensitive, so a collection whose
-// displayName differs only by case from the one we're syncing is the SAME Steam
-// collection. These tests pin that our create/find + cleanup match it
-// case-insensitively — otherwise a colliding new create overwrites it and its
-// games are lost (#1569). The getHostname mock (test-setup) resolves "test".
+// The backend's ownership record, kept in memory with the same replace-by-source
+// rule as the SQLite repository.
+const backend = vi.hoisted(() => ({
+  records: [] as OwnedSteamCollection[],
+  nameStyle: "classic" as "classic" | "clean",
+  adoptionDone: false,
+  readFails: false,
+  recordFails: false,
+}));
+vi.mock("../api/backend", () => ({
+  logInfo: vi.fn(),
+  logWarn: vi.fn(),
+  logError: vi.fn(),
+  getOwnedSteamCollections: vi.fn(() =>
+    Promise.resolve(
+      backend.readFails
+        ? { success: false, reason: "boom", message: "boom" }
+        : {
+            success: true,
+            name_style: backend.nameStyle,
+            adoption_done: backend.adoptionDone,
+            collections: backend.records.map((r) => ({ ...r })),
+          },
+    ),
+  ),
+  recordOwnedSteamCollection: vi.fn(
+    (collection_id: string, family: "platform" | "romm", source_name: string, display_name: string, yielded_to) => {
+      if (backend.recordFails) return Promise.resolve({ success: false, reason: "x", message: "x" });
+      backend.records = backend.records.filter(
+        (r) =>
+          r.collection_id !== collection_id &&
+          !(r.family === family && r.source_name.toLowerCase() === source_name.toLowerCase()),
+      );
+      backend.records.push({ collection_id, family, source_name, display_name, yielded_to: yielded_to ?? null });
+      return Promise.resolve({ success: true });
+    },
+  ),
+  forgetOwnedSteamCollection: vi.fn((collection_id: string) => {
+    backend.records = backend.records.filter((r) => r.collection_id !== collection_id);
+    return Promise.resolve({ success: true });
+  }),
+  finishSteamCollectionAdoption: vi.fn(() => {
+    backend.adoptionDone = true;
+    return Promise.resolve({ success: true });
+  }),
+}));
 
-interface FakeDnd {
-  RemoveApps: ReturnType<typeof vi.fn>;
-  AddApps: ReturnType<typeof vi.fn>;
+const WINDOWS_UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Valve Steam Client";
+
+/**
+ * An in-memory collectionStore. A created collection appears once saved, as in
+ * Steam. `displayName` reads `m_strName`, so writing that field renames in place
+ * unless the store is built with `renameable: false`.
+ */
+class FakeCollection {
+  m_strName: string | undefined;
+  allApps: { appid: number }[];
+  Save = vi.fn(() => {
+    if (!this.store.collections.includes(this)) this.store.collections.push(this);
+    return Promise.resolve();
+  });
+  Delete = vi.fn(() => {
+    if (this.store.deleteFails) return Promise.reject(new Error("delete refused"));
+    this.store.collections = this.store.collections.filter((c) => c !== this);
+    return Promise.resolve();
+  });
+  private readonly fixedName: string;
+
+  constructor(
+    private readonly store: FakeStore,
+    readonly id: string,
+    name: string,
+    appIds: number[],
+  ) {
+    this.fixedName = name;
+    if (store.renameable) this.m_strName = name;
+    this.allApps = appIds.map((appid) => ({ appid }));
+  }
+
+  get displayName(): string {
+    return this.m_strName ?? this.fixedName;
+  }
+
+  AsDragDropCollection() {
+    return {
+      AddApps: (overviews: { appid: number }[]) => {
+        for (const o of overviews) if (!this.allApps.some((a) => a.appid === o.appid)) this.allApps.push(o);
+      },
+      RemoveApps: (overviews: { appid: number }[]) => {
+        const gone = new Set(overviews.map((o) => o.appid));
+        this.allApps = this.allApps.filter((a) => !gone.has(a.appid));
+      },
+    };
+  }
 }
-interface FakeCollection {
-  id: string;
-  displayName: string;
-  allApps: unknown[];
-  AsDragDropCollection: () => FakeDnd;
-  Save: ReturnType<typeof vi.fn>;
-  Delete: ReturnType<typeof vi.fn>;
-  dnd: FakeDnd;
-}
 
-function fakeCollection(displayName: string): FakeCollection {
-  const dnd: FakeDnd = { RemoveApps: vi.fn(), AddApps: vi.fn() };
-  return {
-    id: `id-${displayName}`,
-    displayName,
-    allApps: [],
-    AsDragDropCollection: () => dnd,
-    Save: vi.fn().mockResolvedValue(undefined),
-    Delete: vi.fn().mockResolvedValue(undefined),
-    dnd,
-  };
-}
+class FakeStore {
+  collections: FakeCollection[] = [];
+  deleteFails = false;
+  private next = 1;
 
-describe("createOrUpdateRomMCollections — case-insensitive identity (#1569)", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
+  constructor(readonly renameable = true) {}
 
-  it("updates an existing case-variant collection instead of creating a duplicate", async () => {
-    // Steam already holds "RomM: [7 Up] (test)"; the reporter now emits the
-    // folded-first-seen casing "7 up". Must UPDATE the existing one, not create a
-    // colliding "7 up" that Steam merges over the top of.
-    const existing = fakeCollection("RomM: [7 Up] (test)");
-    const NewUnsavedCollection = vi.fn();
-    vi.stubGlobal("collectionStore", { userCollections: [existing], NewUnsavedCollection });
+  add(name: string, appIds: number[] = [], id?: string): FakeCollection {
+    const c = new FakeCollection(this, id ?? `uc-seed-${this.next++}`, name, appIds);
+    this.collections.push(c);
+    return c;
+  }
 
-    await createOrUpdateRomMCollections({ "7 up": [1001, 1002] });
-
-    expect(NewUnsavedCollection).not.toHaveBeenCalled();
-    expect(existing.Save).toHaveBeenCalledTimes(1);
-    expect(existing.dnd.AddApps).toHaveBeenCalledTimes(1);
-  });
-
-  it("creates a new collection when nothing matches even case-insensitively", async () => {
-    // Non-vacuous complement: the find isn't matching everything — a genuinely
-    // new name still creates.
-    const created = fakeCollection("RomM: [brand new] (test)");
-    const NewUnsavedCollection = vi.fn(() => created);
-    vi.stubGlobal("collectionStore", { userCollections: [], NewUnsavedCollection });
-
-    await createOrUpdateRomMCollections({ "brand new": [1] });
-
-    expect(NewUnsavedCollection).toHaveBeenCalledTimes(1);
-    expect(created.Save).toHaveBeenCalledTimes(1);
-  });
-});
-
-describe("createOrUpdateCollections (platform) — case-insensitive identity (#1569)", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
-
-  it("updates an existing case-variant platform collection instead of creating a duplicate", async () => {
-    const existing = fakeCollection("RomM: Game Boy (test)");
-    const NewUnsavedCollection = vi.fn();
-    vi.stubGlobal("collectionStore", { userCollections: [existing], NewUnsavedCollection });
-
-    await createOrUpdateCollections({ "game boy": [1001] });
-
-    expect(NewUnsavedCollection).not.toHaveBeenCalled();
-    expect(existing.Save).toHaveBeenCalledTimes(1);
-  });
-
-  it("does not begin another collection mutation after cancellation", async () => {
-    let settle!: () => void;
-    const first = fakeCollection("RomM: First (test)");
-    const pendingSave = new Promise<void>((resolve) => {
-      settle = resolve;
-    });
-    first.Save.mockReturnValueOnce(pendingSave);
-    const second = fakeCollection("RomM: Second (test)");
-    vi.stubGlobal("collectionStore", { userCollections: [first, second], NewUnsavedCollection: vi.fn() });
-    const controller = new AbortController();
-    const applying = createOrUpdateCollections({ First: [1], Second: [2] }, undefined, controller.signal);
-    await Promise.resolve();
-
-    controller.abort();
-    settle();
-    await applying;
-
-    expect(first.Save).toHaveBeenCalledTimes(1);
-    expect(second.dnd.AddApps).not.toHaveBeenCalled();
-    expect(second.Save).not.toHaveBeenCalled();
-  });
-});
-
-describe("clearPlatformCollection — case-insensitive identity (#1569)", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
-
-  it("deletes a case-variant scoped collection", async () => {
-    // We ask to clear "game boy"; the live collection is "RomM: Game Boy (test)".
-    const scoped = fakeCollection("RomM: Game Boy (test)");
-    vi.stubGlobal("collectionStore", { userCollections: [scoped] });
-
-    await clearPlatformCollection("game boy");
-
-    expect(scoped.Delete).toHaveBeenCalledTimes(1);
-  });
-});
-
-const WINDOWS_UA =
-  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Valve Steam Client";
-const DECK_UA = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Valve Steam Client";
-
-describe("collections on Windows — plain names", () => {
-  let userCollections: FakeCollection[];
-  let NewUnsavedCollection: ReturnType<typeof vi.fn>;
-
-  /** A collection holding the given app ids (RomM or not, per `rommAppIds`). */
-  const holding = (displayName: string, appIds: number[]): FakeCollection => ({
-    ...fakeCollection(displayName),
-    allApps: appIds.map((appid) => ({ appid })),
-  });
-
-  const stubStore = (initial: FakeCollection[]): void => {
-    userCollections = [...initial];
-    // A created collection becomes visible to later lookups once saved, as in Steam.
-    NewUnsavedCollection = vi.fn((name: string) => {
-      const created = fakeCollection(name);
-      created.Save.mockImplementation(() => {
-        userCollections.push(created);
-      });
-      return created;
-    });
+  install(): void {
     vi.stubGlobal("collectionStore", {
       get userCollections() {
-        return userCollections;
+        return store.collections;
       },
-      NewUnsavedCollection,
+      NewUnsavedCollection: (name: string) => new FakeCollection(store, `uc-new-${store.next++}`, name, []),
     });
-  };
+  }
 
-  beforeEach(() => {
-    vi.clearAllMocks();
+  names(): string[] {
+    return this.collections.map((c) => c.displayName).sort();
+  }
+
+  named(name: string): FakeCollection | undefined {
+    return this.collections.find((c) => c.displayName === name);
+  }
+}
+
+let store: FakeStore;
+
+function own(collection: FakeCollection, family: "platform" | "romm", source: string, yieldedTo: string | null = null) {
+  backend.records.push({
+    collection_id: collection.id,
+    family,
+    source_name: source,
+    display_name: collection.displayName,
+    yielded_to: yieldedTo,
+  });
+}
+
+function recordFor(family: "platform" | "romm", source: string): OwnedSteamCollection | undefined {
+  return backend.records.find((r) => r.family === family && r.source_name.toLowerCase() === source.toLowerCase());
+}
+
+async function sync(
+  platformAppIds: Record<string, number[]>,
+  rommCollectionAppIds: Record<string, number[]> = {},
+  cancelled = false,
+  signal?: AbortSignal,
+): Promise<void> {
+  await reconcileSteamCollections({ platformAppIds, rommCollectionAppIds, cancelled }, signal);
+}
+
+beforeEach(() => {
+  backend.records = [];
+  backend.nameStyle = "classic";
+  backend.adoptionDone = true;
+  backend.readFails = false;
+  backend.recordFails = false;
+  rommAppIds.clear();
+  [1, 2, 3, 4, 5].forEach((id) => rommAppIds.add(id));
+  store = new FakeStore();
+  store.install();
+});
+
+afterEach(() => {
+  vi.restoreAllMocks();
+});
+
+describe("reconcileSteamCollections — Classic names", () => {
+  it("creates the host-scoped names off Windows and records them", async () => {
+    await sync({ "Nintendo 64": [1] }, { Favourites: [2] });
+
+    expect(store.names()).toEqual(["RomM: Nintendo 64 (test)", "RomM: [Favourites] (test)"]);
+    expect(recordFor("platform", "Nintendo 64")?.display_name).toBe("RomM: Nintendo 64 (test)");
+    expect(recordFor("romm", "Favourites")?.collection_id).toBe(store.named("RomM: [Favourites] (test)")?.id);
+  });
+
+  it("keeps the plain Windows names", async () => {
     vi.spyOn(navigator, "userAgent", "get").mockReturnValue(WINDOWS_UA);
-    vi.stubGlobal("SteamClient", { System: { GetSystemInfo: vi.fn().mockResolvedValue({ sHostname: "test" }) } });
-    rommAppIds.clear();
-    [1, 2, 3].forEach((id) => rommAppIds.add(id));
+
+    await sync({ "Nintendo 64": [1] }, { Favourites: [2] });
+
+    expect(store.names()).toEqual(["Nintendo 64", "[Favourites]"]);
   });
 
-  afterEach(() => {
-    vi.restoreAllMocks();
+  it("updates an owned case-variant collection instead of creating another (#1569)", async () => {
+    const existing = store.add("RomM: [7 Up] (test)", [9]);
+    own(existing, "romm", "7 Up");
+
+    await sync({}, { "7 up": [1, 2] });
+
+    expect(store.collections).toHaveLength(1);
+    expect(existing.allApps.map((a) => a.appid)).toEqual([1, 2]);
   });
 
-  const created = (): string[] => NewUnsavedCollection.mock.calls.map((c) => c[0] as string);
-
-  it("names a platform collection after the platform alone", async () => {
-    stubStore([]);
-    await createOrUpdateCollections({ "Nintendo 64": [1, 2] });
-    expect(created()).toEqual(["Nintendo 64"]);
-  });
-
-  it("names a RomM collection [name]", async () => {
-    stubStore([]);
-    await createOrUpdateRomMCollections({ Favourites: [1] });
-    expect(created()).toEqual(["[Favourites]"]);
-  });
-
-  it("keeps the host-scoped names off Windows", async () => {
-    vi.spyOn(navigator, "userAgent", "get").mockReturnValue(DECK_UA);
-    stubStore([]);
-    await createOrUpdateCollections({ "Nintendo 64": [1] });
-    await createOrUpdateRomMCollections({ Favourites: [1] });
-    expect(created()).toEqual(["RomM: Nintendo 64 (test)", "RomM: [Favourites] (test)"]);
-  });
-
-  it("updates a case-variant plain collection instead of creating another", async () => {
-    const existing = holding("nintendo 64", [1]);
-    stubStore([existing]);
-    await createOrUpdateCollections({ "Nintendo 64": [1, 2] });
-    expect(NewUnsavedCollection).not.toHaveBeenCalled();
-    expect(existing.Save).toHaveBeenCalledTimes(1);
-  });
-
-  it("retires the RomM-only old-style platform collections once the new one exists", async () => {
-    const scoped = holding("RomM: Nintendo 64 (test)", [1, 2]);
-    const legacy = holding("ROMM: nintendo 64", [3]);
-    stubStore([scoped, legacy]);
-
-    await createOrUpdateCollections({ "Nintendo 64": [1, 2, 3] });
-
-    expect(created()).toEqual(["Nintendo 64"]);
-    expect(scoped.Delete).toHaveBeenCalledTimes(1);
-    expect(legacy.Delete).toHaveBeenCalledTimes(1);
-  });
-
-  it("retires the RomM-only old-style RomM collections once the new one exists", async () => {
-    const scoped = holding("RomM: [Favourites] (test)", [1]);
-    const legacy = holding("RomM: [Favourites]", [2]);
-    stubStore([scoped, legacy]);
-
-    await createOrUpdateRomMCollections({ Favourites: [1, 2] });
-
-    expect(scoped.Delete).toHaveBeenCalledTimes(1);
-    expect(legacy.Delete).toHaveBeenCalledTimes(1);
-  });
-
-  it("never retires an old-style collection that also holds games which are not RomM shortcuts", async () => {
-    const mixed = holding("RomM: Nintendo 64 (test)", [1, 900]);
-    const romOnly = holding("RomM: Nintendo 64", [2]);
-    stubStore([mixed, romOnly]);
-
-    await createOrUpdateCollections({ "Nintendo 64": [1, 2] });
-
-    expect(mixed.Delete).not.toHaveBeenCalled();
-    expect(romOnly.Delete).toHaveBeenCalledTimes(1);
-  });
-
-  it("never retires an old-style collection whose apps have not loaded (reads as empty)", async () => {
-    const unloaded = holding("RomM: Nintendo 64 (test)", []);
-    stubStore([unloaded]);
-
-    await createOrUpdateCollections({ "Nintendo 64": [1] });
-
-    expect(unloaded.Delete).not.toHaveBeenCalled();
-  });
-
-  it("keeps the old-style collection when the new one was never saved", async () => {
-    const scoped = holding("RomM: Nintendo 64 (test)", [1]);
-    stubStore([scoped]);
-    NewUnsavedCollection.mockImplementation((name: string) => {
-      const failing = fakeCollection(name);
-      failing.Save.mockRejectedValue(new Error("save failed"));
-      return failing;
+  it("recreates an owned collection the user deleted in Steam and moves the record to it", async () => {
+    backend.records.push({
+      collection_id: "uc-gone",
+      family: "platform",
+      source_name: "Nintendo 64",
+      display_name: "RomM: Nintendo 64 (test)",
+      yielded_to: null,
     });
 
-    await createOrUpdateCollections({ "Nintendo 64": [1] });
+    await sync({ "Nintendo 64": [1] });
 
-    expect(scoped.Delete).not.toHaveBeenCalled();
+    const created = store.named("RomM: Nintendo 64 (test)");
+    expect(created).toBeDefined();
+    expect(backend.records).toEqual([
+      {
+        collection_id: created!.id,
+        family: "platform",
+        source_name: "Nintendo 64",
+        display_name: "RomM: Nintendo 64 (test)",
+        yielded_to: null,
+      },
+    ]);
+  });
+});
+
+describe("reconcileSteamCollections — Clean names", () => {
+  beforeEach(() => {
+    backend.nameStyle = "clean";
   });
 
-  it("retires nothing off Windows", async () => {
-    vi.spyOn(navigator, "userAgent", "get").mockReturnValue(DECK_UA);
-    const legacy = holding("RomM: Nintendo 64", [1]);
-    stubStore([legacy]);
+  it("names collections after the platform and the RomM collection alone", async () => {
+    await sync({ "PlayStation 2": [1], "Nintendo 64": [2] }, { Favourites: [3] });
 
-    await createOrUpdateCollections({ "Nintendo 64": [1] });
-
-    expect(legacy.Delete).not.toHaveBeenCalled();
+    expect(store.names()).toEqual(["Favourites", "Nintendo 64", "PlayStation 2"]);
+    expect(recordFor("romm", "Favourites")?.yielded_to).toBeNull();
   });
 
-  it("stops retiring once the run is aborted", async () => {
-    const scoped = holding("RomM: Nintendo 64 (test)", [1]);
-    stubStore([holding("Nintendo 64", [1]), scoped]);
+  it("never takes over, refills or deletes the user's own collections", async () => {
+    const vr = store.add("VR", [100]);
+    const completed = store.add("Completed", [1, 2]);
+
+    await sync({ "PlayStation 2": [1] }, { VR: [2], Completed: [3] });
+
+    expect(vr.allApps.map((a) => a.appid)).toEqual([100]);
+    expect(completed.allApps.map((a) => a.appid)).toEqual([1, 2]);
+    expect(vr.Save).not.toHaveBeenCalled();
+    expect(completed.Save).not.toHaveBeenCalled();
+    expect(vr.Delete).not.toHaveBeenCalled();
+    expect(completed.Delete).not.toHaveBeenCalled();
+    expect(store.names()).toEqual(["Completed", "Completed (RomM)", "PlayStation 2", "VR", "VR (RomM)"]);
+    expect(recordFor("romm", "VR")).toMatchObject({ display_name: "VR (RomM)", yielded_to: "VR" });
+    expect(backend.records.some((r) => r.collection_id === vr.id || r.collection_id === completed.id)).toBe(false);
+  });
+
+  it("treats a same-named collection of the user's as theirs whatever it holds", async () => {
+    const mine = store.add("PlayStation 2", [1, 2]);
+
+    await sync({ "PlayStation 2": [1, 2, 3] });
+
+    expect(mine.allApps.map((a) => a.appid)).toEqual([1, 2]);
+    expect(store.named("PlayStation 2 (RomM)")?.allApps.map((a) => a.appid)).toEqual([1, 2, 3]);
+  });
+
+  it("counts on further suffixes when the suffixed name is taken too", async () => {
+    store.add("VR", [100]);
+    store.add("VR (RomM)", [101]);
+
+    await sync({}, { VR: [1] });
+
+    expect(store.named("VR (RomM 2)")).toBeDefined();
+    expect(recordFor("romm", "VR")?.yielded_to).toBe("VR");
+  });
+
+  it("gives the bare name to the platform when a RomM collection shares it", async () => {
+    await sync({ Arcade: [1] }, { Arcade: [2] });
+
+    expect(recordFor("platform", "Arcade")?.display_name).toBe("Arcade");
+    expect(recordFor("romm", "Arcade")).toMatchObject({ display_name: "Arcade (RomM)", yielded_to: null });
+  });
+
+  it("takes the wanted name back once the user's collection is gone", async () => {
+    const owned = store.add("VR (RomM)", [1]);
+    own(owned, "romm", "VR", "VR");
+
+    await sync({}, { VR: [1] });
+
+    expect(owned.displayName).toBe("VR");
+    expect(recordFor("romm", "VR")).toMatchObject({ collection_id: owned.id, display_name: "VR", yielded_to: null });
+  });
+});
+
+describe("reconcileSteamCollections — switching style", () => {
+  it("renames owned collections in place, keeping their id and games", async () => {
+    const n64 = store.add("RomM: Nintendo 64 (test)", [1, 2]);
+    own(n64, "platform", "Nintendo 64");
+    backend.nameStyle = "clean";
+
+    await sync({ "Nintendo 64": [1, 2] });
+
+    expect(store.collections).toEqual([n64]);
+    expect(n64.displayName).toBe("Nintendo 64");
+    expect(n64.allApps.map((a) => a.appid)).toEqual([1, 2]);
+    expect(recordFor("platform", "Nintendo 64")).toMatchObject({ collection_id: n64.id, display_name: "Nintendo 64" });
+  });
+
+  it("copies into a new collection and deletes only the plugin's old one when Steam will not rename", async () => {
+    store = new FakeStore(false);
+    store.install();
+    const old = store.add("RomM: [Favourites] (test)", [1, 50]);
+    own(old, "romm", "Favourites");
+    const usersOwn = store.add("Favourites old", [1]);
+    backend.nameStyle = "clean";
+    const order: string[] = [];
+    old.Delete.mockImplementation(() => {
+      order.push(`delete old, record now ${recordFor("romm", "Favourites")?.collection_id}`);
+      store.collections = store.collections.filter((c) => c !== old);
+      return Promise.resolve();
+    });
+
+    await sync({}, { Favourites: [1, 2] });
+
+    const fresh = store.named("Favourites");
+    expect(fresh).toBeDefined();
+    expect(fresh!.id).not.toBe(old.id);
+    expect(order).toEqual([`delete old, record now ${fresh!.id}`]);
+    expect(fresh!.allApps.map((a) => a.appid)).toEqual([1, 2]);
+    expect(recordFor("romm", "Favourites")?.collection_id).toBe(fresh!.id);
+    expect(usersOwn.Delete).not.toHaveBeenCalled();
+  });
+
+  it("keeps the old collection when the copy cannot be recorded", async () => {
+    store = new FakeStore(false);
+    store.install();
+    const old = store.add("RomM: [Favourites] (test)", [1]);
+    own(old, "romm", "Favourites");
+    backend.nameStyle = "clean";
+    backend.recordFails = true;
+
+    await sync({}, { Favourites: [1] });
+
+    expect(old.Delete).not.toHaveBeenCalled();
+    expect(recordFor("romm", "Favourites")?.collection_id).toBe(old.id);
+  });
+});
+
+describe("reconcileSteamCollections — stale cleanup", () => {
+  it("deletes only recorded collections whose source is gone", async () => {
+    const snes = store.add("RomM: Super Nintendo (test)", [1]);
+    own(snes, "platform", "Super Nintendo");
+    const faves = store.add("RomM: [Faves] (test)", [2]);
+    own(faves, "romm", "Faves");
+    const lookalike = store.add("RomM: Game Boy (test)", [3]);
+    const users = store.add("Completed", [4]);
+
+    await sync({ "Nintendo 64": [1] });
+
+    expect(snes.Delete).toHaveBeenCalledTimes(1);
+    expect(faves.Delete).toHaveBeenCalledTimes(1);
+    expect(lookalike.Delete).not.toHaveBeenCalled();
+    expect(users.Delete).not.toHaveBeenCalled();
+    expect(backend.records.map((r) => r.source_name)).toEqual(["Nintendo 64"]);
+  });
+
+  it("deletes nothing on a cancelled run but still creates what it reached", async () => {
+    const snes = store.add("RomM: Super Nintendo (test)", [1]);
+    own(snes, "platform", "Super Nintendo");
+
+    await sync({ "Nintendo 64": [1] }, {}, true);
+
+    expect(snes.Delete).not.toHaveBeenCalled();
+    expect(recordFor("platform", "Super Nintendo")).toBeDefined();
+    expect(store.named("RomM: Nintendo 64 (test)")).toBeDefined();
+  });
+
+  it("keeps the record when Steam refuses the delete", async () => {
+    const snes = store.add("RomM: Super Nintendo (test)", [1]);
+    own(snes, "platform", "Super Nintendo");
+    store.deleteFails = true;
+
+    await sync({});
+
+    expect(recordFor("platform", "Super Nintendo")).toBeDefined();
+  });
+
+  it("forgets a stale record whose collection is already gone", async () => {
+    backend.records.push({
+      collection_id: "uc-gone",
+      family: "platform",
+      source_name: "Super Nintendo",
+      display_name: "Super Nintendo",
+      yielded_to: null,
+    });
+
+    await sync({});
+
+    expect(backend.records).toEqual([]);
+  });
+
+  it("frees a stale collection's name for an active source", async () => {
+    backend.nameStyle = "clean";
+    const stale = store.add("Arcade", [1]);
+    own(stale, "romm", "Arcade");
+
+    await sync({ Arcade: [2] });
+
+    expect(stale.Delete).toHaveBeenCalled();
+    expect(recordFor("platform", "Arcade")?.display_name).toBe("Arcade");
+  });
+});
+
+describe("reconcileSteamCollections — adopting pre-record collections", () => {
+  beforeEach(() => {
+    backend.adoptionDone = false;
+  });
+
+  it("adopts this host's RomM-prefixed collection and renames it under Clean", async () => {
+    const n64 = store.add("RomM: Nintendo 64 (test)", [1, 100]);
+    backend.nameStyle = "clean";
+
+    await sync({ "Nintendo 64": [1] });
+
+    expect(n64.displayName).toBe("Nintendo 64");
+    expect(recordFor("platform", "Nintendo 64")?.collection_id).toBe(n64.id);
+    expect(backend.adoptionDone).toBe(true);
+  });
+
+  it("adopts a plain Windows collection only while it holds nothing but RomM shortcuts", async () => {
+    vi.spyOn(navigator, "userAgent", "get").mockReturnValue(WINDOWS_UA);
+    const n64 = store.add("Nintendo 64", [1, 2]);
+    const ps2 = store.add("PlayStation 2", [1, 100]);
+
+    await sync({ "Nintendo 64": [1], "PlayStation 2": [2] });
+
+    expect(recordFor("platform", "Nintendo 64")?.collection_id).toBe(n64.id);
+    expect(ps2.allApps.map((a) => a.appid)).toEqual([1, 100]);
+    expect(recordFor("platform", "PlayStation 2")).toMatchObject({
+      display_name: "PlayStation 2 (RomM)",
+      yielded_to: "PlayStation 2",
+    });
+  });
+
+  it("never adopts another device's collection", async () => {
+    const other = store.add("RomM: Nintendo 64 (steamdeck)", [1]);
+
+    await sync({ "Nintendo 64": [1] });
+
+    expect(backend.records.some((r) => r.collection_id === other.id)).toBe(false);
+    expect(other.Save).not.toHaveBeenCalled();
+  });
+
+  it("is not marked done after a cancelled run", async () => {
+    await sync({ "Nintendo 64": [1] }, {}, true);
+
+    expect(backend.adoptionDone).toBe(false);
+  });
+
+  it("does not adopt once it is done", async () => {
+    vi.spyOn(navigator, "userAgent", "get").mockReturnValue(WINDOWS_UA);
+    backend.adoptionDone = true;
+    const n64 = store.add("Nintendo 64", [1]);
+
+    await sync({ "Nintendo 64": [1] });
+
+    expect(backend.records.some((r) => r.collection_id === n64.id)).toBe(false);
+    expect(recordFor("platform", "Nintendo 64")?.display_name).toBe("Nintendo 64 (RomM)");
+  });
+});
+
+describe("reconcileSteamCollections — refusals", () => {
+  it("touches nothing when the ownership record cannot be read", async () => {
+    backend.readFails = true;
+    const n64 = store.add("RomM: Nintendo 64 (test)", [1]);
+
+    await sync({ "Nintendo 64": [1, 2] });
+
+    expect(store.collections).toEqual([n64]);
+    expect(n64.Save).not.toHaveBeenCalled();
+  });
+
+  it("does not begin another collection after cancellation", async () => {
     const controller = new AbortController();
-    const existingNew = userCollections[0]!;
-    existingNew.Save.mockImplementation(() => {
-      controller.abort();
-    });
+    controller.abort();
 
-    await createOrUpdateCollections({ "Nintendo 64": [1] }, undefined, controller.signal);
+    await sync({ "Nintendo 64": [1] }, { Favourites: [2] }, false, controller.signal);
 
-    expect(scoped.Delete).not.toHaveBeenCalled();
+    expect(store.collections).toEqual([]);
   });
+});
 
-  it("clears a plain platform collection only while it holds nothing but RomM shortcuts", async () => {
-    const romOnly = holding("Nintendo 64", [1, 2]);
-    stubStore([romOnly]);
+describe("clearPlatformCollection / clearAllRomMCollections", () => {
+  it("clears only the platform's recorded collection", async () => {
+    const n64 = store.add("RomM: Nintendo 64 (test)", [1]);
+    own(n64, "platform", "Nintendo 64");
+    const lookalike = store.add("Nintendo 64", [1]);
+
     await clearPlatformCollection("nintendo 64");
-    expect(romOnly.Delete).toHaveBeenCalledTimes(1);
 
-    const mixed = holding("Nintendo 64", [1, 900]);
-    stubStore([mixed]);
-    await clearPlatformCollection("Nintendo 64");
-    expect(mixed.Delete).not.toHaveBeenCalled();
+    expect(n64.Delete).toHaveBeenCalledTimes(1);
+    expect(lookalike.Delete).not.toHaveBeenCalled();
+    expect(backend.records).toEqual([]);
   });
 
-  it("clears every RomM-only plain collection but no mixed or empty one", async () => {
-    const romOnly = holding("[Favourites]", [1]);
-    const mixed = holding("Nintendo 64", [2, 900]);
-    const empty = holding("SNES", []);
-    const scoped = holding("RomM: GBA (test)", [900]);
-    stubStore([romOnly, mixed, empty, scoped]);
+  it("clears nothing for a platform the plugin owns no collection for", async () => {
+    const users = store.add("RomM: Nintendo 64 (test)", [1]);
+
+    await clearPlatformCollection("Nintendo 64");
+
+    expect(users.Delete).not.toHaveBeenCalled();
+  });
+
+  it("clears every recorded collection and nothing else", async () => {
+    const n64 = store.add("Nintendo 64", [1]);
+    own(n64, "platform", "Nintendo 64");
+    const faves = store.add("Favourites", [2]);
+    own(faves, "romm", "Favourites");
+    const romOnlyUsers = store.add("Completed", [1, 2]);
 
     await clearAllRomMCollections();
 
-    expect(romOnly.Delete).toHaveBeenCalledTimes(1);
-    expect(mixed.Delete).not.toHaveBeenCalled();
-    expect(empty.Delete).not.toHaveBeenCalled();
-    expect(scoped.Delete).toHaveBeenCalledTimes(1);
-  });
-
-  it("never clears a user's own plain-named collection off Windows", async () => {
-    vi.spyOn(navigator, "userAgent", "get").mockReturnValue(DECK_UA);
-    const own = holding("Nintendo 64", [1, 2]);
-    stubStore([own]);
-
-    await clearAllRomMCollections();
-    await clearPlatformCollection("Nintendo 64");
-
-    expect(own.Delete).not.toHaveBeenCalled();
+    expect(n64.Delete).toHaveBeenCalled();
+    expect(faves.Delete).toHaveBeenCalled();
+    expect(romOnlyUsers.Delete).not.toHaveBeenCalled();
+    expect(backend.records).toEqual([]);
   });
 });

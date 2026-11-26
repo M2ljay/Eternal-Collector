@@ -142,6 +142,7 @@ class TestGetSettings:
                 "collection_create_platform_groups": True,
                 "collection_owner_scope": "own",
                 "collection_naming_mode": "by_label",
+                "collection_name_style": "clean",
                 "preferred_region": "USA",
             }
         )
@@ -156,6 +157,7 @@ class TestGetSettings:
         assert result["collection_create_platform_groups"] is True
         assert result["collection_owner_scope"] == "own"
         assert result["collection_naming_mode"] == "by_label"
+        assert result["collection_name_style"] == "clean"
         assert result["preferred_region"] == "USA"
         assert result["retroarch_input_check"] == {"warning": False}
 
@@ -206,6 +208,7 @@ class TestGetSettings:
         assert result["collection_create_platform_groups"] is False
         assert result["collection_owner_scope"] == "all"
         assert result["collection_naming_mode"] == "merge"
+        assert result["collection_name_style"] == "classic"
         assert result["preferred_region"] == "auto"
         assert result["retroachievements_warning"] is True
         assert result["collector_home_shelf"] is True
@@ -617,3 +620,21 @@ class TestDismissSettingsResetNotice:
         assert result == {"success": True}
         assert "_settings_reset_notice" not in settings
         settings_persister.save_settings.assert_called_once_with()
+
+
+class TestSetCollectionNameStyle:
+    @pytest.mark.parametrize("style", ["classic", "clean"])
+    def test_valid_styles_persist(self, service, settings, settings_persister, style):
+        result = service.set_collection_name_style(style)
+        assert result == {"success": True}
+        assert settings["collection_name_style"] == style
+        settings_persister.save_settings.assert_called_once_with()
+
+    @pytest.mark.parametrize("bad", ["fancy", "", None, 1])
+    def test_invalid_style_rejected_with_canonical_failure(self, service, settings, settings_persister, bad):
+        result = service.set_collection_name_style(bad)
+        assert result["success"] is False
+        assert result["reason"] == "invalid_style"
+        assert "Invalid collection name style" in result["message"]
+        assert "collection_name_style" not in settings
+        settings_persister.save_settings.assert_not_called()

@@ -79,6 +79,7 @@ _BOUND_SERVICE_ATTRS = {
     "_migration_service": "migration_service",
     "_game_detail_service": "game_detail_service",
     "_console_shelf_service": "console_shelf_service",
+    "_steam_collection_service": "steam_collection_service",
     "_artwork_service": "artwork_service",
     "_shortcut_removal_service": "shortcut_removal_service",
     "_settings_service": "settings_service",

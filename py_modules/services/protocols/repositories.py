@@ -13,7 +13,8 @@ The Protocols match the aggregate roots settled in ADR-0003 — ``Rom``,
 ``RomInstall``, ``RomMetadata``, ``Playtime``, ``RomSaveSyncState``, ``BiosFile``,
 ``FirmwareCacheEntry``, ``SyncRun`` — plus ``PlatformSyncState`` (the per-platform
 completion stamp, ADR-0023), ``RomSavestateSyncState`` (savestate backup records,
-ADR-0031), ``RomAchievementProgress`` (the achievement snapshot) and the ``kv_config``
+ADR-0031), ``RomAchievementProgress`` (the achievement snapshot), ``OwnedSteamCollection`` (the
+plugin's own Steam collections) and the ``kv_config``
 key-value surface.
 ``SyncSettings``/``Platform``/``Device`` are NOT repositories — ADR-0003 dropped
 those aggregates.
@@ -33,6 +34,7 @@ if TYPE_CHECKING:
     from domain.bios_file import BiosFile
     from domain.collection_sync_state import CollectionSyncState
     from domain.firmware_cache import FirmwareCacheEntry
+    from domain.owned_steam_collection import OwnedSteamCollection
     from domain.platform_sync_state import PlatformSyncState
     from domain.playtime import PendingSessionRow, Playtime
     from domain.rom import Rom
@@ -482,6 +484,30 @@ class CollectionSyncStateRepository(Protocol):
         Backs the "Force Full Sync" reset alongside the platform stamps
         (library/reporter.py).
         """
+        ...
+
+
+class OwnedSteamCollectionRepository(Protocol):
+    """Persistence seam for the ``OwnedSteamCollection`` aggregate (the plugin's own Steam collections).
+
+    Keyed by Steam's collection id; at most one record per ``(family, source_key)``.
+    A collection with no record is the user's.
+    """
+
+    def get(self, collection_id: str) -> OwnedSteamCollection | None:
+        """Return the record for *collection_id*, or ``None`` when the plugin does not own it."""
+        ...
+
+    def iter_all(self) -> Iterator[OwnedSteamCollection]:
+        """Iterate every owned collection, by family then source."""
+        ...
+
+    def save(self, record: OwnedSteamCollection) -> None:
+        """Upsert *record*, replacing any other record for the same family and source."""
+        ...
+
+    def delete(self, collection_id: str) -> None:
+        """Forget *collection_id*. A no-op when absent."""
         ...
 
 

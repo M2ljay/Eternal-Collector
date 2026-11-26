@@ -48,6 +48,7 @@ from services.session_lifecycle import SessionLifecycleService, SessionLifecycle
 from services.settings import SettingsService, SettingsServiceConfig
 from services.shortcut_removal import ShortcutRemovalService, ShortcutRemovalServiceConfig
 from services.startup_healing import StartupHealingService, StartupHealingServiceConfig
+from services.steam_collections import SteamCollectionOwnershipService, SteamCollectionOwnershipServiceConfig
 from services.steamgrid import SteamGridService, SteamGridServiceConfig
 from services.version_switch import VersionSwitchService, VersionSwitchServiceConfig
 from services.windows_game import WindowsGameService, WindowsGameServiceConfig
@@ -483,6 +484,14 @@ def wire_services(cfg: WiringConfig) -> dict[str, Any]:
         ),
     )
 
+    steam_collection_service = SteamCollectionOwnershipService(
+        config=SteamCollectionOwnershipServiceConfig(
+            uow_factory=cfg.callbacks.uow_factory,
+            settings=cfg.stores.settings,
+            log_debug=cfg.callbacks.log_debug,
+        ),
+    )
+
     game_detail_service = GameDetailService(
         config=GameDetailServiceConfig(
             candidate_probe=rom_adoption_service.has_adoption_candidate,
@@ -718,6 +727,7 @@ def wire_services(cfg: WiringConfig) -> dict[str, Any]:
         "migration_service": migration_service,
         "game_detail_service": game_detail_service,
         "console_shelf_service": console_shelf_service,
+        "steam_collection_service": steam_collection_service,
         "artwork_service": artwork_service,
         "shortcut_removal_service": shortcut_removal_service,
         "settings_service": settings_service,

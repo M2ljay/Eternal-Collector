@@ -239,12 +239,17 @@ every other platform stays enabled and keeps syncing.
 
 ## Collections
 
-The plugin automatically creates Steam collections for each synced platform. Collection names include your machine's
-hostname to avoid conflicts if you run the plugin on multiple devices:
+The plugin automatically creates Steam collections for each synced platform. With the default **Classic**
+[collection names](configuration.md#collection-names), names include your machine's hostname to avoid conflicts if you
+run the plugin on multiple devices:
 
 - `RomM: Nintendo 64 (steamdeck)`
 - `RomM: Game Boy Advance (steamdeck)`
 - `RomM: PlayStation (htpc)`
+
+With **Clean** names they are just `Nintendo 64`, `Game Boy Advance` and `PlayStation`. Either way the plugin only ever
+renames, refills or deletes collections it made itself — never one of yours, even one with the same name (its own then
+gets `(RomM)` added).
 
 Collections appear in Steam's library sidebar and can be used to browse games by platform.
 

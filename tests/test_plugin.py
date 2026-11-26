@@ -820,6 +820,14 @@ _MIGRATION_BLOCKED_WHITELIST: set[str] = {
     # Collection naming mode (#1539) — a settings.json-only write, never touches
     # RetroDECK state; takes effect on the next sync's reporter-key build.
     "set_collection_naming_mode",
+    # Collection name style and the Steam-collection ownership record — a
+    # settings.json write and SQLite bookkeeping of Steam collection ids; neither
+    # touches RetroDECK state.
+    "set_collection_name_style",
+    "get_owned_steam_collections",
+    "record_owned_steam_collection",
+    "forget_owned_steam_collection",
+    "finish_steam_collection_adoption",
     # Preferred sibling-group region — a settings.json-only write (ADR-0021 §3),
     # never touches RetroDECK state; takes effect on the next sync. Its companion
     # read (distinct regions in the local library) is a pure local DB read.
@@ -1131,6 +1139,7 @@ class TestMainStartupOrdering:
             "migration_service": migration_service,
             "game_detail_service": MagicMock(),
             "console_shelf_service": MagicMock(),
+            "steam_collection_service": MagicMock(),
             "artwork_service": artwork_service,
             "shortcut_removal_service": MagicMock(),
             "settings_service": MagicMock(),

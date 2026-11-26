@@ -1,7 +1,7 @@
 """The synchronous SQLite Unit of Work — the transactional boundary for one operation.
 
 Opens one ``sqlite3`` connection per operation, applies the runtime
-per-connection PRAGMAs, issues an explicit ``BEGIN IMMEDIATE``, exposes the thirteen
+per-connection PRAGMAs, issues an explicit ``BEGIN IMMEDIATE``, exposes the fourteen
 repositories over that shared connection, and commits / rolls back on exit. Used
 as a synchronous context manager from a service's ``run_in_executor`` worker so
 the connection never escapes its worker thread (ADR-0004 — sync ``sqlite3`` over
@@ -30,6 +30,7 @@ from adapters.repositories.bios_file import SqliteBiosFileRepository
 from adapters.repositories.collection_sync_state import SqliteCollectionSyncStateRepository
 from adapters.repositories.firmware_cache import SqliteFirmwareCacheRepository
 from adapters.repositories.kv_config import SqliteKvConfigRepository
+from adapters.repositories.owned_steam_collection import SqliteOwnedSteamCollectionRepository
 from adapters.repositories.platform_sync_state import SqlitePlatformSyncStateRepository
 from adapters.repositories.playtime import SqlitePlaytimeRepository
 from adapters.repositories.rom import SqliteRomRepository
@@ -45,13 +46,13 @@ if TYPE_CHECKING:
 
 
 class SqliteUnitOfWork:
-    """Atomic transaction boundary over one SQLite connection and the thirteen repositories.
+    """Atomic transaction boundary over one SQLite connection and the fourteen repositories.
 
     A clean ``__exit__`` commits; an exceptional one rolls back and re-raises.
     The connection is opened in ``__enter__`` and closed in ``__exit__`` so it
     lives entirely on the executor thread that drives the ``with`` block.
 
-    The thirteen repositories are bound in ``__enter__`` (they need the open
+    The fourteen repositories are bound in ``__enter__`` (they need the open
     connection). Declaring them here as instance attributes makes the structural
     match against the ``UnitOfWork`` Protocol explicit: the concrete repository
     types each satisfy their repository Protocol, so this class satisfies
@@ -70,6 +71,7 @@ class SqliteUnitOfWork:
     sync_runs: SqliteSyncRunRepository
     platform_sync_state: SqlitePlatformSyncStateRepository
     collection_sync_state: SqliteCollectionSyncStateRepository
+    owned_steam_collections: SqliteOwnedSteamCollectionRepository
     kv_config: SqliteKvConfigRepository
 
     def __init__(self, db_path: str) -> None:
@@ -107,6 +109,7 @@ class SqliteUnitOfWork:
         self.sync_runs = SqliteSyncRunRepository(conn)
         self.platform_sync_state = SqlitePlatformSyncStateRepository(conn)
         self.collection_sync_state = SqliteCollectionSyncStateRepository(conn)
+        self.owned_steam_collections = SqliteOwnedSteamCollectionRepository(conn)
         self.kv_config = SqliteKvConfigRepository(conn)
         return self
 

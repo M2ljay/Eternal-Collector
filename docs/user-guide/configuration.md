@@ -176,6 +176,29 @@ collections and playtime. Already-synced games keep their bound version and name
 to new games. See [Multiple versions of a game](syncing-your-library.md#multiple-versions-of-a-game) for the full
 picture.
 
+## Collection names
+
+A dropdown in the **Library** section of the settings page that decides how the Steam collections The Collector makes
+for your platforms and synced RomM collections are named:
+
+| Option                | Platform collection                                    | RomM collection                                          |
+| --------------------- | ------------------------------------------------------ | -------------------------------------------------------- |
+| **Classic** (default) | `RomM: Nintendo 64 (htpc)` — on Windows: `Nintendo 64` | `RomM: [Favourites] (htpc)` — on Windows: `[Favourites]` |
+| **Clean**             | `Nintendo 64`, `PlayStation 2`                         | `Favourites`                                             |
+
+Classic keeps the names The Collector has always used, so nothing changes until you pick Clean. The change applies on
+the **next sync**: The Collector renames its own collections (keeping their games), and deletes nothing that is yours.
+
+**Your own collections are never touched.** The Collector remembers which Steam collections it made and only ever
+renames, refills or deletes those. A collection you made — `VR`, `Completed`, or one you happened to call
+`PlayStation 2` — is never renamed, merged into, refilled or deleted, whatever it is called and whatever games are in
+it. If one of your collections already has the name a Collector collection wants, The Collector's collection gets
+`(RomM)` added (`VR (RomM)`), and a note under the dropdown says so. Rename or delete your collection and the next sync
+gives The Collector's collection the plain name back.
+
+Clean names have no device name in them, so if you sync the same Steam account on more than one PC (or a Steam Deck),
+Steam Cloud shows these collections on the other machines too. Each machine only manages the collections it made itself.
+
 ## RetroAchievements warning
 
 **Warn when RetroAchievements isn't working**, in the **Library** section of the settings page (on by default), shows

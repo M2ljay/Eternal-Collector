@@ -147,6 +147,7 @@ modules =
     services.settings
     services.shortcut_removal
     services.startup_healing
+    services.steam_collections
     services.steamgrid
     services.version_switch
     services.windows_game

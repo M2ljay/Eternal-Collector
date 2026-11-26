@@ -11,6 +11,9 @@ import type {
   CollectionKind,
   CollectionOwnerScope,
   CollectionNamingMode,
+  CollectionNameStyle,
+  OwnedSteamCollectionsAnswer,
+  SteamCollectionFamily,
   RegistryPlatform,
   FirmwareStatus,
   FirmwareDownloadResult,
@@ -397,6 +400,24 @@ export const setCollectionNamingMode = callable<
   [CollectionNamingMode],
   { success: boolean; reason?: string; message?: string }
 >("set_collection_naming_mode");
+// How the plugin's own Steam collections are named. Read via
+// getSettings().collection_name_style; applies on the next sync.
+export const setCollectionNameStyle = callable<
+  [CollectionNameStyle],
+  { success: boolean; reason?: string; message?: string }
+>("set_collection_name_style");
+// The ownership record of the plugin's own Steam collections (src/utils/collections.ts).
+export const getOwnedSteamCollections = callable<[], OwnedSteamCollectionsAnswer>("get_owned_steam_collections");
+export const recordOwnedSteamCollection = callable<
+  [string, SteamCollectionFamily, string, string, string | null],
+  { success: boolean; reason?: string; message?: string }
+>("record_owned_steam_collection");
+export const forgetOwnedSteamCollection = callable<[string], { success: boolean; reason?: string; message?: string }>(
+  "forget_owned_steam_collection",
+);
+export const finishSteamCollectionAdoption = callable<[], { success: boolean; reason?: string; message?: string }>(
+  "finish_steam_collection_adoption",
+);
 export const getRegistryPlatforms = callable<[], { platforms: RegistryPlatform[] }>("get_registry_platforms");
 export const removePlatformShortcuts = callable<
   [string],

@@ -15,6 +15,7 @@ import pytest
 from domain.bios_file import BiosFile
 from domain.collection_sync_state import CollectionSyncState
 from domain.firmware_cache import FirmwareCacheEntry
+from domain.owned_steam_collection import OwnedSteamCollection
 from domain.platform_sync_state import PlatformSyncState
 from domain.playtime import Playtime
 from domain.rom import Rom
@@ -28,6 +29,7 @@ from fakes.fake_bios_file_repository import FakeBiosFileRepository
 from fakes.fake_collection_sync_state_repository import FakeCollectionSyncStateRepository
 from fakes.fake_firmware_cache_repository import FakeFirmwareCacheRepository
 from fakes.fake_kv_config_repository import FakeKvConfigRepository
+from fakes.fake_owned_steam_collection_repository import FakeOwnedSteamCollectionRepository
 from fakes.fake_platform_sync_state_repository import FakePlatformSyncStateRepository
 from fakes.fake_playtime_repository import FakePlaytimeRepository
 from fakes.fake_rom_achievement_progress_repository import FakeRomAchievementProgressRepository
@@ -44,6 +46,7 @@ if TYPE_CHECKING:
         BiosFileRepository,
         FirmwareCacheRepository,
         KvConfigRepository,
+        OwnedSteamCollectionRepository,
         PlatformSyncStateRepository,
         PlaytimeRepository,
         RomAchievementProgressRepository,
@@ -85,6 +88,7 @@ class TestProtocolSatisfaction:
         runs: SyncRunRepository = FakeSyncRunRepository()
         platform_state: PlatformSyncStateRepository = FakePlatformSyncStateRepository()
         kv: KvConfigRepository = FakeKvConfigRepository()
+        owned: OwnedSteamCollectionRepository = FakeOwnedSteamCollectionRepository()
         assert all(
             obj is not None
             for obj in (
@@ -100,6 +104,7 @@ class TestProtocolSatisfaction:
                 runs,
                 platform_state,
                 kv,
+                owned,
             )
         )
 
@@ -337,6 +342,38 @@ class TestFakeRomAchievementProgressRepository:
         with pytest.raises(sqlite3.IntegrityError), uow:
             uow.rom_achievement_progress.replace_all({99: self._progress()})
         assert uow.rom_achievement_progress.get(99) is None
+
+
+class TestFakeOwnedSteamCollectionRepository:
+    @staticmethod
+    def _record(collection_id: str, source: str, family: str = "platform") -> OwnedSteamCollection:
+        return OwnedSteamCollection.claim(
+            collection_id=collection_id, family=family, source_name=source, display_name=source
+        )
+
+    def test_save_get_iter_delete(self):
+        repo = FakeOwnedSteamCollectionRepository()
+        repo.save(self._record("uc-2", "Super Nintendo"))
+        repo.save(self._record("uc-1", "Nintendo 64"))
+        assert repo.get("uc-1") == self._record("uc-1", "Nintendo 64")
+        assert [r.collection_id for r in repo.iter_all()] == ["uc-1", "uc-2"]
+        repo.delete("uc-1")
+        repo.delete("uc-1")
+        assert repo.get("uc-1") is None
+
+    def test_a_source_moves_to_its_new_collection(self):
+        repo = FakeOwnedSteamCollectionRepository()
+        repo.save(self._record("uc-old", "Nintendo 64"))
+        repo.save(self._record("uc-other-family", "Nintendo 64", family="romm"))
+        repo.save(self._record("uc-new", "nintendo 64"))
+        assert sorted(r.collection_id for r in repo.iter_all()) == ["uc-new", "uc-other-family"]
+
+    def test_uow_rollback_discards_a_record(self):
+        uow = FakeUnitOfWork()
+        with pytest.raises(RuntimeError), uow:
+            uow.owned_steam_collections.save(self._record("uc-1", "Nintendo 64"))
+            raise RuntimeError("boom")
+        assert uow.owned_steam_collections.get("uc-1") is None
 
 
 class TestFakeBiosFileRepository:
