@@ -1,7 +1,7 @@
 {
- "version": "0.33.0-win.21",
- "sha256": "4490185b9dbca1395d30613b6e45e206195fbd210531f268544021e82f6ab93c",
- "size": 2313158,
- "notes": "The Collector win.21: one notice when RetroAchievements isn't working for a game (achievements off, not signed in, or PCSX2's login failed). Turn it off under Settings > Library.",
+ "version": "0.33.0-win.22",
+ "sha256": "f329c083a136047c009743c55db26c89ce1a5c0faae6eee9ce603d140571c754",
+ "size": 2331400,
+ "notes": "Savestate backup (RetroArch): opt-in under Save Sync; uploads savestates made after you turn it on, after each game. Backup only, nothing is restored automatically.",
  "url": "https://raw.githubusercontent.com/M2ljay/Eternal-Romm/release/romm-dock.zip"
 }
