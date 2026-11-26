@@ -1,7 +1,7 @@
 {
- "version": "0.33.0-win.20",
- "sha256": "7120e0c95d025b469a8cb02698e18da7b7003a068193bf8759c72f370bf46412",
- "size": 2304763,
- "notes": "The Collector win.20: safe updates with an install check, a warning when a game's saves can't sync, and the Core logo while emulators start and close; PS2 games open straight into the game.",
+ "version": "0.33.0-win.21",
+ "sha256": "4490185b9dbca1395d30613b6e45e206195fbd210531f268544021e82f6ab93c",
+ "size": 2313158,
+ "notes": "The Collector win.21: one notice when RetroAchievements isn't working for a game (achievements off, not signed in, or PCSX2's login failed). Turn it off under Settings > Library.",
  "url": "https://raw.githubusercontent.com/M2ljay/Eternal-Romm/release/romm-dock.zip"
 }
