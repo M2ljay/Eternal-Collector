@@ -13,7 +13,8 @@ The Protocols match the aggregate roots settled in ADR-0003 — ``Rom``,
 ``RomInstall``, ``RomMetadata``, ``Playtime``, ``RomSaveSyncState``, ``BiosFile``,
 ``FirmwareCacheEntry``, ``SyncRun`` — plus ``PlatformSyncState`` (the per-platform
 completion stamp, ADR-0023), ``RomSavestateSyncState`` (savestate backup records,
-ADR-0031) and the ``kv_config`` key-value surface.
+ADR-0031), ``RomAchievementProgress`` (the achievement snapshot) and the ``kv_config``
+key-value surface.
 ``SyncSettings``/``Platform``/``Device`` are NOT repositories — ADR-0003 dropped
 those aggregates.
 
@@ -35,6 +36,7 @@ if TYPE_CHECKING:
     from domain.platform_sync_state import PlatformSyncState
     from domain.playtime import PendingSessionRow, Playtime
     from domain.rom import Rom
+    from domain.rom_achievement_progress import RomAchievementProgress
     from domain.rom_install import RomInstall
     from domain.rom_metadata import RomMetadata
     from domain.rom_save_sync_state import RomSaveSyncState
@@ -270,6 +272,26 @@ class RomSavestateSyncStateRepository(Protocol):
 
     def save(self, rom_id: int, state: RomSavestateSyncState) -> None:
         """Replace every slot record of *rom_id* with the slots of *state*."""
+        ...
+
+
+class RomAchievementProgressRepository(Protocol):
+    """Persistence seam for the ``RomAchievementProgress`` aggregate (the achievement snapshot).
+
+    Keyed by *rom_id*. The snapshot is one RomM answer, so it is only ever replaced
+    as a whole.
+    """
+
+    def get(self, rom_id: int) -> RomAchievementProgress | None:
+        """Return the recorded progress for *rom_id*, or ``None`` when it has none."""
+        ...
+
+    def iter_all(self) -> Iterator[tuple[int, RomAchievementProgress]]:
+        """Iterate ``(rom_id, progress)`` for every ROM with recorded progress."""
+        ...
+
+    def replace_all(self, snapshot: dict[int, RomAchievementProgress]) -> None:
+        """Replace the whole snapshot with *snapshot*."""
         ...
 
 

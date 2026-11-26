@@ -208,6 +208,7 @@ class TestGetSettings:
         assert result["collection_naming_mode"] == "merge"
         assert result["preferred_region"] == "auto"
         assert result["retroachievements_warning"] is True
+        assert result["collector_home_shelf"] is True
 
     def test_includes_retroarch_input_check_payload(self, service, steam_config):
         steam_config.check_retroarch_input_driver.return_value = {
@@ -540,6 +541,19 @@ class TestSaveRetroAchievementsWarning:
         settings["retroachievements_warning"] = False
         service.save_retroachievements_warning(1)  # type: ignore[arg-type]
         assert settings["retroachievements_warning"] is True
+
+
+class TestSaveCollectorHomeShelf:
+    def test_disables(self, service, settings, settings_persister):
+        assert service.save_collector_home_shelf(False) == {"success": True}
+        assert settings["collector_home_shelf"] is False
+        assert service.get_settings()["collector_home_shelf"] is False
+        settings_persister.save_settings.assert_called_once_with()
+
+    def test_enables_and_coerces(self, service, settings):
+        settings["collector_home_shelf"] = False
+        service.save_collector_home_shelf(1)  # type: ignore[arg-type]
+        assert settings["collector_home_shelf"] is True
 
 
 class TestSetCollectionOwnerScope:

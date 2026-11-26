@@ -808,6 +808,12 @@ _MIGRATION_BLOCKED_WHITELIST: set[str] = {
     "update_whitelist_settings",
     "save_collection_platform_groups",
     "save_retroachievements_warning",
+    # The Collector — offline reads, a settings.json-only toggle, and the
+    # achievement snapshot (one /api/users/me read); none touches RetroDECK state.
+    "save_collector_home_shelf",
+    "get_console_shelf",
+    "get_console_games",
+    "refresh_console_achievements",
     # Collection owner-scope (#1532) — a settings.json-only write, never touches
     # RetroDECK state; takes effect on the next sync's work-queue build.
     "set_collection_owner_scope",
@@ -1124,6 +1130,7 @@ class TestMainStartupOrdering:
             "achievements_service": MagicMock(),
             "migration_service": migration_service,
             "game_detail_service": MagicMock(),
+            "console_shelf_service": MagicMock(),
             "artwork_service": artwork_service,
             "shortcut_removal_service": MagicMock(),
             "settings_service": MagicMock(),

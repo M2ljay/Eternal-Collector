@@ -82,12 +82,13 @@ def _set_user_version(db_path: str, version: int) -> None:
 # + 019_add_collection_sync_state + 020_add_fetch_generation
 # + 021_add_rom_fs_size + 022_rename_collection_kind_user_to_standard
 # + 023_add_rom_install_launchable + 024_emulator_override_per_backend
-# + 025_add_selected_exe + 026_add_rom_savestate_sync_states).
-_SHIPPED_VERSION = 26
+# + 025_add_selected_exe + 026_add_rom_savestate_sync_states
+# + 027_add_rom_achievement_progress).
+_SHIPPED_VERSION = 27
 
 # Tables after every shipped migration: the v1 set plus 006's play-session outbox,
 # 012's per-platform completion stamp, 019's per-collection completion stamp, and
-# 026's savestate backup records, with 018 renaming the save-sync scalar table
+# 026's savestate backup records and 027's achievement snapshot, with 018 renaming the save-sync scalar table
 # rom_save_states -> rom_save_sync_states.
 _SHIPPED_TABLES = (_V1_TABLES - {"rom_save_states"}) | {
     "rom_save_sync_states",
@@ -95,6 +96,7 @@ _SHIPPED_TABLES = (_V1_TABLES - {"rom_save_states"}) | {
     "platform_sync_state",
     "collection_sync_state",
     "rom_savestate_sync_states",
+    "rom_achievement_progress",
 }
 
 
@@ -1701,6 +1703,70 @@ class Test026AddRomSavestateSyncStates:
             )
             conn.execute("DELETE FROM roms WHERE rom_id = 1")
             assert conn.execute("SELECT COUNT(*) FROM rom_savestate_sync_states").fetchone()[0] == 0
+        finally:
+            conn.close()
+
+
+class Test027AddRomAchievementProgress:
+    """027 — adds the per-ROM achievement snapshot table, cascading from roms."""
+
+    def test_table_absent_before_027(self, tmp_path: Path):
+        db_path = str(tmp_path / "romm_sync.db")
+        apply_migrations(db_path, str(_only_migrations_through(tmp_path, 26)))
+
+        assert _user_version(db_path) == 26
+        assert "rom_achievement_progress" not in _tables(db_path)
+
+    def test_existing_rom_survives_and_has_no_progress(self, tmp_path: Path):
+        db_path = str(tmp_path / "romm_sync.db")
+        apply_migrations(db_path, str(_only_migrations_through(tmp_path, 26)))
+        conn = sqlite3.connect(db_path, isolation_level=None)
+        try:
+            _insert_rom(conn, 1, 5000)
+        finally:
+            conn.close()
+
+        assert apply_migrations(db_path) == _SHIPPED_VERSION
+
+        conn = sqlite3.connect(db_path)
+        try:
+            assert conn.execute("SELECT COUNT(*) FROM roms").fetchone()[0] == 1
+            assert conn.execute("SELECT COUNT(*) FROM rom_achievement_progress").fetchone()[0] == 0
+        finally:
+            conn.close()
+
+    @pytest.mark.parametrize(
+        ("earned", "hardcore", "total"),
+        [(-1, 0, 10), (2, 3, 10), (11, 0, 10), (0, 0, 0)],
+    )
+    def test_rejects_impossible_counts(self, tmp_path: Path, earned: int, hardcore: int, total: int):
+        db_path = str(tmp_path / "romm_sync.db")
+        apply_migrations(db_path)
+        conn = sqlite3.connect(db_path, isolation_level=None)
+        try:
+            _insert_rom(conn, 1, 5000)
+            with pytest.raises(sqlite3.IntegrityError):
+                conn.execute(
+                    "INSERT INTO rom_achievement_progress (rom_id, earned, earned_hardcore, total, fetched_at) "
+                    "VALUES (1, ?, ?, ?, '2026-11-26T00:00:00+00:00')",
+                    (earned, hardcore, total),
+                )
+        finally:
+            conn.close()
+
+    def test_rom_delete_cascades(self, tmp_path: Path):
+        db_path = str(tmp_path / "romm_sync.db")
+        apply_migrations(db_path)
+        conn = sqlite3.connect(db_path, isolation_level=None)
+        try:
+            conn.execute("PRAGMA foreign_keys=ON")
+            _insert_rom(conn, 1, 5000)
+            conn.execute(
+                "INSERT INTO rom_achievement_progress (rom_id, earned, earned_hardcore, total, fetched_at) "
+                "VALUES (1, 1, 0, 5, '2026-11-26T00:00:00+00:00')"
+            )
+            conn.execute("DELETE FROM roms WHERE rom_id = 1")
+            assert conn.execute("SELECT COUNT(*) FROM rom_achievement_progress").fetchone()[0] == 0
         finally:
             conn.close()
 

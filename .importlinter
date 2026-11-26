@@ -118,6 +118,7 @@ modules =
     services.active_core_resolver
     services.artwork
     services.connection
+    services.console_shelf
     services.cores
     services.disc
     services.disc_launch_resolver

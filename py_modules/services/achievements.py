@@ -2,8 +2,11 @@
 
 Owns the in-memory achievements cache and every read the game-detail
 panel runs against it: per-ROM achievement lists, the user-progress
-snapshot, and the post-session refresh that keeps cached completion
-counts in step with the RomM server after a play session. HTTP traffic
+snapshot, the post-session refresh that keeps cached completion
+counts in step with the RomM server after a play session, and the
+persisted achievement snapshot (``rom_achievement_progress``) that the
+console pages read offline. The snapshot is replaced from every
+``/api/users/me`` answer this service reads, so it costs no extra request. HTTP traffic
 flows through ``RommAchievementsApi``; cache shape, invalidation
 policy, and the pure progress extraction live here.
 """
@@ -14,6 +17,8 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
 from domain.achievements import extract_achievements_from_rom, extract_game_progress
+from domain.iso_time import epoch_to_iso
+from domain.rom_achievement_progress import SNAPSHOT_FETCHED_AT_KEY, build_snapshot
 from lib.errors import classify_error
 
 if TYPE_CHECKING:
@@ -209,6 +214,7 @@ class AchievementsService:
                 self._achievements_cache["_ra_user"] = {"username": fetched_username, "cached_at": self._clock.time()}
 
             progress_data = extract_game_progress(user_data.get("ra_progression"), ra_id, total, self._clock.time())
+            await self._store_snapshot_quietly(user_data)
 
             if rom_id_str not in self._achievements_cache:
                 self._achievements_cache[rom_id_str] = {}
@@ -251,3 +257,50 @@ class AchievementsService:
                 f"{result.get('earned', 0)}/{result.get('total', 0)} earned"
             )
         return result
+
+    def do_store_progress_snapshot(self, user_data: dict[str, Any]) -> str:
+        """Replace the persisted achievement snapshot from one ``/api/users/me`` answer.
+
+        Synchronous: one write UoW reading every ROM's ``ra_id`` and replacing the whole
+        ``rom_achievement_progress`` table, plus the ``fetched_at`` stamp in ``kv_config``.
+        Returns that stamp. An answer without ``ra_progression`` (no RA username in the
+        RomM profile) empties the snapshot: there is no progress to show.
+        """
+        fetched_at = epoch_to_iso(self._clock.time())
+        with self._uow_factory() as uow:
+            rom_ra_ids = [(rom.rom_id, rom.ra_id) for rom in uow.roms.iter_all() if rom.ra_id]
+            snapshot = build_snapshot(user_data.get("ra_progression"), rom_ra_ids, fetched_at)
+            uow.rom_achievement_progress.replace_all(snapshot)
+            uow.kv_config.set(SNAPSHOT_FETCHED_AT_KEY, fetched_at)
+        self._log_debug(f"Achievement snapshot: {len(snapshot)} of {len(rom_ra_ids)} ROMs with a set have progress")
+        return fetched_at
+
+    async def _store_snapshot_quietly(self, user_data: dict[str, Any]) -> None:
+        """Store the snapshot from an answer read for another purpose; a failure only logs."""
+        try:
+            await self._loop.run_in_executor(None, self.do_store_progress_snapshot, user_data)
+        except Exception as e:
+            self._logger.warning(f"Failed to store the achievement snapshot: {e}")
+
+    async def refresh_progress_snapshot(self) -> dict[str, Any]:
+        """Read the user's progress from RomM once and replace the persisted snapshot.
+
+        Returns ``{success: True, refreshed_at}``, or the canonical failure shape when
+        RomM cannot be read; the previous snapshot is kept on failure. RomM only updates
+        this data on its own RetroAchievements sync, so a refresh can be no fresher than
+        that.
+        """
+        try:
+            user_data = await self._loop.run_in_executor(None, self._romm_api.get_current_user)
+        except Exception as e:
+            self._logger.warning(f"Failed to refresh achievement progress from RomM: {e}")
+            reason, _message = classify_error(e)
+            return {"success": False, "reason": reason, "message": str(e)}
+        ra_username = (user_data.get("ra_username") or "").strip()
+        self._achievements_cache["_ra_user"] = {"username": ra_username, "cached_at": self._clock.time()}
+        try:
+            fetched_at = await self._loop.run_in_executor(None, self.do_store_progress_snapshot, user_data)
+        except Exception as e:
+            self._logger.warning(f"Failed to store the achievement snapshot: {e}")
+            return {"success": False, "reason": "snapshot_failed", "message": str(e)}
+        return {"success": True, "refreshed_at": fetched_at}

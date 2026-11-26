@@ -18,6 +18,7 @@ from domain.firmware_cache import FirmwareCacheEntry
 from domain.platform_sync_state import PlatformSyncState
 from domain.playtime import Playtime
 from domain.rom import Rom
+from domain.rom_achievement_progress import RomAchievementProgress
 from domain.rom_install import RomInstall
 from domain.rom_metadata import RomMetadata
 from domain.rom_save_sync_state import FileSyncState, RomSaveSyncState
@@ -29,6 +30,7 @@ from fakes.fake_firmware_cache_repository import FakeFirmwareCacheRepository
 from fakes.fake_kv_config_repository import FakeKvConfigRepository
 from fakes.fake_platform_sync_state_repository import FakePlatformSyncStateRepository
 from fakes.fake_playtime_repository import FakePlaytimeRepository
+from fakes.fake_rom_achievement_progress_repository import FakeRomAchievementProgressRepository
 from fakes.fake_rom_install_repository import FakeRomInstallRepository
 from fakes.fake_rom_metadata_repository import FakeRomMetadataRepository
 from fakes.fake_rom_repository import FakeRomRepository
@@ -44,6 +46,7 @@ if TYPE_CHECKING:
         KvConfigRepository,
         PlatformSyncStateRepository,
         PlaytimeRepository,
+        RomAchievementProgressRepository,
         RomInstallRepository,
         RomMetadataRepository,
         RomRepository,
@@ -76,6 +79,7 @@ class TestProtocolSatisfaction:
         playtime: PlaytimeRepository = FakePlaytimeRepository()
         save_states: RomSaveSyncStateRepository = FakeRomSaveSyncStateRepository()
         savestates: RomSavestateSyncStateRepository = FakeRomSavestateSyncStateRepository()
+        progress: RomAchievementProgressRepository = FakeRomAchievementProgressRepository()
         bios: BiosFileRepository = FakeBiosFileRepository()
         firmware: FirmwareCacheRepository = FakeFirmwareCacheRepository()
         runs: SyncRunRepository = FakeSyncRunRepository()
@@ -90,6 +94,7 @@ class TestProtocolSatisfaction:
                 playtime,
                 save_states,
                 savestates,
+                progress,
                 bios,
                 firmware,
                 runs,
@@ -299,6 +304,39 @@ class TestFakeRomSavestateSyncStateRepository:
         with pytest.raises(sqlite3.IntegrityError), uow:
             uow.rom_savestate_sync_states.save(99, state)
         assert uow.rom_savestate_sync_states.get(99) is None
+
+
+class TestFakeRomAchievementProgressRepository:
+    @staticmethod
+    def _progress() -> RomAchievementProgress:
+        return RomAchievementProgress.observed(
+            earned=1, earned_hardcore=0, total=5, highest_award_kind=None, fetched_at="t"
+        )
+
+    def test_replace_iter_and_cascade(self):
+        uow = FakeUnitOfWork()
+        with uow:
+            uow.roms.save(
+                Rom(
+                    rom_id=1,
+                    platform_slug="snes",
+                    name="G",
+                    fs_name="g",
+                    shortcut_app_id=1,
+                    last_synced_at="2026-01-01T00:00:00",
+                )
+            )
+            uow.rom_achievement_progress.replace_all({1: self._progress()})
+        assert list(uow.rom_achievement_progress.iter_all()) == [(1, self._progress())]
+        with uow:
+            uow.roms.delete(1)
+        assert uow.rom_achievement_progress.get(1) is None
+
+    def test_uow_rejects_an_orphan_progress_row(self):
+        uow = FakeUnitOfWork()
+        with pytest.raises(sqlite3.IntegrityError), uow:
+            uow.rom_achievement_progress.replace_all({99: self._progress()})
+        assert uow.rom_achievement_progress.get(99) is None
 
 
 class TestFakeBiosFileRepository:

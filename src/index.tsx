@@ -1,4 +1,4 @@
-import { definePlugin, addEventListener, removeEventListener, toaster } from "@decky/api";
+import { definePlugin, addEventListener, removeEventListener, routerHook, toaster } from "@decky/api";
 import { showToast, PLUGIN_NAME, PLUGIN_DISPLAY_NAME } from "./utils/toast";
 import { useState, useRef, useEffect, FC, type ReactNode } from "react";
 import { FaGamepad } from "react-icons/fa";
@@ -27,6 +27,10 @@ import {
   applyAllMetadata,
 } from "./patches/metadataPatches";
 import { registerLaunchInterceptor, unregisterLaunchInterceptor } from "./utils/launchInterceptor";
+import { registerHomeShelfPatch, unregisterHomeShelfPatch } from "./patches/homeShelfPatch";
+import { ConsolePage } from "./components/collector/ConsolePage";
+import { CONSOLE_PAGE_ROUTE } from "./utils/consoleMedia";
+import { startConsoleShelfStore } from "./utils/consoleShelfStore";
 import { showCoreChangeModal } from "./components/CoreChangeModal";
 import { handleConflicts } from "./components/SyncConflictModal";
 import { showOfflineDriftModal } from "./components/OfflineDriftModal";
@@ -316,6 +320,11 @@ export default definePlugin(() => {
   const stopPluginUpdateWatch = startPluginUpdateWatch();
   const pluginAdmission = capturePruneLeaseAdmission();
   registerGameDetailPatch();
+  // The Collector: the Home row reads a store this fills, so Home never waits on
+  // the backend; the console page is a route of its own.
+  const stopConsoleShelfStore = startConsoleShelfStore();
+  registerHomeShelfPatch();
+  routerHook.addRoute(CONSOLE_PAGE_ROUTE, ConsolePage);
   registerLaunchInterceptor({
     confirmCoreChange: showCoreChangeModal,
     resolveConflicts: handleConflicts,
@@ -1024,6 +1033,9 @@ export default definePlugin(() => {
       destroySessionManager();
       unregisterLaunchInterceptor();
       unregisterGameDetailPatch();
+      unregisterHomeShelfPatch();
+      routerHook.removeRoute(CONSOLE_PAGE_ROUTE);
+      stopConsoleShelfStore();
       unregisterMetadataPatches();
       removeEventListener("sync_complete", syncCompleteListener);
       removeEventListener("sync_apply_unit", syncApplyUnitListener);

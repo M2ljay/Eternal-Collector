@@ -232,6 +232,7 @@ class Plugin:
         self._achievements_service = services["achievements_service"]
         self._migration_service = services["migration_service"]
         self._game_detail_service = services["game_detail_service"]
+        self._console_shelf_service = services["console_shelf_service"]
         self._artwork_service = services["artwork_service"]
         self._shortcut_removal_service = services["shortcut_removal_service"]
         self._settings_service = services["settings_service"]
@@ -1119,6 +1120,25 @@ class Plugin:
 
     async def get_achievement_progress(self, rom_id):
         return await self._achievements_service.get_achievement_progress(rom_id)
+
+    # ── The Collector: console shelf and console pages ────────
+
+    async def get_console_shelf(self):
+        """Return the Home row's consoles, most played first, from local state alone."""
+        return await self.loop.run_in_executor(None, self._console_shelf_service.get_console_shelf)
+
+    async def get_console_games(self, platform_slug, offset, limit):
+        """Return one page of a console's games with their save-sync and achievement chips."""
+        return await self.loop.run_in_executor(
+            None, self._console_shelf_service.get_console_games, platform_slug, offset, limit
+        )
+
+    @prune_active_blocked
+    async def refresh_console_achievements(self):
+        return await self._achievements_service.refresh_progress_snapshot()
+
+    async def save_collector_home_shelf(self, enabled):
+        return self._settings_service.save_collector_home_shelf(enabled)
 
     # ── Migration delegation to MigrationService ──────────────
 

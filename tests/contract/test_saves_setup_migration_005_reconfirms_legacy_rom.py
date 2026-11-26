@@ -38,8 +38,9 @@ def _rewind_to_v4(db_path: str) -> None:
     scalar table under its pre-rename name ``rom_save_states``, 019's
     collection_sync_state table absent, 020's fetch-generation columns
     absent, 021's ``fs_size_bytes`` column absent, 023's ``launchable``
-    column absent, 024's ``selected_exe`` column absent, and 026's
-    ``rom_savestate_sync_states`` table absent) so the sequential 005→…→026
+    column absent, 024's ``selected_exe`` column absent, 026's
+    ``rom_savestate_sync_states`` table absent, and 027's
+    ``rom_achievement_progress`` table absent) so the sequential 005→…→027
     re-run applies cleanly.
     """
     conn = sqlite3.connect(db_path, isolation_level=None)
@@ -58,6 +59,8 @@ def _rewind_to_v4(db_path: str) -> None:
         conn.execute("DROP TABLE IF EXISTS collection_sync_state")
         # Reverse 026 so its CREATE TABLE re-applies instead of erroring.
         conn.execute("DROP TABLE IF EXISTS rom_savestate_sync_states")
+        # Reverse 027 so its CREATE TABLE re-applies instead of erroring.
+        conn.execute("DROP TABLE IF EXISTS rom_achievement_progress")
         # Reverse 008 so its ADD COLUMNs re-apply instead of duplicating.
         for column in ("sibling_group_key", "regions", "languages", "revision", "tags", "is_main_sibling"):
             conn.execute(f"ALTER TABLE roms DROP COLUMN {column}")

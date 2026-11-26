@@ -24,6 +24,7 @@ import {
   getMetadataCachePage,
   releasePruneConflictLease,
   waitForPruneRelease,
+  getConsoleShelf,
 } from "./api/backend";
 import { getSettingsResetState, setSettingsResetState } from "./utils/settingsResetStore";
 import { getDownloadState, setDownloads } from "./utils/downloadStore";
@@ -48,6 +49,10 @@ vi.mock("./patches/gameDetailPatch", () => ({
   unregisterGameDetailPatch: vi.fn(),
   registerRomMAppId: vi.fn(),
   unregisterRomMAppId: vi.fn(),
+}));
+vi.mock("./patches/homeShelfPatch", () => ({
+  registerHomeShelfPatch: vi.fn(),
+  unregisterHomeShelfPatch: vi.fn(),
 }));
 vi.mock("./patches/metadataPatches", () => ({
   registerMetadataPatches: vi.fn(),
@@ -424,6 +429,24 @@ describe("index.tsx — persistent prune listeners", () => {
       "Cleanup publication was skipped because its continuation lease was missing.",
     );
     plugin.onDismount();
+  });
+});
+
+describe("index.tsx — The Collector", () => {
+  it("registers the Home shelf, the console page route and the shelf store, and removes all three on dismount", async () => {
+    const { routerHook } = await import("@decky/api");
+    const { registerHomeShelfPatch, unregisterHomeShelfPatch } = await import("./patches/homeShelfPatch");
+    vi.mocked(getConsoleShelf).mockResolvedValue({ success: true, enabled: true, consoles: [] });
+    const plugin = pluginFactory();
+
+    expect(registerHomeShelfPatch).toHaveBeenCalled();
+    expect(routerHook.addRoute).toHaveBeenCalledWith("/the-collector/console/:slug", expect.any(Function));
+    expect(deckyEventListenerCount("save_status_updated")).toBe(2);
+
+    plugin.onDismount();
+    expect(unregisterHomeShelfPatch).toHaveBeenCalled();
+    expect(routerHook.removeRoute).toHaveBeenCalledWith("/the-collector/console/:slug");
+    expect(deckyEventListenerCount("save_status_updated")).toBe(0);
   });
 });
 

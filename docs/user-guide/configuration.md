@@ -182,6 +182,11 @@ picture.
 one notice when a game starts if its emulator has RetroAchievements turned off or is not signed in. It applies to the
 Windows build; see [RetroAchievements check](windows.md#retroachievements-check) for what is checked.
 
+## The Collector on Home
+
+**Show The Collector on Home**, in **The Collector** section of the settings page (on by default), shows a row of your
+consoles on Steam's Big Picture Home, under Recent games. See [Console Shelf and Console Pages](console-shelf.md).
+
 ## Launcher
 
 Two dropdowns in the **Launcher** section on the main page: **Launcher** (which app your games actually run through) and

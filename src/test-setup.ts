@@ -105,6 +105,12 @@ vi.mock("@decky/api", async () => {
     definePlugin: (fn: unknown) => fn,
     addEventListener: bus.mockAddEventListener,
     removeEventListener: bus.mockRemoveEventListener,
+    routerHook: {
+      addPatch: vi.fn((_path: string, patch: unknown) => patch),
+      removePatch: vi.fn(),
+      addRoute: vi.fn(),
+      removeRoute: vi.fn(),
+    },
   };
 });
 
@@ -261,6 +267,7 @@ vi.mock("@decky/ui", () => {
     MenuItem: ({ children, onClick, disabled }: AnyProps) =>
       createElement("button", { type: "button", onClick, disabled }, children as never),
     Navigation: { NavigateToExternalWeb: vi.fn(), Navigate: vi.fn() },
+    useParams: vi.fn(() => ({})),
     // findSP locates Steam's <SteamRoot> iframe document for stylesheet
     // injection. Tests run in happy-dom — no Steam, no iframe — so the
     // safe stub returns undefined and the consumer's `!sp?.window?.document`

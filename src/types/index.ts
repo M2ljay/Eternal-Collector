@@ -19,3 +19,4 @@ export * from "./retrodeck";
 export * from "./xemuConfig";
 export * from "./navigation";
 export * from "./mods";
+export * from "./collector";

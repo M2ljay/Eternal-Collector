@@ -30,6 +30,8 @@ import type { RegisteredDevicesSection } from "./settings/RegisteredDevicesSecti
 import type { ControllerSection } from "./settings/ControllerSection";
 import type { AdvancedSection } from "./settings/AdvancedSection";
 import type { LibrarySection } from "./settings/LibrarySection";
+import type { CollectorSection } from "./settings/CollectorSection";
+import { getConsoleShelfState, resetConsoleShelfStore } from "../utils/consoleShelfStore";
 import { showPreferredRegionModal } from "./settings/PreferredRegionModal";
 import type { SaveSortMigrationSection } from "./settings/SaveSortMigrationSection";
 
@@ -40,6 +42,7 @@ type RegisteredDevicesProps = ComponentProps<typeof RegisteredDevicesSection>;
 type ControllerProps = ComponentProps<typeof ControllerSection>;
 type AdvancedProps = ComponentProps<typeof AdvancedSection>;
 type LibraryProps = ComponentProps<typeof LibrarySection>;
+type CollectorProps = ComponentProps<typeof CollectorSection>;
 type SaveSortMigrationProps = ComponentProps<typeof SaveSortMigrationSection>;
 
 // Captured props arrays — reset in beforeEach. Each child mock pushes the
@@ -52,6 +55,7 @@ const capturedDevices: RegisteredDevicesProps[] = [];
 const capturedController: ControllerProps[] = [];
 const capturedAdvanced: AdvancedProps[] = [];
 const capturedLibrary: LibraryProps[] = [];
+const capturedCollector: CollectorProps[] = [];
 const capturedMigration: SaveSortMigrationProps[] = [];
 
 vi.mock("./settings/ConnectionSection", () => ({
@@ -93,6 +97,12 @@ vi.mock("./settings/AdvancedSection", () => ({
 // LauncherBackendSection owns its own data/effects (no props from SettingsPage)
 // — stub it out like the other sub-sections so this file's own narrow @decky/ui
 // re-mock (no DropdownItem) isn't exercised by a component it doesn't test.
+vi.mock("./settings/CollectorSection", () => ({
+  CollectorSection: (p: CollectorProps) => {
+    capturedCollector.push(p);
+    return createElement("div", { "data-testid": "collector-section" });
+  },
+}));
 vi.mock("./settings/LauncherBackendSection", () => ({
   LauncherBackendSection: () => createElement("div", { "data-testid": "launcher-backend-section" }),
 }));
@@ -234,6 +244,7 @@ describe("SettingsPage", () => {
     capturedController.length = 0;
     capturedAdvanced.length = 0;
     capturedLibrary.length = 0;
+    capturedCollector.length = 0;
     capturedMigration.length = 0;
     saveSortListeners.length = 0;
     currentSortState = { pending: false };
@@ -1621,6 +1632,43 @@ describe("SettingsPage", () => {
       });
       // CATCH-REJECTION assert: rolled back to false.
       expect(capturedLibrary[capturedLibrary.length - 1]?.platformGroups).toBe(false);
+    });
+
+    it("hydrates the Collector Home toggle from getSettings, defaulting to on", async () => {
+      vi.mocked(backend.getSettings).mockResolvedValue({ ...defaultSettings(), collector_home_shelf: false });
+      render(<SettingsPage onBack={vi.fn()} />);
+      await flushAsync();
+      expect(capturedCollector[capturedCollector.length - 1]?.homeShelf).toBe(false);
+    });
+
+    it("saving the Collector Home toggle persists it and updates the shelf store at once", async () => {
+      resetConsoleShelfStore();
+      vi.mocked(backend.saveCollectorHomeShelf).mockResolvedValue({ success: true });
+      render(<SettingsPage onBack={vi.fn()} />);
+      await flushAsync();
+      expect(capturedCollector[capturedCollector.length - 1]?.homeShelf).toBe(true);
+      await act(async () => {
+        capturedCollector[capturedCollector.length - 1]?.onHomeShelfChange(false);
+        await Promise.resolve();
+      });
+      expect(vi.mocked(backend.saveCollectorHomeShelf)).toHaveBeenCalledWith(false);
+      expect(capturedCollector[capturedCollector.length - 1]?.homeShelf).toBe(false);
+      expect(getConsoleShelfState().enabled).toBe(false);
+    });
+
+    it("reverts the Collector Home toggle and the store when the save rejects", async () => {
+      resetConsoleShelfStore();
+      vi.mocked(backend.saveCollectorHomeShelf).mockRejectedValue(new Error("boom"));
+      render(<SettingsPage onBack={vi.fn()} />);
+      await flushAsync();
+      await act(async () => {
+        capturedCollector[capturedCollector.length - 1]?.onHomeShelfChange(false);
+        await Promise.resolve();
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+      expect(capturedCollector[capturedCollector.length - 1]?.homeShelf).toBe(true);
+      expect(getConsoleShelfState().enabled).toBe(true);
     });
 
     it("hydrates namingMode from getSettings", async () => {

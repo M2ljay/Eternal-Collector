@@ -263,6 +263,19 @@ is already on disk; Steam just hasn't re-rendered the tile yet.
 panel. This re-fetches all artwork and metadata. (Hero banners, logos, and wide grid images additionally need a
 [SteamGridDB API key](configuration.md#steamgriddb-api-key) — see above.)
 
+## The console shelf doesn't appear on Home
+
+The [console shelf](console-shelf.md) sits under Steam's **Recent games** row on Big Picture's Home. If it is missing:
+
+- Check **Show The Collector on Home** in the settings page.
+- It needs at least one synced game in your Steam library.
+- It is placed under Recent games, so it is not shown when Recent games itself is hidden (for example by another Home
+  plugin).
+- After a Steam update the plugin may no longer recognise the Recent games row. Home then stays exactly as Steam draws
+  it, and the plugin log says `Recent games row was not found on Home`; set the log level to **Debug** to also log what
+  it saw, and report it. If the row ran into errors three times, it switches itself off until the plugin is reloaded
+  (`Home shelf switched off until the plugin reloads` in the log).
+
 ## Shortcuts Appear on Other Devices
 
 **Symptom**: Games synced on your Steam Deck also appear on your HTPC (or vice versa), but without artwork. They

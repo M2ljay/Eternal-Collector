@@ -30,6 +30,9 @@ import type {
   AchievementSummary,
   AchievementList,
   AchievementProgress,
+  ConsoleShelfAnswer,
+  ConsoleGamesAnswer,
+  RefreshAchievementsAnswer,
   SaveSlotSummary,
   SaveSetupInfo,
   SlotSavesResponse,
@@ -375,6 +378,12 @@ export const saveCollectionPlatformGroups = callable<[boolean], { success: boole
   "save_collection_platform_groups",
 );
 export const saveRetroAchievementsWarning = callable<[boolean], { success: boolean }>("save_retroachievements_warning");
+// The Collector. The two reads answer from local state only (no RomM request), so
+// the Home row can load them at plugin start; the refresh reads RomM once.
+export const saveCollectorHomeShelf = callable<[boolean], { success: boolean }>("save_collector_home_shelf");
+export const getConsoleShelf = callable<[], ConsoleShelfAnswer>("get_console_shelf");
+export const getConsoleGames = callable<[string, number, number], ConsoleGamesAnswer>("get_console_games");
+export const refreshConsoleAchievements = callable<[], RefreshAchievementsAnswer>("refresh_console_achievements");
 // Owner-scope for the Collections tab (#1532). "all" (default) or "own" (only
 // the signed-in user's own collections). Read via getSettings().collection_owner_scope.
 export const setCollectionOwnerScope = callable<

@@ -83,6 +83,8 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     # Warn once per launch when the emulator's RetroAchievements is off, signed
     # out, or (PCSX2) failed to log in.
     "retroachievements_warning": True,
+    # The Collector's console shelf on Steam's Home, under Recent games.
+    "collector_home_shelf": True,
     "steam_input_mode": "default",
     "steamgriddb_api_key": "",
     "romm_allow_insecure_ssl": False,

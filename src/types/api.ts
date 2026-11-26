@@ -74,6 +74,7 @@ export interface PluginSettings {
   // Warn once per launch when the emulator's RetroAchievements is not working.
   // Optional: older payloads may omit it, treated as on.
   retroachievements_warning?: boolean;
+  collector_home_shelf?: boolean;
   // QAM collection owner-scope (#1532): "all" (default) or "own" (only the
   // signed-in user's own collections). Optional: older payloads may omit it,
   // treated as "all". Mirrors the CollectionOwnerScope type in sync.ts.

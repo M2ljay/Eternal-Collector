@@ -203,10 +203,10 @@ Format: **invariant** — tier — enforced by.
   `do_build_core_overrides` invoked from inside the install-path readers' own UoW, which is what putting the three
   methods on one class makes cheapest — is that gate's documented blind spot and passes green. On the budget side the
   confinement holds `session_budget`'s stated promise that no renderer-RSS reading is taken anywhere else in the package
-- **A module declared read-only calls no repository write — `services/library/local_library_reader.py` to start** —
-  check — `scripts/check_read_only_module.py` (AST over the declared file's own calls, matching the two-attribute
-  `<...>.<repo>.<method>` shape against the twelve repositories the UoW exposes). Read or write is decided **by the
-  name's shape** — `get` / `get_*` / `iter_*` / `count` plus the explicitly listed reads — and
+- **A module declared read-only calls no repository write — `services/library/local_library_reader.py` and
+  `services/console_shelf.py`** — check — `scripts/check_read_only_module.py` (AST over the declared file's own calls,
+  matching the two-attribute `<...>.<repo>.<method>` shape against the thirteen repositories the UoW exposes). Read or
+  write is decided **by the name's shape** — `get` / `get_*` / `iter_*` / `count` plus the explicitly listed reads — and
   `tests/scripts/test_check_read_only_module.py` re-derives every method name from `services/protocols/repositories.py`
   and pins its classification, so a new repository method fails there until it is classified. **The two directions are
   not symmetric.** A read named outside the shapes is called a write: loud, safe. A **write named like a read is called
@@ -420,6 +420,14 @@ Format: **invariant** — tier — enforced by.
   results and captured logs never contain the token, the PPSSPP token file is never passed to `open`). A new emulator, a
   new reader method or a log line that formats parsed text is prompt-only: the tests pin today's parsers, not every
   future one
+- **Steam's Big Picture Home is never broken by the console shelf: nothing on the Home render path calls the backend
+  (the row reads `src/utils/consoleShelfStore.ts` only); the `/library/home` patch copies Steam's elements and never
+  mutates them, returns Steam's output unchanged on any exception, an unrecognised tree or the setting off, wraps the
+  shelf in an error boundary, and switches itself off for the session after three failures** — test + prompt-only —
+  `src/patches/homeShelfPatch.test.tsx` (insert once, unknown tree untouched, render error caught, the watchdog, the
+  toggle); a new call or a new element on that path is prompt-only. The rule spans the patch, the row component and the
+  store, and a fetch dropped into the row "just to be fresh" would run on every Home re-render
+  ([Never breaking Home](docs/architecture/home-console-shelf.md#never-breaking-home))
 - **Every module the plugin imports at module level uses only standard-library modules Decky's frozen Windows Python
   ships, or the plugin's own fallback copy** — test — `tests/runtime/test_frozen_runtime.py` against
   `tests/runtime/decky_frozen_stdlib.txt` (a lazily imported Windows-only module is covered only once it is listed in

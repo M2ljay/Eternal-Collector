@@ -21,6 +21,7 @@ import {
   savePreferredRegion,
   saveCollectionPlatformGroups,
   saveRetroAchievementsWarning,
+  saveCollectorHomeShelf,
   setCollectionNamingMode,
   getKnownRegions,
   fixRetroarchInputDriver,
@@ -55,6 +56,8 @@ import { RegisteredDevicesSection } from "./settings/RegisteredDevicesSection";
 import { ControllerSection } from "./settings/ControllerSection";
 import { AdvancedSection } from "./settings/AdvancedSection";
 import { LauncherBackendSection } from "./settings/LauncherBackendSection";
+import { CollectorSection } from "./settings/CollectorSection";
+import { setHomeShelfEnabled } from "../utils/consoleShelfStore";
 import { PluginUpdateSection } from "./settings/PluginUpdateSection";
 import { LibrarySection, AUTO_REGION, DEFAULT_REGION_LABEL } from "./settings/LibrarySection";
 import { showPreferredRegionModal } from "./settings/PreferredRegionModal";
@@ -112,6 +115,7 @@ export const SettingsPage: FC<SettingsPageProps> = ({ onBack }) => {
   // Collection platform-groups toggle (relocated from the Collections tab, #1539).
   const [platformGroups, setPlatformGroups] = useState(false);
   const [raWarning, setRaWarning] = useState(true);
+  const [homeShelf, setHomeShelf] = useState(true);
   // Steam-collection naming mode (#1539): "merge" (default) or "by_label".
   const [namingMode, setNamingMode] = useState<CollectionNamingMode>("merge");
 
@@ -128,6 +132,7 @@ export const SettingsPage: FC<SettingsPageProps> = ({ onBack }) => {
         setPreferredRegion(s.preferred_region ?? AUTO_REGION);
         setPlatformGroups(!!s.collection_create_platform_groups);
         setRaWarning(s.retroachievements_warning ?? true);
+        setHomeShelf(s.collector_home_shelf ?? true);
         setNamingMode(s.collection_naming_mode ?? "merge");
         if (s.retroarch_input_check) {
           setRetroarchWarning(s.retroarch_input_check);
@@ -490,6 +495,21 @@ export const SettingsPage: FC<SettingsPageProps> = ({ onBack }) => {
     );
   };
 
+  const handleHomeShelfChange = (value: boolean) => {
+    setHomeShelf(value);
+    setHomeShelfEnabled(value);
+    detach(
+      (async () => {
+        try {
+          await saveCollectorHomeShelf(value);
+        } catch {
+          setHomeShelf(!value);
+          setHomeShelfEnabled(!value);
+        }
+      })(),
+    );
+  };
+
   // --- Collection naming-mode handler (#1539) ---
   const handleNamingModeChange = (mode: CollectionNamingMode) => {
     const previous = namingMode;
@@ -628,6 +648,8 @@ export const SettingsPage: FC<SettingsPageProps> = ({ onBack }) => {
         raWarning={raWarning}
         onRaWarningChange={handleRaWarningChange}
       />
+
+      <CollectorSection homeShelf={homeShelf} onHomeShelfChange={handleHomeShelfChange} />
 
       <LauncherBackendSection />
 

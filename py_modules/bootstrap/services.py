@@ -21,6 +21,7 @@ from services.achievements import AchievementsService, AchievementsServiceConfig
 from services.active_core_resolver import ActiveCoreResolver, ActiveCoreResolverConfig
 from services.artwork import ArtworkService, ArtworkServiceConfig
 from services.connection import ConnectionService, ConnectionServiceConfig
+from services.console_shelf import ConsoleShelfService, ConsoleShelfServiceConfig
 from services.cores import CoreService, CoreServiceConfig
 from services.disc import DiscService, DiscServiceConfig
 from services.disc_launch_resolver import DiscLaunchResolver, DiscLaunchResolverConfig
@@ -473,6 +474,15 @@ def wire_services(cfg: WiringConfig) -> dict[str, Any]:
         ),
     )
 
+    console_shelf_service = ConsoleShelfService(
+        config=ConsoleShelfServiceConfig(
+            uow_factory=cfg.callbacks.uow_factory,
+            settings=cfg.stores.settings,
+            clock=cfg.runtime.clock,
+            log_debug=cfg.callbacks.log_debug,
+        ),
+    )
+
     game_detail_service = GameDetailService(
         config=GameDetailServiceConfig(
             candidate_probe=rom_adoption_service.has_adoption_candidate,
@@ -707,6 +717,7 @@ def wire_services(cfg: WiringConfig) -> dict[str, Any]:
         "achievements_service": achievements_service,
         "migration_service": migration_service,
         "game_detail_service": game_detail_service,
+        "console_shelf_service": console_shelf_service,
         "artwork_service": artwork_service,
         "shortcut_removal_service": shortcut_removal_service,
         "settings_service": settings_service,

@@ -365,6 +365,21 @@ backup was turned on, and never restored automatically — "backup, not sync". A
 (`domain/savestate_names.py`). A backup is filed on the server as `<booted stem> [<device short-id>].<slot suffix>`, one
 row per device and slot.
 
+### Console shelf / console page / most played
+
+The **console shelf** is The Collector's row on Steam's Big Picture Home, under Recent games: one tile per console
+(`platform_slug`) with at least one bound ROM, drawn as a stack of that console's media
+(`src/patches/homeShelfPatch.tsx`, `services/console_shelf.py`). A **console page** is the route
+`/the-collector/console/:slug` listing that console's games, "Continue" (its most recently played game) first. **Most
+played** orders the shelf by recency-weighted play time: each game's play seconds halved for every 90 days since it was
+last played (`domain/console_shelf.py`) — never lifetime play time.
+
+### Achievement snapshot
+
+The user's RetroAchievements progress per ROM as RomM last reported it (`ra_progression` from `GET /api/users/me`),
+persisted in `rom_achievement_progress` (the `RomAchievementProgress` aggregate) and replaced as a whole from one
+answer. A ROM with a set but no row has "no progress yet". It is only as fresh as RomM's own RetroAchievements sync.
+
 ### Mod target / mod backup
 
 A **mod target** is one place a game's mods go under the emulator it launches with (`domain/game_mods.py`

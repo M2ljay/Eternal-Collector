@@ -417,12 +417,13 @@ class TestWireServices:
     def test_returns_expected_services(self, tmp_path):
         deps = self._make_deps(tmp_path)
         result = wire_services(self._make_config(deps))
-        assert len(result) == 30
+        assert len(result) == 31
         assert "migration_service" in result
         assert "retroachievements_check_service" in result
         assert "windows_game_service" in result
         assert "game_mods_service" in result
         assert "game_detail_service" in result
+        assert "console_shelf_service" in result
         assert "rom_removal_service" in result
         assert "settings_service" in result
         assert "core_service" in result
