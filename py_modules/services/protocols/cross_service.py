@@ -23,6 +23,7 @@ if TYPE_CHECKING:
     from domain.disc_selection import Disc
     from domain.rom_install import RomInstall
     from domain.save_layout import InSaveDir, SaveLayout
+    from domain.savestate_backup import SavestateBackupOutcome
     from domain.shortcut_data import EmulatorInvocation
     from domain.windows_launch import WindowsExecutable
 
@@ -575,6 +576,17 @@ class SessionPostExitSync(Protocol):
     """
 
     async def post_exit_sync(self, rom_id: int) -> dict[str, Any]: ...
+
+
+class SessionSavestateBackup(Protocol):
+    """Post-exit savestate backup consumed by SessionLifecycleService.
+
+    The composition root satisfies this with ``SavestateService``. Called after the
+    post-exit save sync has finished, never before it and never on a launch path.
+    Upload-only: it never downloads or writes a local savestate.
+    """
+
+    async def backup_after_session(self, rom_id: int) -> SavestateBackupOutcome: ...
 
 
 class SessionAchievementSync(Protocol):

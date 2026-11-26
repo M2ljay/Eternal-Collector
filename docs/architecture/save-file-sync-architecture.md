@@ -1847,6 +1847,57 @@ The one surviving legacy read is a single one-time settings fold at bootstrap. `
 v3 → v4 schema bump. After that fold, `save_sync_state.json` is never read or written again; the file is not a
 persistence store anymore.
 
+## Savestate backup
+
+RetroArch savestates are **backed up**, never synced ([ADR-0031](../adr/0031-savestates-are-backed-up-not-synced.md)).
+The backup is a separate bounded context, `services/savestates/` (`SavestateService`), and shares nothing with the save
+sync above but the post-exit moment: no gavel call, no save-matrix input, no `rom_lock`, no `RomSaveSyncState` write.
+
+**When it runs.** `SessionLifecycleService.finalize` awaits the post-exit save sync first, then
+`SavestateService.backup_after_session(rom_id)`. It is skipped when the save sync reported `offline`, when a RetroDECK
+migration is pending, and when either `save_sync_enabled` or `savestate_backup_enabled` is off. A raised error is
+logged and reported as zero savestates; it never changes the save-sync verdict. The count rides back as
+`SessionFinalizeResult.savestates_backed_up`, and the frontend's `withSavestateClause` (`src/utils/saveSyncToast.ts`)
+adds it to the one after-exit toast.
+
+**What it reads.** The active emulator must be a libretro core (`ActiveCoreReader.active_emulator_for_rom`), else the
+run is skipped as `not_retroarch`. The stem is the file RetroArch booted (`DiscResolver.resolve_for_install` with the
+ROM's `selected_disc`), the folder is `resolve_save_dir` over `LauncherPaths.states_path()` with the live
+`RetroArchSavestateLayoutProvider` sorting (a `ContentDir` layout is skipped), and the names probed are the slots of the
+configured scope only — `<stem>.state.auto` for the default, plus `<stem>.state` … `<stem>.state9` for "all slots"
+(`domain/savestate_names.py`, whose `split_savestate_name` treats `.state.auto` as one suffix). Hashing is the plain MD5
+of the file (`SavestateFileStore.checksum_md5`); a compressed savestate is opaque bytes.
+
+**The decision** (`domain/savestate_backup.savestate_backup_action`):
+
+| Local hash vs. recorded hash | File written                                      | Action                                    |
+| ---------------------------- | ------------------------------------------------- | ----------------------------------------- |
+| equal                        | any time                                          | unchanged                                 |
+| different or none            | before `savestate_backup_enabled_at`, or no stamp | `adopt_baseline` — recorded, not uploaded |
+| different or none            | at or after the stamp, over 512 MiB               | skipped, logged                           |
+| different or none            | at or after the stamp                             | upload, then `record_upload`              |
+
+`update_backup_settings` writes the stamp (`Clock.time()`) when the toggle goes from off to on and drops it when it goes
+off.
+
+**The upload.** `RommApiAdapter.upload_state` POSTs `/api/states?rom_id=&emulator=` through
+`RommHttpAdapter.upload_multipart_parts` (the `_urlopen` choke point, no retry ladder, like the save upload) with the
+savestate as `stateFile` named `<stem> [<device short-id>].<slot suffix>` and, when RetroArch wrote one, the thumbnail
+`<savestate>.png` as `screenshotFile` named `<server name>.png`. `emulator` is RomM's id for the core
+(`romm_emulator_for_core`). To a server that is not known to be older than 5.0 it also sends `core`, `core_version`,
+`emulator_version` (none today) and `device_id`, the RomM 5.5 parameters; 5.0–5.4 ignore them. The route keeps the
+default strict 404 proof: a RomM "Rom not found" answer is `RommNotFoundError`, a generic route 404 is a plain
+`RommApiError` — and the backup takes neither as authority for anything, it only leaves the slot unrecorded. A
+`server_unreachable` failure ends the run; any other failure moves on to the next slot.
+
+**What it records.** `RomSavestateSyncState` (`domain/rom_savestate_sync_state.py`, table `rom_savestate_sync_states`,
+one row per `(rom_id, slot)`) holds per slot the content hash last accounted for and, for the latest upload, its hash,
+time, RomM state id, stored file name, emulator, core and core version. Every read-mutate-write runs under
+`SavestateService.rom_lock(rom_id)`.
+
+**What it never does.** Download a savestate, write or remove a local one, or delete or prune a server copy. Restoring
+is a later, explicit, per-savestate action.
+
 ## Session Detection
 
 Game start and stop events are detected using Steam's frontend APIs, not by polling emulator processes.
@@ -2102,11 +2153,12 @@ under-reports the true historical total until it re-accumulates — `max()` prot
 synthetic-session backfill is deferred to #868. See
 [Native play-session ingest (ADR-0018)](#native-play-session-ingest-adr-0018) above.
 
-### Emulator save states not synced
+### Savestates are backed up, not synced
 
-RetroArch save states (`<states_path>/{system}/`, where `<states_path>` comes from `retrodeck.json` →
-`paths.states_path`) are not synced. Only SRAM saves (`.srm`) are handled. Save states are large,
-emulator-version-specific, and not portable between different RetroArch core versions.
+Save sync handles in-game saves only. RetroArch savestates can be **backed up** to RomM after a game exits (see
+[Savestate backup](#savestate-backup)), but nothing downloads or restores one automatically: a savestate is
+core- and core-version-specific, and loading an older one rolls the in-game save back with it. Standalone emulators'
+savestates are not backed up.
 
 ### Copying a save into another slot
 

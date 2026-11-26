@@ -77,6 +77,7 @@ if TYPE_CHECKING:
         Clock,
         ComputeSyncActionFn,
         CoreNameProviderFn,
+        CoreVersionProviderFn,
         CoverArtFileStore,
         DebugLogger,
         DirectoryFileListerFn,
@@ -192,6 +193,7 @@ class CallbackBundle:
     get_save_layout: RetroArchSaveLayoutProvider
     get_savestate_layout: RetroArchSavestateLayoutProvider
     get_core_name: CoreNameProviderFn
+    get_core_version: CoreVersionProviderFn
     platform_core_reader: PlatformCoreReader
     m3u_support: SystemM3uSupportFn
     system_known: SystemKnownFn
@@ -473,6 +475,7 @@ def bootstrap(
         get_save_layout=retroarch_config.get_save_layout,
         get_savestate_layout=retroarch_config.get_savestate_layout,
         get_core_name=retroarch_core_info.get_corename,
+        get_core_version=retroarch_core_info.get_core_version,
         platform_core_reader=platform_core_reader,
         m3u_support=core_resolver.system_supports_m3u,
         system_known=core_resolver.is_known_system,

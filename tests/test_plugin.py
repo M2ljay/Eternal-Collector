@@ -958,6 +958,7 @@ _MIGRATION_BLOCKED_WHITELIST: set[str] = {
     "is_save_tracking_configured",
     "get_save_setup_info",
     "get_save_sync_settings",
+    "get_savestate_backup_settings",
     "saves_list_file_versions",
     # Playtime queries.
     "record_session_start",
@@ -1136,6 +1137,7 @@ class TestMainStartupOrdering:
             "startup_healing_service": startup_healing_service,
             "launch_gate_service": MagicMock(),
             "session_lifecycle_service": MagicMock(),
+            "savestate_service": MagicMock(),
             "game_process_service": MagicMock(),
             "relaunch_options_resolver": MagicMock(),
             "launcher_backend_service": MagicMock(),
@@ -1180,6 +1182,7 @@ class TestMainStartupOrdering:
                 get_save_layout=MagicMock(),
                 get_savestate_layout=MagicMock(),
                 get_core_name=MagicMock(),
+                get_core_version=MagicMock(),
                 platform_core_reader=MagicMock(),
                 m3u_support=MagicMock(),
                 system_extensions=MagicMock(),

@@ -21,6 +21,7 @@ from domain.rom import Rom
 from domain.rom_install import RomInstall
 from domain.rom_metadata import RomMetadata
 from domain.rom_save_sync_state import FileSyncState, RomSaveSyncState
+from domain.rom_savestate_sync_state import RomSavestateSyncState
 from domain.sync_run import SyncRun
 from fakes.fake_bios_file_repository import FakeBiosFileRepository
 from fakes.fake_collection_sync_state_repository import FakeCollectionSyncStateRepository
@@ -32,6 +33,7 @@ from fakes.fake_rom_install_repository import FakeRomInstallRepository
 from fakes.fake_rom_metadata_repository import FakeRomMetadataRepository
 from fakes.fake_rom_repository import FakeRomRepository
 from fakes.fake_rom_save_sync_state_repository import FakeRomSaveSyncStateRepository
+from fakes.fake_rom_savestate_sync_state_repository import FakeRomSavestateSyncStateRepository
 from fakes.fake_sync_run_repository import FakeSyncRunRepository
 from fakes.fake_unit_of_work import FakeUnitOfWork, FakeUnitOfWorkFactory
 
@@ -45,6 +47,7 @@ if TYPE_CHECKING:
         RomInstallRepository,
         RomMetadataRepository,
         RomRepository,
+        RomSavestateSyncStateRepository,
         RomSaveSyncStateRepository,
         SyncRunRepository,
         UnitOfWork,
@@ -72,6 +75,7 @@ class TestProtocolSatisfaction:
         metadata: RomMetadataRepository = FakeRomMetadataRepository()
         playtime: PlaytimeRepository = FakePlaytimeRepository()
         save_states: RomSaveSyncStateRepository = FakeRomSaveSyncStateRepository()
+        savestates: RomSavestateSyncStateRepository = FakeRomSavestateSyncStateRepository()
         bios: BiosFileRepository = FakeBiosFileRepository()
         firmware: FirmwareCacheRepository = FakeFirmwareCacheRepository()
         runs: SyncRunRepository = FakeSyncRunRepository()
@@ -79,7 +83,19 @@ class TestProtocolSatisfaction:
         kv: KvConfigRepository = FakeKvConfigRepository()
         assert all(
             obj is not None
-            for obj in (roms, installs, metadata, playtime, save_states, bios, firmware, runs, platform_state, kv)
+            for obj in (
+                roms,
+                installs,
+                metadata,
+                playtime,
+                save_states,
+                savestates,
+                bios,
+                firmware,
+                runs,
+                platform_state,
+                kv,
+            )
         )
 
     def test_fake_uow_and_factory_satisfy_protocols(self):
@@ -257,6 +273,32 @@ class TestFakeRomSaveSyncStateRepository:
         reloaded = repo.get(1)
         assert reloaded is not None
         assert reloaded.own_upload_ids == [7]  # stored copy's list untouched
+
+
+class TestFakeRomSavestateSyncStateRepository:
+    def test_round_trip_copy_and_cascade(self):
+        repo = FakeRomSavestateSyncStateRepository()
+        state = RomSavestateSyncState()
+        state.adopt_baseline("auto", local_name="G.state.auto", content_hash="h", observed_at="t")
+        repo.save(1, state)
+        loaded = repo.get(1)
+        assert loaded == state
+        assert loaded is not state
+        repo.delete(1)
+        assert repo.get(1) is None
+
+    def test_empty_aggregate_reads_back_none(self):
+        repo = FakeRomSavestateSyncStateRepository()
+        repo.save(1, RomSavestateSyncState())
+        assert repo.get(1) is None
+
+    def test_uow_rejects_an_orphan_savestate_record(self):
+        uow = FakeUnitOfWork()
+        state = RomSavestateSyncState()
+        state.adopt_baseline("auto", local_name="G.state.auto", content_hash="h", observed_at="t")
+        with pytest.raises(sqlite3.IntegrityError), uow:
+            uow.rom_savestate_sync_states.save(99, state)
+        assert uow.rom_savestate_sync_states.get(99) is None
 
 
 class TestFakeBiosFileRepository:

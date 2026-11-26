@@ -287,6 +287,7 @@ class TestWireServices:
             "get_save_layout": MagicMock(return_value=InSaveDir(sort_by_content=True, sort_by_core=False)),
             "get_savestate_layout": MagicMock(return_value=InSaveDir(sort_by_content=False, sort_by_core=False)),
             "get_core_name": MagicMock(return_value="Snes9x"),
+            "get_core_version": MagicMock(return_value="1.62"),
             "platform_core_reader": FakePlatformCoreReader(),
             "m3u_support": MagicMock(return_value=True),
             "system_extensions": MagicMock(return_value=frozenset()),
@@ -351,6 +352,7 @@ class TestWireServices:
                 get_save_layout=deps["get_save_layout"],
                 get_savestate_layout=deps["get_savestate_layout"],
                 get_core_name=deps["get_core_name"],
+                get_core_version=deps["get_core_version"],
                 platform_core_reader=deps["platform_core_reader"],
                 m3u_support=deps["m3u_support"],
                 system_extensions=deps["system_extensions"],
@@ -415,7 +417,7 @@ class TestWireServices:
     def test_returns_expected_services(self, tmp_path):
         deps = self._make_deps(tmp_path)
         result = wire_services(self._make_config(deps))
-        assert len(result) == 29
+        assert len(result) == 30
         assert "migration_service" in result
         assert "retroachievements_check_service" in result
         assert "windows_game_service" in result
@@ -434,6 +436,7 @@ class TestWireServices:
         assert "startup_healing_service" in result
         assert "launch_gate_service" in result
         assert "session_lifecycle_service" in result
+        assert "savestate_service" in result
         assert "game_process_service" in result
         assert isinstance(result["game_process_service"], GameProcessService)
         assert "relaunch_options_resolver" in result

@@ -245,6 +245,7 @@ describe("SettingsPage", () => {
     vi.mocked(backend.getKnownRegions).mockResolvedValue([]);
     vi.mocked(showPreferredRegionModal).mockResolvedValue(true);
     vi.mocked(backend.getSaveSyncSettings).mockResolvedValue(defaultSaveSyncSettings());
+    vi.mocked(backend.getSavestateBackupSettings).mockResolvedValue({ enabled: false, scope: "auto" });
     vi.mocked(backend.getSaveSortMigrationStatus).mockResolvedValue({ pending: false });
     vi.mocked(backend.listDevices).mockResolvedValue({ success: true, devices: [] });
     vi.mocked(backend.ensureDeviceRegistered).mockResolvedValue({
@@ -958,6 +959,83 @@ describe("SettingsPage", () => {
       expect(conn?.status).toBe("Sign-out failed");
       // A thrown sign-out leaves the session intact.
       expect(conn?.hasToken).toBe(true);
+    });
+  });
+
+  describe("savestate backup settings", () => {
+    const lastSaveSync = () => capturedSaveSync[capturedSaveSync.length - 1];
+
+    it("loads the savestate settings on mount and passes them down", async () => {
+      vi.mocked(backend.getSavestateBackupSettings).mockResolvedValue({ enabled: true, scope: "all" });
+      render(<SettingsPage onBack={vi.fn()} />);
+      await flushAsync();
+      expect(lastSaveSync()?.savestateSettings).toEqual({ enabled: true, scope: "all" });
+    });
+
+    it("logs a failed load and leaves the settings unset", async () => {
+      const logSpy = vi.spyOn(backend, "logError").mockImplementation(() => {});
+      vi.mocked(backend.getSavestateBackupSettings).mockRejectedValue(new Error("offline"));
+      render(<SettingsPage onBack={vi.fn()} />);
+      await flushAsync();
+      expect(lastSaveSync()?.savestateSettings).toBeNull();
+      expect(logSpy).toHaveBeenCalledWith("Failed to load savestate backup settings: Error: offline");
+    });
+
+    it("sends only the changed knob and adopts the backend's answer", async () => {
+      vi.mocked(backend.updateSavestateBackupSettings).mockResolvedValue({
+        success: true,
+        settings: { enabled: true, scope: "auto" },
+      });
+      render(<SettingsPage onBack={vi.fn()} />);
+      await flushAsync();
+      await act(async () => {
+        lastSaveSync()?.onSavestateSettingChange({ enabled: true });
+      });
+      expect(vi.mocked(backend.updateSavestateBackupSettings)).toHaveBeenCalledWith({ enabled: true });
+      expect(lastSaveSync()?.savestateSettings).toEqual({ enabled: true, scope: "auto" });
+    });
+
+    it("reverts and toasts the backend's message on a refused change", async () => {
+      vi.mocked(backend.updateSavestateBackupSettings).mockResolvedValue({
+        success: false,
+        reason: "invalid_scope",
+        message: "Choose either the auto-state only or all slots",
+      });
+      render(<SettingsPage onBack={vi.fn()} />);
+      await flushAsync();
+      await act(async () => {
+        lastSaveSync()?.onSavestateSettingChange({ scope: "all" });
+      });
+      expect(lastSaveSync()?.savestateSettings).toEqual({ enabled: false, scope: "auto" });
+      expect(vi.mocked(toaster.toast)).toHaveBeenCalledWith(
+        expect.objectContaining({ body: "Choose either the auto-state only or all slots" }),
+      );
+    });
+
+    it("reverts and logs when the update throws", async () => {
+      const logSpy = vi.spyOn(backend, "logError").mockImplementation(() => {});
+      vi.mocked(backend.updateSavestateBackupSettings).mockRejectedValue(new Error("boom"));
+      render(<SettingsPage onBack={vi.fn()} />);
+      await flushAsync();
+      await act(async () => {
+        lastSaveSync()?.onSavestateSettingChange({ enabled: true });
+      });
+      expect(lastSaveSync()?.savestateSettings).toEqual({ enabled: false, scope: "auto" });
+      expect(logSpy).toHaveBeenCalledWith("Failed to save savestate backup settings: Error: boom");
+    });
+
+    it("does nothing while the settings have not loaded", async () => {
+      vi.mocked(backend.getSavestateBackupSettings).mockImplementation(
+        () =>
+          new Promise(() => {
+            /* never */
+          }),
+      );
+      render(<SettingsPage onBack={vi.fn()} />);
+      await act(async () => {
+        lastSaveSync()?.onSavestateSettingChange({ enabled: true });
+      });
+      expect(vi.mocked(backend.updateSavestateBackupSettings)).not.toHaveBeenCalled();
     });
   });
 

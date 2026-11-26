@@ -14,14 +14,16 @@ per-user), opens the file, and delegates parsing to
 files only change when the Flatpak is updated, which in practice tears
 down the plugin process anyway.
 
-Only RetroDECK paths are probed today; standalone RetroArch installs
-and other launchers are out of scope for now. See the decisions log in
-the ``Config Source Parsers`` wiki page for the rationale.
+On Linux the RetroDECK paths are probed; on Windows, EmuDeck for Windows'
+RetroArch keeps its ``.info`` files in ``info`` beside ``retroarch.exe``. Other
+standalone RetroArch installs and launchers are out of scope for now. See the
+decisions log in the ``Config Source Parsers`` wiki page for the rationale.
 """
 
 from __future__ import annotations
 
 import os
+import sys
 from typing import TYPE_CHECKING
 
 from adapters.flatpak_install import flatpak_app_files_dirs
@@ -43,6 +45,9 @@ class RetroArchCoreInfoAdapter:
         self._cache: dict[str, dict[str, str] | None] = {}
 
     def _candidate_dirs(self) -> list[str]:
+        if sys.platform == "win32":
+            appdata = os.environ.get("APPDATA") or os.path.join(self._user_home, "AppData", "Roaming")
+            return [os.path.join(appdata, "emudeck", "Emulators", "RetroArch", "info")]
         return [os.path.join(files_dir, _CORES_SUFFIX) for files_dir in flatpak_app_files_dirs(self._user_home)]
 
     def get_core_info(self, core_so: str) -> dict[str, str] | None:
@@ -86,3 +91,14 @@ class RetroArchCoreInfoAdapter:
         if info is None:
             return None
         return info.get("corename") or None
+
+    def get_core_version(self, core_so: str) -> str | None:
+        """Return the ``display_version`` field for the given core, or ``None``.
+
+        Same lookup as :meth:`get_corename`; ``None`` when the ``.info`` file can't
+        be found or carries no (or an empty) ``display_version``.
+        """
+        info = self.get_core_info(core_so)
+        if info is None:
+            return None
+        return info.get("display_version") or None

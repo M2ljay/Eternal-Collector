@@ -102,6 +102,8 @@ function defaultProps(overrides: Partial<React.ComponentProps<typeof SaveSyncSec
     syncStatus: "",
     onToggleSaveSync: vi.fn(),
     onSettingChange: vi.fn(),
+    savestateSettings: null,
+    onSavestateSettingChange: vi.fn(),
     onDefaultSlotSubmit: vi.fn(),
     onResetDefaultSlot: vi.fn(),
     onSyncAll: vi.fn(),
@@ -322,6 +324,64 @@ describe("SaveSyncSection", () => {
       expect(labels.filter((l) => l === "")).toHaveLength(0);
       // Sanity-check the status row truly is absent (and the slot row present).
       expect(labels).toEqual(["Default Save Slot"]);
+    });
+  });
+
+  describe("savestate backup", () => {
+    const backupToggle = () => toggleCaptured.items.find((t) => t.label === "Back up savestates to RomM");
+    const scopeDropdown = () => dropdownCaptured.items.find((d) => d.label === "Which savestates");
+
+    it("is absent until its settings have loaded", () => {
+      render(<SaveSyncSection {...defaultProps({ savestateSettings: null })} />);
+      expect(backupToggle()).toBeUndefined();
+    });
+
+    it("is hidden with the rest when save sync is off", () => {
+      render(
+        <SaveSyncSection
+          {...defaultProps({
+            saveSyncSettings: makeSettings({ save_sync_enabled: false }),
+            savestateSettings: { enabled: true, scope: "auto" },
+          })}
+        />,
+      );
+      expect(backupToggle()).toBeUndefined();
+      expect(scopeDropdown()).toBeUndefined();
+    });
+
+    it("renders the toggle off by default with its one-line explanation", () => {
+      render(<SaveSyncSection {...defaultProps({ savestateSettings: { enabled: false, scope: "auto" } })} />);
+      expect(backupToggle()?.checked).toBe(false);
+      expect(String(backupToggle()?.description)).toContain("A backup only");
+      expect(scopeDropdown()).toBeUndefined();
+    });
+
+    it("dispatches the toggle change", () => {
+      const onSavestateSettingChange = vi.fn();
+      render(
+        <SaveSyncSection
+          {...defaultProps({ savestateSettings: { enabled: false, scope: "auto" }, onSavestateSettingChange })}
+        />,
+      );
+      backupToggle()?.onChange?.(true);
+      expect(onSavestateSettingChange).toHaveBeenCalledWith({ enabled: true });
+    });
+
+    it("offers the auto-state or all slots once enabled, reflecting the scope", () => {
+      render(<SaveSyncSection {...defaultProps({ savestateSettings: { enabled: true, scope: "all" } })} />);
+      expect(scopeDropdown()?.rgOptions?.map((o) => o.data)).toEqual(["auto", "all"]);
+      expect(scopeDropdown()?.selectedOption).toBe("all");
+    });
+
+    it("dispatches the scope change", () => {
+      const onSavestateSettingChange = vi.fn();
+      render(
+        <SaveSyncSection
+          {...defaultProps({ savestateSettings: { enabled: true, scope: "auto" }, onSavestateSettingChange })}
+        />,
+      );
+      scopeDropdown()?.onChange?.({ data: "all", label: "All slots" });
+      expect(onSavestateSettingChange).toHaveBeenCalledWith({ scope: "all" });
     });
   });
 });

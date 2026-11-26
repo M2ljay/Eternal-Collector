@@ -355,6 +355,16 @@ folder the backend does not locate, a disc image with no readable code, PCSX2 on
 (`domain/save_sync_blockers.py`). A stable `reason` slug plus one sentence for the user. Its saves are not synced, and
 the game page and the post-session notification say why; it is never a conflict and never stops a launch.
 
+### Savestate / savestate backup / savestate slot
+
+A **savestate** is an emulator snapshot of a running game (RetroArch's `.state` files), never an in-game save; it is
+never called plain "state" in code. A **savestate backup** uploads a RetroArch savestate to RomM after the game exits
+and the save sync is done (ADR-0031, `services/savestates/`): upload-only, opt-in, only savestates written since the
+backup was turned on, and never restored automatically — "backup, not sync". A **savestate slot** is `auto`
+(`.state.auto`) or `0`…`9` (`.state`, `.state1`…`.state9`), the keys RomM 5.5 snapshot banks use
+(`domain/savestate_names.py`). A backup is filed on the server as `<booted stem> [<device short-id>].<slot suffix>`, one
+row per device and slot.
+
 ### Mod target / mod backup
 
 A **mod target** is one place a game's mods go under the emulator it launches with (`domain/game_mods.py`

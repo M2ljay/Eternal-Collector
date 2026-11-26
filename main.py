@@ -245,6 +245,7 @@ class Plugin:
         self._startup_healing_service = services["startup_healing_service"]
         self._launch_gate_service = services["launch_gate_service"]
         self._session_lifecycle_service = services["session_lifecycle_service"]
+        self._savestate_service = services["savestate_service"]
         self._game_process_service = services["game_process_service"]
         self._relaunch_options_resolver = services["relaunch_options_resolver"]
         self._launcher_backend_service = services["launcher_backend_service"]
@@ -974,6 +975,13 @@ class Plugin:
     @migration_blocked
     async def update_save_sync_settings(self, settings):
         return self._save_sync_service.update_save_sync_settings(settings)
+
+    async def get_savestate_backup_settings(self):
+        return self._savestate_service.get_backup_settings()
+
+    @migration_blocked
+    async def update_savestate_backup_settings(self, settings):
+        return self._savestate_service.update_backup_settings(settings)
 
     @migration_blocked
     @prune_active_blocked

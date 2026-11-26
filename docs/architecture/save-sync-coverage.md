@@ -74,8 +74,11 @@ decides on ambiguity" stance:
 - **For an unavoidable shared card, treat it as one device-global blob:** whole-file, last-writer-wins, with conflict
   **detection that warns instead of clobbering** (the Ludusavi model), and rely on the existing version history as the
   recovery net. Never present it as per-game; never merge.
-- **Sync SRAM, not save states.** Save states are core- and version-coupled and not portable across devices; in-game
-  saves are.
+- **Sync SRAM, not savestates.** Savestates are core- and version-coupled and not portable across devices; in-game
+  saves are. RetroArch savestates are **backed up** to RomM after a game exits, upload-only and opt-in, and nothing
+  restores one automatically
+  ([ADR-0031](../adr/0031-savestates-are-backed-up-not-synced.md),
+  [Savestate backup](save-file-sync-architecture.md#savestate-backup)).
 - **The per-game card format is emulator-specific.** A per-game card written by the RetroArch PCSX2 core is not
   byte-compatible with standalone PCSX2. The sync key/format must match the core the user actually launches with — which
   is exactly what RomM's `emulator` subdirectory captures.
@@ -151,8 +154,10 @@ confined with `safe_join` before anything is written. Only after a clean unpack 
 `MatrixExecutor.quarantine_local_file` backs up the whole folder for a bundle name) and the staged folder moved into place. A corrupt
 or unsafe archive fails that one file's sync with the existing save untouched.
 
-**Not covered.** Save states. The removed-game cleanup still projects only the RetroArch paths, so it never touches a
-standalone emulator's folder (those saves are left in place, not backed up into the recovery bundle). The setup wizard's
+**Not covered.** Savestates: a standalone emulator's savestates are neither synced nor backed up (only RetroArch's
+are backed up, see [Savestate backup](save-file-sync-architecture.md#savestate-backup)). The removed-game cleanup still
+projects only the RetroArch paths, so it never touches a standalone emulator's folder (those saves are left in place,
+not backed up into the recovery bundle). The setup wizard's
 legacy (`slot:null`) migration skips bundles — a bundle is only ever uploaded into a named slot. A conflict shows the
 bundle as one file.
 

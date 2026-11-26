@@ -1177,6 +1177,86 @@ class TestRommUploadMultipartErrors:
 # ============================================================================
 
 
+class TestRommUploadMultipartParts:
+    """Several files in one request — the savestate upload's state + screenshot."""
+
+    def test_each_part_carries_its_field_and_file_name(self, plugin, tmp_path):
+        _setup_plugin(plugin)
+        state = tmp_path / "Game.state.auto"
+        state.write_bytes(b"STATE-BYTES")
+        shot = tmp_path / "Game.state.auto.png"
+        shot.write_bytes(b"PNG-BYTES")
+        fake_resp = MagicMock()
+        fake_resp.read.return_value = json.dumps({"id": 9}).encode()
+        fake_resp.__enter__ = MagicMock(return_value=fake_resp)
+        fake_resp.__exit__ = MagicMock(return_value=False)
+
+        with patch("urllib.request.urlopen", return_value=fake_resp) as mock_open:
+            result = plugin._http_adapter.upload_multipart_parts(
+                "/api/states?rom_id=1&emulator=snes9x",
+                [
+                    ("stateFile", str(state), "Game [aaaa1111].state.auto"),
+                    ("screenshotFile", str(shot), "Game [aaaa1111].state.auto.png"),
+                ],
+            )
+
+        assert result == {"id": 9}
+        req = mock_open.call_args[0][0]
+        assert req.full_url == "http://romm.local/api/states?rom_id=1&emulator=snes9x"
+        assert req.get_method() == "POST"
+        body = req.data
+        assert b'name="stateFile"; filename="Game [aaaa1111].state.auto"\r\n' in body
+        assert b'name="screenshotFile"; filename="Game [aaaa1111].state.auto.png"\r\n' in body
+        assert body.index(b"STATE-BYTES") < body.index(b"PNG-BYTES")
+        boundary = req.get_header("Content-type").split("boundary=")[1]
+        assert body.endswith(f"--{boundary}--\r\n".encode())
+        assert body.count(f"--{boundary}\r\n".encode()) == 2
+
+    def test_single_part_body_matches_the_save_upload(self, plugin, tmp_path):
+        _setup_plugin(plugin)
+        save = tmp_path / "test.srm"
+        save.write_bytes(b"data")
+        fake_resp = MagicMock()
+        fake_resp.read.return_value = b"{}"
+        fake_resp.__enter__ = MagicMock(return_value=fake_resp)
+        fake_resp.__exit__ = MagicMock(return_value=False)
+
+        with patch("urllib.request.urlopen", return_value=fake_resp) as mock_open:
+            plugin._http_adapter.upload_multipart("/api/saves", str(save))
+
+        req = mock_open.call_args[0][0]
+        boundary = req.get_header("Content-type").split("boundary=")[1]
+        assert (
+            req.data
+            == (
+                f"--{boundary}\r\n"
+                'Content-Disposition: form-data; name="saveFile"; filename="test.srm"\r\n'
+                "Content-Type: application/octet-stream\r\n\r\n"
+                f"data\r\n--{boundary}--\r\n"
+            ).encode()
+        )
+
+    def test_rom_missing_on_the_server_is_an_entity_not_found(self, plugin, tmp_path):
+        _setup_plugin(plugin)
+        state = tmp_path / "G.state"
+        state.write_bytes(b"x")
+        exc = _entity_404("Rom with id 42 not found")
+        with patch("urllib.request.urlopen", side_effect=exc), pytest.raises(RommNotFoundError):
+            plugin._http_adapter.upload_multipart_parts("/api/states?rom_id=42", [("stateFile", str(state), "G.state")])
+
+    def test_generic_route_404_is_not_entity_authority(self, plugin, tmp_path):
+        # An older or misrouted server that has no /api/states route answers with
+        # FastAPI's stock body; that must never read as "this ROM is gone".
+        _setup_plugin(plugin)
+        state = tmp_path / "G.state"
+        state.write_bytes(b"x")
+        exc = _http_error(404, "Not Found", content_type="application/json", body=b'{"detail":"Not Found"}')
+        with patch("urllib.request.urlopen", side_effect=exc), pytest.raises(RommApiError) as caught:
+            plugin._http_adapter.upload_multipart_parts("/api/states?rom_id=42", [("stateFile", str(state), "G.state")])
+        assert not isinstance(caught.value, RommNotFoundError)
+        assert classify_error(caught.value)[0] == ErrorCode.SERVER_UNREACHABLE.value
+
+
 class TestRetryLogic:
     """Tests for with_retry and is_retryable on RommHttpAdapter."""
 

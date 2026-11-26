@@ -82,17 +82,19 @@ def _set_user_version(db_path: str, version: int) -> None:
 # + 019_add_collection_sync_state + 020_add_fetch_generation
 # + 021_add_rom_fs_size + 022_rename_collection_kind_user_to_standard
 # + 023_add_rom_install_launchable + 024_emulator_override_per_backend
-# + 025_add_selected_exe).
-_SHIPPED_VERSION = 25
+# + 025_add_selected_exe + 026_add_rom_savestate_sync_states).
+_SHIPPED_VERSION = 26
 
 # Tables after every shipped migration: the v1 set plus 006's play-session outbox,
-# 012's per-platform completion stamp, and 019's per-collection completion stamp,
-# with 018 renaming the save-sync scalar table rom_save_states -> rom_save_sync_states.
+# 012's per-platform completion stamp, 019's per-collection completion stamp, and
+# 026's savestate backup records, with 018 renaming the save-sync scalar table
+# rom_save_states -> rom_save_sync_states.
 _SHIPPED_TABLES = (_V1_TABLES - {"rom_save_states"}) | {
     "rom_save_sync_states",
     "rom_playtime_sessions",
     "platform_sync_state",
     "collection_sync_state",
+    "rom_savestate_sync_states",
 }
 
 
@@ -1637,6 +1639,70 @@ class Test025AddSelectedExe:
         finally:
             conn.close()
         assert stored is None
+
+
+class Test026AddRomSavestateSyncStates:
+    """026 — adds the per-(rom, slot) savestate backup table, cascading from roms."""
+
+    def test_table_absent_before_026(self, tmp_path: Path):
+        db_path = str(tmp_path / "romm_sync.db")
+        apply_migrations(db_path, str(_only_migrations_through(tmp_path, 25)))
+
+        assert _user_version(db_path) == 25
+        assert "rom_savestate_sync_states" not in _tables(db_path)
+
+    def test_existing_rom_survives_and_has_no_records(self, tmp_path: Path):
+        db_path = str(tmp_path / "romm_sync.db")
+        apply_migrations(db_path, str(_only_migrations_through(tmp_path, 25)))
+        conn = sqlite3.connect(db_path, isolation_level=None)
+        try:
+            _insert_rom(conn, 1, 5000)
+        finally:
+            conn.close()
+
+        assert apply_migrations(db_path) == _SHIPPED_VERSION
+
+        conn = sqlite3.connect(db_path)
+        try:
+            assert conn.execute("SELECT COUNT(*) FROM roms").fetchone()[0] == 1
+            assert conn.execute("SELECT COUNT(*) FROM rom_savestate_sync_states").fetchone()[0] == 0
+        finally:
+            conn.close()
+
+    @pytest.mark.parametrize(
+        ("slot", "content_hash"),
+        [("10", "abc"), ("-1", "abc"), ("state", "abc"), ("auto", "")],
+    )
+    def test_rejects_unknown_slots_and_empty_hashes(self, tmp_path: Path, slot: str, content_hash: str):
+        db_path = str(tmp_path / "romm_sync.db")
+        apply_migrations(db_path)
+        conn = sqlite3.connect(db_path, isolation_level=None)
+        try:
+            _insert_rom(conn, 1, 5000)
+            with pytest.raises(sqlite3.IntegrityError):
+                conn.execute(
+                    "INSERT INTO rom_savestate_sync_states (rom_id, slot, local_name, content_hash, observed_at) "
+                    "VALUES (1, ?, 'Game.state', ?, '2026-11-26T00:00:00+00:00')",
+                    (slot, content_hash),
+                )
+        finally:
+            conn.close()
+
+    def test_rom_delete_cascades(self, tmp_path: Path):
+        db_path = str(tmp_path / "romm_sync.db")
+        apply_migrations(db_path)
+        conn = sqlite3.connect(db_path, isolation_level=None)
+        try:
+            conn.execute("PRAGMA foreign_keys=ON")
+            _insert_rom(conn, 1, 5000)
+            conn.execute(
+                "INSERT INTO rom_savestate_sync_states (rom_id, slot, local_name, content_hash, observed_at) "
+                "VALUES (1, 'auto', 'Game.state.auto', 'abc', '2026-11-26T00:00:00+00:00')"
+            )
+            conn.execute("DELETE FROM roms WHERE rom_id = 1")
+            assert conn.execute("SELECT COUNT(*) FROM rom_savestate_sync_states").fetchone()[0] == 0
+        finally:
+            conn.close()
 
 
 def test_shipped_migrations_dir_resolves_to_real_schema():

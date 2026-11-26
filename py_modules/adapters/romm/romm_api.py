@@ -10,6 +10,7 @@ import logging
 import urllib.parse
 from typing import TYPE_CHECKING, Any
 
+from domain.version import meets_min_version
 from lib.errors import (
     PairingCodeInvalidError,
     PairingCodeOwnerDisabledError,
@@ -82,6 +83,11 @@ _TOKEN_SCOPES = [
     "devices.write",
     "roms.user.write",
 ]
+
+
+def _is_before_5(version: str | None) -> bool:
+    """Whether a server version is known and does not read as RomM 5.0 or later; ``None`` is not."""
+    return version is not None and not meets_min_version(version, (5, 0, 0))
 
 
 class RommApiAdapter:
@@ -329,6 +335,39 @@ class RommApiAdapter:
 
     def delete_server_saves(self, save_ids: list[int]) -> dict[str, Any]:
         return self._client.post_json("/api/saves/delete", {"saves": save_ids})
+
+    # ── Savestates ────────────────────────────────────────────────────
+
+    def upload_state(
+        self,
+        rom_id: int,
+        file_path: str,
+        *,
+        file_name: str,
+        emulator: str,
+        screenshot_path: str | None = None,
+        core: str | None = None,
+        core_version: str | None = None,
+        emulator_version: str | None = None,
+        device_id: str | None = None,
+    ) -> dict[str, Any]:
+        params = f"rom_id={rom_id}&emulator={urllib.parse.quote(emulator, safe='')}"
+        if not _is_before_5(self._version):
+            # 4.9's add_state reads only rom_id and emulator; these are the 5.5
+            # parameters (endpoints/states.py@master), which 5.0-5.4 ignore like
+            # any unknown FastAPI query parameter.
+            for name, value in (
+                ("core", core),
+                ("core_version", core_version),
+                ("emulator_version", emulator_version),
+                ("device_id", device_id),
+            ):
+                if value:
+                    params += f"&{name}={urllib.parse.quote(value, safe='')}"
+        parts = [("stateFile", file_path, file_name)]
+        if screenshot_path is not None:
+            parts.append(("screenshotFile", screenshot_path, f"{file_name}.png"))
+        return self._client.upload_multipart_parts(f"/api/states?{params}", parts, method="POST")
 
     # ── Sync sessions (4.9 negotiate) ─────────────────────────────────
 

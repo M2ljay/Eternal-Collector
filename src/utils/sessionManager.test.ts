@@ -53,6 +53,7 @@ const IDLE_FINALIZE = {
     conflicts_toast: null,
   },
   migration: null,
+  savestates_backed_up: 0,
 };
 
 function captureLifetimeCb(): LifetimeCb {
@@ -330,6 +331,7 @@ describe("sessionManager lifecycle forwarding", () => {
         conflicts_toast: null,
       },
       migration: null,
+      savestates_backed_up: 0,
     });
     const dataChanged: unknown[] = [];
     const listener = (e: Event) => dataChanged.push((e as CustomEvent).detail);
@@ -439,6 +441,42 @@ describe("sessionManager post-exit save-sync toast (#1481)", () => {
     expect(vi.mocked(toaster.toast)).toHaveBeenCalledWith(
       expect.objectContaining({ title: "The Collector", body: "Saves uploaded to RomM" }),
     );
+  });
+
+  it("adds the savestate clause to the save-sync toast", async () => {
+    vi.mocked(backend.finalizeGameSession).mockResolvedValue({
+      ...IDLE_FINALIZE,
+      sync: { ...IDLE_FINALIZE.sync, success: true, uploaded: 1, downloaded: 0 },
+      savestates_backed_up: 2,
+    });
+    await runStop();
+    const bodies = vi.mocked(toaster.toast).mock.calls.map((c) => c[0].body);
+    expect(bodies).toEqual(["Saves uploaded to RomM · 2 savestates backed up"]);
+  });
+
+  it("toasts the savestate backup alone when no save moved", async () => {
+    vi.mocked(backend.finalizeGameSession).mockResolvedValue({ ...IDLE_FINALIZE, savestates_backed_up: 1 });
+    await runStop();
+    const bodies = vi.mocked(toaster.toast).mock.calls.map((c) => c[0].body);
+    expect(bodies).toEqual(["1 savestate backed up to RomM"]);
+  });
+
+  it("adds the savestate clause to the failure toast", async () => {
+    vi.mocked(backend.finalizeGameSession).mockResolvedValue({
+      ...IDLE_FINALIZE,
+      sync: { ...IDLE_FINALIZE.sync, success: false, failure_toast: "Failed to sync saves after exit" },
+      savestates_backed_up: 3,
+    });
+    await runStop();
+    expect(vi.mocked(toaster.toast)).toHaveBeenCalledWith(
+      expect.objectContaining({ body: "Failed to sync saves after exit · 3 savestates backed up" }),
+    );
+  });
+
+  it("fires no toast when neither saves nor savestates moved", async () => {
+    vi.mocked(backend.finalizeGameSession).mockResolvedValue({ ...IDLE_FINALIZE });
+    await runStop();
+    expect(vi.mocked(toaster.toast)).not.toHaveBeenCalled();
   });
 
   it("renders the both-directions directional toast from the counts", async () => {
@@ -1220,6 +1258,7 @@ describe("sessionManager session-changed dispatch (#1313)", () => {
         conflicts_toast: null,
       },
       migration: null,
+      savestates_backed_up: 0,
     });
     sessionEvents = [];
     sessionListener = (e) => sessionEvents.push(e.detail);

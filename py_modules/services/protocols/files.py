@@ -753,6 +753,31 @@ class SaveFileStore(Protocol):
         ...
 
 
+class SavestateFileStore(Protocol):
+    """Read-only filesystem seam for the savestate backup.
+
+    The backup reads savestates and never writes, renames or removes one, so the
+    seam offers nothing that could. Satisfied by the save-file adapter, whose
+    methods of the same names answer the same questions.
+    """
+
+    def is_file(self, path: str) -> bool:
+        """Return True when *path* exists and is a regular file."""
+        ...
+
+    def get_mtime(self, path: str) -> float:
+        """Return the mtime of *path* as a Unix timestamp."""
+        ...
+
+    def get_size(self, path: str) -> int:
+        """Return the size of *path* in bytes."""
+        ...
+
+    def checksum_md5(self, path: str) -> str:
+        """Return the hex MD5 of *path*'s bytes — the savestate is opaque, never decompressed."""
+        ...
+
+
 class DiscCodeReader(Protocol):
     """Reads the game identifier a disc image carries (``domain.disc_ids``)."""
 

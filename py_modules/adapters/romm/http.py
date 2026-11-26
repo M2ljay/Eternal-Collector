@@ -781,23 +781,31 @@ class RommHttpAdapter:
         """PUT JSON to RomM API, return parsed response."""
         return self.json_request(path, data, method="PUT")
 
-    # Intentionally skips with_retry: POST uploads may not be idempotent.
-    # (RomM saves endpoint upserts by filename, but we err on the side of caution.)
     def upload_multipart(self, path: str, file_path: str, method: str = "POST"):
         """Upload a file via multipart/form-data to RomM API."""
+        return self.upload_multipart_parts(path, [("saveFile", file_path, os.path.basename(file_path))], method=method)
+
+    # Intentionally skips with_retry: POST uploads may not be idempotent.
+    # (RomM saves endpoint upserts by filename, but we err on the side of caution.)
+    def upload_multipart_parts(self, path: str, parts: list[tuple[str, str, str]], method: str = "POST"):
+        """Upload several files in one multipart/form-data request to RomM API.
+
+        Each part is ``(field_name, file_path, file_name)``: the bytes of
+        *file_path* are sent under the form field *field_name* with *file_name* as
+        the part's filename, which is the name RomM stores the upload under.
+        """
         boundary = uuid.uuid4().hex
-        filename = os.path.basename(file_path)
-        safe_filename = filename.replace("\r", "").replace("\n", "").replace("\0", "").replace('"', '\\"')
-
-        with open(file_path, "rb") as f:
-            file_data = f.read()
-
         body = b""
-        body += f"--{boundary}\r\n".encode()
-        body += f'Content-Disposition: form-data; name="saveFile"; filename="{safe_filename}"\r\n'.encode()
-        body += b"Content-Type: application/octet-stream\r\n\r\n"
-        body += file_data
-        body += f"\r\n--{boundary}--\r\n".encode()
+        for field_name, file_path, file_name in parts:
+            safe_filename = file_name.replace("\r", "").replace("\n", "").replace("\0", "").replace('"', '\\"')
+            with open(file_path, "rb") as f:
+                file_data = f.read()
+            body += f"--{boundary}\r\n".encode()
+            body += f'Content-Disposition: form-data; name="{field_name}"; filename="{safe_filename}"\r\n'.encode()
+            body += b"Content-Type: application/octet-stream\r\n\r\n"
+            body += file_data
+            body += b"\r\n"
+        body += f"--{boundary}--\r\n".encode()
 
         url = self._settings["romm_url"].rstrip("/") + path
         req = urllib.request.Request(url, data=body, method=method)

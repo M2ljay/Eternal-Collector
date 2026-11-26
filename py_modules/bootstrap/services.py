@@ -42,6 +42,7 @@ from services.rom_adoption import RomAdoptionService, RomAdoptionServiceConfig
 from services.rom_install_recorder import RomInstallRecorder, RomInstallRecorderConfig
 from services.rom_removal import RomRemovalService, RomRemovalServiceConfig
 from services.saves import SaveService, SaveServiceConfig
+from services.savestates import SavestateService, SavestateServiceConfig
 from services.session_lifecycle import SessionLifecycleService, SessionLifecycleServiceConfig
 from services.settings import SettingsService, SettingsServiceConfig
 from services.shortcut_removal import ShortcutRemovalService, ShortcutRemovalServiceConfig
@@ -627,10 +628,32 @@ def wire_services(cfg: WiringConfig) -> dict[str, Any]:
         ),
     )
 
+    savestate_service = SavestateService(
+        config=SavestateServiceConfig(
+            romm_api=cfg.adapters.romm_api,
+            uow_factory=cfg.callbacks.uow_factory,
+            settings=cfg.stores.settings,
+            settings_persister=cfg.callbacks.settings_persister,
+            savestate_file_store=cfg.adapters.save_file_store,
+            launcher_paths=launcher_backend_service,
+            savestate_layout=cfg.callbacks.get_savestate_layout,
+            active_core=active_core_resolver,
+            disc_resolver=disc_launch_resolver,
+            get_core_name=cfg.callbacks.get_core_name,
+            get_core_version=cfg.callbacks.get_core_version,
+            device_id_provider=save_sync_service,
+            clock=cfg.runtime.clock,
+            loop=cfg.runtime.loop,
+            logger=cfg.runtime.logger,
+            log_debug=cfg.callbacks.log_debug,
+        ),
+    )
+
     session_lifecycle_service = SessionLifecycleService(
         config=SessionLifecycleServiceConfig(
             playtime_recorder=playtime_service,
             post_exit_sync=save_sync_service,
+            savestate_backup=savestate_service,
             achievement_sync=achievements_service,
             migration_reader=migration_service,
             logger=cfg.runtime.logger,
@@ -696,6 +719,7 @@ def wire_services(cfg: WiringConfig) -> dict[str, Any]:
         "startup_healing_service": startup_healing_service,
         "launch_gate_service": launch_gate_service,
         "session_lifecycle_service": session_lifecycle_service,
+        "savestate_service": savestate_service,
         "game_process_service": game_process_service,
         "relaunch_options_resolver": relaunch_options_resolver,
         "launcher_backend_service": launcher_backend_service,

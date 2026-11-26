@@ -14,6 +14,15 @@ export interface SaveSyncSettings {
   autocleanup_limit: number;
 }
 
+/** Which savestates the backup uploads: RetroArch's auto-state alone, or every slot. */
+export type SavestateBackupScope = "auto" | "all";
+
+/** The savestate backup knobs (ADR-0031). Off by default; uploads only, never restores. */
+export interface SavestateBackupSettings {
+  enabled: boolean;
+  scope: SavestateBackupScope;
+}
+
 /** The `reason` slug the sync callables return when save sync is blocked because
  *  RetroArch writes saves to the content directory (#239). A BENIGN SKIP — the
  *  game still launches and no error is surfaced. Mirrors the backend

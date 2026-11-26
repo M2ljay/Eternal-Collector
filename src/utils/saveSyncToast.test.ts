@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { saveSyncToastBody } from "./saveSyncToast";
+import { saveSyncToastBody, withSavestateClause } from "./saveSyncToast";
 
 describe("saveSyncToastBody", () => {
   it("names uploads when saves only moved up", () => {
@@ -24,5 +24,32 @@ describe("saveSyncToastBody", () => {
 
   it("treats a missing upload count as zero", () => {
     expect(saveSyncToastBody(undefined, 1)).toBe("Saves downloaded from RomM");
+  });
+});
+
+describe("withSavestateClause", () => {
+  it("leaves the body alone when no savestate was backed up", () => {
+    expect(withSavestateClause("Saves uploaded to RomM", 0)).toBe("Saves uploaded to RomM");
+    expect(withSavestateClause(null, 0)).toBeNull();
+  });
+
+  it("treats an absent count as zero", () => {
+    expect(withSavestateClause("Saves uploaded to RomM", undefined)).toBe("Saves uploaded to RomM");
+    expect(withSavestateClause(null, undefined)).toBeNull();
+  });
+
+  it("appends the plural clause to the save-sync body", () => {
+    expect(withSavestateClause("Saves uploaded to RomM", 2)).toBe("Saves uploaded to RomM · 2 savestates backed up");
+  });
+
+  it("uses the singular for one savestate", () => {
+    expect(withSavestateClause("Saves downloaded from RomM", 1)).toBe(
+      "Saves downloaded from RomM · 1 savestate backed up",
+    );
+  });
+
+  it("stands alone when the save sync had nothing to say", () => {
+    expect(withSavestateClause(null, 3)).toBe("3 savestates backed up to RomM");
+    expect(withSavestateClause(null, 1)).toBe("1 savestate backed up to RomM");
   });
 });

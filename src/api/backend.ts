@@ -19,6 +19,7 @@ import type {
   CoreInfo,
   RomMetadata,
   SaveSyncSettings,
+  SavestateBackupSettings,
   SaveStatus,
   SaveSyncDisplay,
   SyncConflict,
@@ -1089,6 +1090,11 @@ export const checkRetroAchievementsStart = callable<[number], { warning: string 
 export const checkRetroAchievementsEnd = callable<[number], { warning: string | null }>("check_retroachievements_end");
 export const getSaveSyncSettings = callable<[], SaveSyncSettings>("get_save_sync_settings");
 export const updateSaveSyncSettings = callable<[SaveSyncSettings], { success: boolean }>("update_save_sync_settings");
+export const getSavestateBackupSettings = callable<[], SavestateBackupSettings>("get_savestate_backup_settings");
+export const updateSavestateBackupSettings = callable<
+  [Partial<SavestateBackupSettings>],
+  { success: true; settings: SavestateBackupSettings } | { success: false; reason: "invalid_scope"; message: string }
+>("update_savestate_backup_settings");
 // `last_known` is present ONLY on the failed-server-fetch branch, and is null
 // there unless the ROM's active slot was confirmed: it is the slot listing the
 // last successful contact left on disk, not an answer about now. `slots` /
@@ -1248,6 +1254,9 @@ export interface SessionFinalizeResult {
   // ``pending`` badge keeps showing), matching the pre-PR behavior
   // where ``refreshMigrationState().catch`` logged without clearing.
   migration: SessionFinalizeMigration | null;
+  // Savestates the post-exit backup uploaded after the save sync (0 when the
+  // backup is off); the after-exit toast gains a clause for them.
+  savestates_backed_up: number;
 }
 
 export const finalizeGameSession = callable<[number], SessionFinalizeResult>("finalize_game_session");

@@ -34,6 +34,7 @@ def _make_api():
     client.post_json = MagicMock()
     client.put_json = MagicMock()
     client.upload_multipart = MagicMock()
+    client.upload_multipart_parts = MagicMock()
     client.basic_auth_request = MagicMock()
     client.unauthenticated_post_json = MagicMock()
     return RommApiAdapter(client), client
@@ -256,6 +257,72 @@ class TestUploadSave:
         client.upload_multipart.side_effect = RommConflictError("HTTP 409: Conflict", url="/api/saves", method="POST")
         with pytest.raises(RommConflictError):
             api.upload_save(42, "/tmp/save.srm", "retroarch-mgba", device_id="abc")
+
+
+class TestUploadState:
+    def test_4_9_sends_only_rom_id_and_emulator(self):
+        api, client = _make_api()
+        api.set_version("4.9.2")
+        client.upload_multipart_parts.return_value = {"id": 3}
+        result = api.upload_state(
+            42,
+            "/st/Game.state.auto",
+            file_name="Game [aaaa1111].state.auto",
+            emulator="snes9x",
+            core="snes9x",
+            core_version="1.62",
+            emulator_version="1.19.1",
+            device_id="dev-1",
+        )
+        client.upload_multipart_parts.assert_called_once_with(
+            "/api/states?rom_id=42&emulator=snes9x",
+            [("stateFile", "/st/Game.state.auto", "Game [aaaa1111].state.auto")],
+            method="POST",
+        )
+        assert result == {"id": 3}
+
+    @pytest.mark.parametrize("version", ["5.4.1", "5.5.0", None])
+    def test_5_x_and_unknown_versions_send_the_provenance_parameters(self, version):
+        api, client = _make_api()
+        api.set_version(version)
+        client.upload_multipart_parts.return_value = {"id": 3}
+        api.upload_state(
+            42,
+            "/st/Game.state1",
+            file_name="Game [aaaa1111].state1",
+            emulator="mednafen_psx_hw",
+            core="mednafen_psx_hw",
+            core_version="v0.9.44 (abc def)",
+            emulator_version=None,
+            device_id="dev 1",
+        )
+        path = client.upload_multipart_parts.call_args[0][0]
+        assert path == (
+            "/api/states?rom_id=42&emulator=mednafen_psx_hw&core=mednafen_psx_hw"
+            "&core_version=v0.9.44%20%28abc%20def%29&device_id=dev%201"
+        )
+
+    def test_screenshot_rides_along_named_after_the_server_file(self):
+        api, client = _make_api()
+        client.upload_multipart_parts.return_value = {"id": 3}
+        api.upload_state(
+            42,
+            "/st/Game.state.auto",
+            file_name="Game [aaaa1111].state.auto",
+            emulator="snes9x",
+            screenshot_path="/st/Game.state.auto.png",
+        )
+        parts = client.upload_multipart_parts.call_args[0][1]
+        assert parts == [
+            ("stateFile", "/st/Game.state.auto", "Game [aaaa1111].state.auto"),
+            ("screenshotFile", "/st/Game.state.auto.png", "Game [aaaa1111].state.auto.png"),
+        ]
+
+    def test_errors_propagate(self):
+        api, client = _make_api()
+        client.upload_multipart_parts.side_effect = RommNotFoundError("Rom with id '42' not found")
+        with pytest.raises(RommNotFoundError):
+            api.upload_state(42, "/st/G.state", file_name="G [a].state", emulator="snes9x")
 
 
 class TestDownloadSaveContent:

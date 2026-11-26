@@ -97,6 +97,9 @@ class FakeRommApi:
         # ``reject_batch_below_duration_ms > 0`` to fire.
         self.mangle_batch_422_detail: bool = False
         self.saves: dict[int, dict[str, Any]] = {}
+        # Savestates keyed by (rom_id, file_name): POST /api/states upserts by
+        # name, keeping the row id (handler/asset_store.py at 5.4.1).
+        self.states: dict[tuple[int, str], dict[str, Any]] = {}
         self.devices: list[dict[str, Any]] = []
         self.current_user: dict[str, Any] = {"id": 1, "username": "tester"}
         self.heartbeat_response: dict[str, Any] = {"status": "ok"}
@@ -168,6 +171,7 @@ class FakeRommApi:
         self.update_device_side_effect: Exception | None = None
         self.list_saves_side_effect: Exception | None = None
         self.upload_save_side_effect: Exception | None = None
+        self.upload_state_side_effect: Exception | None = None
         self.download_save_side_effect: Exception | None = None
         self.download_save_content_side_effect: Exception | None = None
         self.confirm_download_side_effect: Exception | None = None
@@ -696,6 +700,40 @@ class FakeRommApi:
         self._check_fail(self.download_save_side_effect)
         payload = self._save_content.get(save_id) or self.download_payloads.get(f"save:{save_id}", b"")
         self._materialize_download(dest_path, payload)
+
+    def upload_state(
+        self,
+        rom_id: int,
+        file_path: str,
+        *,
+        file_name: str,
+        emulator: str,
+        screenshot_path: str | None = None,
+        core: str | None = None,
+        core_version: str | None = None,
+        emulator_version: str | None = None,
+        device_id: str | None = None,
+    ) -> dict[str, Any]:
+        self._log(
+            "upload_state",
+            (rom_id, file_path),
+            {
+                "file_name": file_name,
+                "emulator": emulator,
+                "screenshot_path": screenshot_path,
+                "core": core,
+                "core_version": core_version,
+                "emulator_version": emulator_version,
+                "device_id": device_id,
+            },
+        )
+        self._check_fail(self.upload_state_side_effect)
+        key = (rom_id, file_name)
+        existing = self.states.get(key)
+        state_id = existing["id"] if existing is not None else len(self.states) + 1
+        row = {"id": state_id, "rom_id": rom_id, "file_name": file_name, "emulator": emulator}
+        self.states[key] = row
+        return dict(row)
 
     def download_save_content(
         self,

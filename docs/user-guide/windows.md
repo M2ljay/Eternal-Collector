@@ -43,8 +43,9 @@ real location from EmuDeck's settings):
 Which emulator counts is the one the game actually launches with — your per-game or per-platform choice, else EmuDeck's
 default. A PlayStation game you launch with a RetroArch core keeps syncing RetroArch's save. Each emulator's saves are
 stored on RomM under that emulator's name (`melonds`, `duckstation`, `vita3k`, `dolphin`, `ppsspp`, `pcsx2`), so saves
-from different emulators never overwrite each other. Only files positively identified as the game's are read or written;
-save states are not synced.
+from different emulators never overwrite each other. Only files positively identified as the game's are read or written.
+Savestates are not synced; RetroArch savestates can be backed up to RomM (see
+[Savestate backup](save-sync.md#savestate-backup)), standalone emulators' cannot yet.
 
 !!! note "DuckStation: the card must be named after your ROM"
 

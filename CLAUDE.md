@@ -205,7 +205,7 @@ Format: **invariant** — tier — enforced by.
   confinement holds `session_budget`'s stated promise that no renderer-RSS reading is taken anywhere else in the package
 - **A module declared read-only calls no repository write — `services/library/local_library_reader.py` to start** —
   check — `scripts/check_read_only_module.py` (AST over the declared file's own calls, matching the two-attribute
-  `<...>.<repo>.<method>` shape against the eleven repositories the UoW exposes). Read or write is decided **by the
+  `<...>.<repo>.<method>` shape against the twelve repositories the UoW exposes). Read or write is decided **by the
   name's shape** — `get` / `get_*` / `iter_*` / `count` plus the explicitly listed reads — and
   `tests/scripts/test_check_read_only_module.py` re-derives every method name from `services/protocols/repositories.py`
   and pins its classification, so a new repository method fails there until it is classified. **The two directions are
@@ -289,6 +289,17 @@ Format: **invariant** — tier — enforced by.
 - **Every read-mutate-write of a `RomSaveSyncState` runs under `SyncEngine.rom_lock(rom_id)`** — prompt-only — sync
   paths, `get_save_status`, and the four slot mutations hold the lock; mechanize via a `rom_save_sync_states.save`
   call-site audit
+- **The savestate backup is upload-only and stays outside save sync: `services/savestates/` never downloads a
+  savestate, never writes, renames or removes a local one, never deletes or prunes a server copy, and never feeds
+  `compute_sync_action` or the save matrix; it runs only after the post-exit save sync has returned, and every
+  read-mutate-write of a `RomSavestateSyncState` holds `SavestateService.rom_lock(rom_id)` — its own lock, never the
+  save sync's `rom_lock`** — test + prompt-only — `tests/services/savestates/test_service.py`
+  (`TestNeverDownloadsOrWrites` pins that a run makes no request but the upload and leaves the file set untouched;
+  `TestLock`) and
+  `tests/services/test_session_lifecycle.py::TestFinalizeSavestateBackup` (ordering). The `SavestateFileStore` seam the
+  service holds offers reads only, so a local write needs a new seam to slip in; a new RomM call or a new writer of the
+  aggregate is prompt-only. A restore, when it comes, takes the backup leg of the destructive-op rule
+  ([Savestate backup](docs/architecture/save-file-sync-architecture.md#savestate-backup))
 - **Per-slot server reads/deletes go through `domain/save_slot.py` (legacy omits `&slot=`, client-filters)** —
   prompt-only — `get_slot_saves` / `get_slot_delete_info` / `delete_slot` / `list_file_versions` / `rollback_to_version`
   use `slot_query_param` + `save_in_slot`; RomM can't address `slot:null` via the param, so legacy MUST omit it + filter

@@ -14,6 +14,8 @@ import {
   applySteamInputSetting,
   getSaveSyncSettings,
   updateSaveSyncSettings,
+  getSavestateBackupSettings,
+  updateSavestateBackupSettings,
   syncAllSaves,
   saveLogLevel,
   savePreferredRegion,
@@ -33,6 +35,7 @@ import type {
   RegisteredDevice,
   CollectionNamingMode,
   SaveSyncSettings as SaveSyncSettingsType,
+  SavestateBackupSettings,
   RetroArchInputCheck,
 } from "../types";
 import {
@@ -82,6 +85,7 @@ export const SettingsPage: FC<SettingsPageProps> = ({ onBack }) => {
   const [deviceInfo, setDeviceInfo] = useState<{ device_id: string; device_name: string } | null>(null);
   const [syncing, setSyncing] = useState(false);
   const [syncStatus, setSyncStatus] = useState("");
+  const [savestateSettings, setSavestateSettings] = useState<SavestateBackupSettings | null>(null);
 
   // Registered devices state
   const [registeredDevices, setRegisteredDevices] = useState<RegisteredDevice[] | null>(null);
@@ -157,6 +161,10 @@ export const SettingsPage: FC<SettingsPageProps> = ({ onBack }) => {
       })
       .catch((e) => logError(`Failed to load save sync settings: ${e}`));
 
+    getSavestateBackupSettings()
+      .then(setSavestateSettings)
+      .catch((e) => logError(`Failed to load savestate backup settings: ${e}`));
+
     getSaveSortMigrationStatus()
       .then((s) => {
         if (s.pending) {
@@ -188,6 +196,24 @@ export const SettingsPage: FC<SettingsPageProps> = ({ onBack }) => {
         setDevicesLoading(false);
       });
   }
+
+  const handleSavestateSettingChange = async (partial: Partial<SavestateBackupSettings>) => {
+    if (!savestateSettings) return;
+    const previous = savestateSettings;
+    setSavestateSettings({ ...previous, ...partial });
+    try {
+      const result = await updateSavestateBackupSettings(partial);
+      if (result.success) {
+        setSavestateSettings(result.settings);
+      } else {
+        setSavestateSettings(previous);
+        showToast(result.message);
+      }
+    } catch (e) {
+      setSavestateSettings(previous);
+      logError(`Failed to save savestate backup settings: ${e}`);
+    }
+  };
 
   const handleSaveSyncSettingChange = async (partial: Partial<SaveSyncSettingsType>) => {
     if (!saveSyncSettings) return;
@@ -557,6 +583,10 @@ export const SettingsPage: FC<SettingsPageProps> = ({ onBack }) => {
         onToggleSaveSync={handleToggleSaveSync}
         onSettingChange={(partial) => {
           detach(handleSaveSyncSettingChange(partial));
+        }}
+        savestateSettings={savestateSettings}
+        onSavestateSettingChange={(partial) => {
+          detach(handleSavestateSettingChange(partial));
         }}
         onDefaultSlotSubmit={handleDefaultSlotSubmit}
         onResetDefaultSlot={handleResetDefaultSlot}

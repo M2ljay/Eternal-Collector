@@ -1,7 +1,9 @@
 /**
  * Save-sync toggles — master enable, sync-before-launch, sync-after-exit,
- * default save slot editor, history-limit dropdown, and the "Sync All" button.
- * Pure renderer: parent owns SaveSyncSettings, deviceInfo, and the sync status.
+ * default save slot editor, history-limit dropdown, the savestate backup pair,
+ * and the "Sync All" button.
+ * Pure renderer: parent owns SaveSyncSettings, SavestateBackupSettings,
+ * deviceInfo, and the sync status.
  */
 
 import { FC } from "react";
@@ -15,7 +17,11 @@ import {
   showModal,
   ToggleField,
 } from "@decky/ui";
-import type { SaveSyncSettings as SaveSyncSettingsType } from "../../types";
+import type {
+  SaveSyncSettings as SaveSyncSettingsType,
+  SavestateBackupScope,
+  SavestateBackupSettings,
+} from "../../types";
 import { TextInputModal } from "./TextInputModal";
 
 interface SaveSyncSectionProps {
@@ -26,6 +32,8 @@ interface SaveSyncSectionProps {
   syncStatus: string;
   onToggleSaveSync: (value: boolean) => void;
   onSettingChange: (partial: Partial<SaveSyncSettingsType>) => void;
+  savestateSettings: SavestateBackupSettings | null;
+  onSavestateSettingChange: (partial: Partial<SavestateBackupSettings>) => void;
   onDefaultSlotSubmit: (value: string) => void;
   onResetDefaultSlot: () => void;
   onSyncAll: () => void;
@@ -39,6 +47,8 @@ export const SaveSyncSection: FC<SaveSyncSectionProps> = ({
   syncStatus,
   onToggleSaveSync,
   onSettingChange,
+  savestateSettings,
+  onSavestateSettingChange,
   onDefaultSlotSubmit,
   onResetDefaultSlot,
   onSyncAll,
@@ -128,6 +138,31 @@ export const SaveSyncSection: FC<SaveSyncSectionProps> = ({
                   onChange={(option) => onSettingChange({ autocleanup_limit: option.data as number })}
                 />
               </PanelSectionRow>
+              {savestateSettings && (
+                <>
+                  <PanelSectionRow>
+                    <ToggleField
+                      label="Back up savestates to RomM"
+                      description="After a RetroArch game exits, upload savestates made since you turned this on. A backup only: nothing is restored automatically."
+                      checked={savestateSettings.enabled}
+                      onChange={(value) => onSavestateSettingChange({ enabled: value })}
+                    />
+                  </PanelSectionRow>
+                  {savestateSettings.enabled && (
+                    <PanelSectionRow>
+                      <DropdownItem
+                        label="Which savestates"
+                        rgOptions={[
+                          { data: "auto", label: "Auto-state only (Default)" },
+                          { data: "all", label: "All slots" },
+                        ]}
+                        selectedOption={savestateSettings.scope}
+                        onChange={(option) => onSavestateSettingChange({ scope: option.data as SavestateBackupScope })}
+                      />
+                    </PanelSectionRow>
+                  )}
+                </>
+              )}
               <PanelSectionRow>
                 <ButtonItem layout="below" onClick={onSyncAll} disabled={syncing}>
                   {syncing ? "Syncing..." : "Sync All Saves Now"}

@@ -19,7 +19,7 @@ import {
   logError,
   debugLog,
 } from "../api/backend";
-import { saveSyncToastBody } from "./saveSyncToast";
+import { saveSyncToastBody, withSavestateClause } from "./saveSyncToast";
 import { setMigrationStatus } from "./migrationStore";
 import { setSaveSortMigrationStatus } from "./saveSortMigrationStore";
 import { updatePlaytimeDisplay } from "../patches/metadataPatches";
@@ -299,16 +299,15 @@ async function handleGameStop(stoppedAppId: number): Promise<void> {
     // frontend-side from the transfer counts via the shared helper (the single
     // source of that copy, #1481); the offline/failure body stays backend-owned
     // (failure_toast). The two are mutually exclusive — a successful run carries
-    // failure_toast=null — so only one fires.
+    // failure_toast=null — so only one fires. The savestate backup that ran after
+    // the save sync adds its clause to that one toast rather than a second one.
     const directionalBody = result.sync.success
       ? saveSyncToastBody(result.sync.uploaded, result.sync.downloaded)
       : null;
-    if (directionalBody) {
-      showToast(directionalBody);
-    } else if (result.sync.failure_toast) {
-      showToast(result.sync.failure_toast);
-    } else if (result.sync.blocked_toast) {
-      showToast(result.sync.blocked_toast);
+    const syncBody = directionalBody || result.sync.failure_toast || result.sync.blocked_toast || null;
+    const exitBody = withSavestateClause(syncBody, result.savestates_backed_up);
+    if (exitBody) {
+      showToast(exitBody);
     }
 
     // Save-sync event dispatch — fires unconditionally so open surfaces refresh

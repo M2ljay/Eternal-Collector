@@ -230,3 +230,48 @@ class TestOsErrorHandling:
             assert adapter.get_corename("snes9x_libretro") == "FromUser"
 
         assert any("Failed to read" in rec.message for rec in caplog.records)
+
+
+class TestGetCoreVersion:
+    def test_display_version_is_returned(self, tmp_path):
+        cores = _user_cores_dir(tmp_path)
+        cores.mkdir(parents=True)
+        (cores / "snes9x_libretro.info").write_text(_SNES9X_INFO + 'display_version = "1.62.3"\n')
+
+        assert _make_adapter(tmp_path).get_core_version("snes9x_libretro") == "1.62.3"
+
+    def test_missing_or_empty_version_is_none(self, tmp_path):
+        cores = _user_cores_dir(tmp_path)
+        cores.mkdir(parents=True)
+        (cores / "snes9x_libretro.info").write_text(_SNES9X_INFO)
+        (cores / "mgba_libretro.info").write_text('corename = "mGBA"\ndisplay_version = ""\n')
+
+        adapter = _make_adapter(tmp_path)
+        assert adapter.get_core_version("snes9x_libretro") is None
+        assert adapter.get_core_version("mgba_libretro") is None
+
+    def test_missing_info_file_is_none(self, tmp_path):
+        assert _make_adapter(tmp_path).get_core_version("snes9x_libretro") is None
+
+
+class TestWindowsInfoDirectory:
+    def test_emudeck_retroarch_info_folder_is_read_on_windows(self, tmp_path, monkeypatch):
+        appdata = tmp_path / "AppData" / "Roaming"
+        info = appdata / "emudeck" / "Emulators" / "RetroArch" / "info"
+        info.mkdir(parents=True)
+        (info / "snes9x_libretro.info").write_text(_SNES9X_INFO + 'display_version = "1.62.3"\n')
+        monkeypatch.setattr("adapters.retroarch_core_info.sys.platform", "win32")
+        monkeypatch.setenv("APPDATA", str(appdata))
+
+        adapter = _make_adapter(tmp_path)
+        assert adapter.get_corename("snes9x_libretro") == "Snes9x"
+        assert adapter.get_core_version("snes9x_libretro") == "1.62.3"
+
+    def test_appdata_falls_back_under_the_user_home(self, tmp_path, monkeypatch):
+        info = tmp_path / "AppData" / "Roaming" / "emudeck" / "Emulators" / "RetroArch" / "info"
+        info.mkdir(parents=True)
+        (info / "snes9x_libretro.info").write_text(_SNES9X_INFO)
+        monkeypatch.setattr("adapters.retroarch_core_info.sys.platform", "win32")
+        monkeypatch.delenv("APPDATA", raising=False)
+
+        assert _make_adapter(tmp_path).get_corename("snes9x_libretro") == "Snes9x"

@@ -186,6 +186,17 @@ class CoreNameProviderFn(Protocol):
     def __call__(self, core_so: str) -> str | None: ...
 
 
+class CoreVersionProviderFn(Protocol):
+    """Return the ``display_version`` RetroArch's ``.info`` file records for a core.
+
+    ``core_so`` is the ``.so``/``.dll`` basename including ``_libretro``. Returns
+    ``None`` when the ``.info`` file is missing or carries no version — the value is
+    provenance only, so callers carry on without it.
+    """
+
+    def __call__(self, core_so: str) -> str | None: ...
+
+
 class RetroArchConfigReader(Protocol):
     """Object seam for ``retroarch.cfg`` reads.
 

@@ -404,6 +404,36 @@ class RommVersion(Protocol):
         ...
 
 
+class RommSavestateApi(Protocol):
+    """RomM savestates surface — the upload a savestate backup makes.
+
+    Upload-only by design (ADR-0031): nothing here downloads a savestate.
+    """
+
+    def upload_state(
+        self,
+        rom_id: int,
+        file_path: str,
+        *,
+        file_name: str,
+        emulator: str,
+        screenshot_path: str | None = None,
+        core: str | None = None,
+        core_version: str | None = None,
+        emulator_version: str | None = None,
+        device_id: str | None = None,
+    ) -> dict[str, Any]:
+        """POST the savestate at *file_path* to ``/api/states`` stored as *file_name*.
+
+        RomM upserts by ``(user, rom, file name)``, so a second upload under the
+        same name replaces the first. A screenshot at *screenshot_path* is sent as
+        ``<file_name>.png``. The provenance parameters are sent to servers of
+        RomM 5.0 and later, which ignore the ones they do not know. Returns RomM's
+        state record (``id``, ``file_name``, …).
+        """
+        ...
+
+
 class RommTokenApi(Protocol):
     """RomM Client API Token surface — mint, delete, and pairing-code exchange.
 
@@ -464,6 +494,10 @@ class RommSyncApi(RommSaveApi, RommVersion, RommDeviceApi, Protocol):
     """RomM surface for save-sync — saves cluster + server identity + device registration."""
 
 
+class RommSavestateBackupApi(RommSavestateApi, RommVersion, Protocol):
+    """RomM surface for the savestate backup — the upload plus the server identity."""
+
+
 class RommApi(
     RommSyncApi,
     RommLibraryApi,
@@ -471,6 +505,7 @@ class RommApi(
     RommAchievementsApi,
     RommFirmwareApi,
     RommPlaytimeApi,
+    RommSavestateApi,
     Protocol,
 ):
     """Umbrella Protocol composing all per-domain RomM API Protocols."""

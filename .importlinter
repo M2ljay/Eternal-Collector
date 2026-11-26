@@ -141,6 +141,7 @@ modules =
     services.rom_install_recorder
     services.rom_removal
     services.saves
+    services.savestates
     services.session_lifecycle
     services.settings
     services.shortcut_removal

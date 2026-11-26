@@ -12,7 +12,8 @@ concern — services see a single aggregate.
 The Protocols match the aggregate roots settled in ADR-0003 — ``Rom``,
 ``RomInstall``, ``RomMetadata``, ``Playtime``, ``RomSaveSyncState``, ``BiosFile``,
 ``FirmwareCacheEntry``, ``SyncRun`` — plus ``PlatformSyncState`` (the per-platform
-completion stamp, ADR-0023) and the ``kv_config`` key-value surface.
+completion stamp, ADR-0023), ``RomSavestateSyncState`` (savestate backup records,
+ADR-0031) and the ``kv_config`` key-value surface.
 ``SyncSettings``/``Platform``/``Device`` are NOT repositories — ADR-0003 dropped
 those aggregates.
 
@@ -37,6 +38,7 @@ if TYPE_CHECKING:
     from domain.rom_install import RomInstall
     from domain.rom_metadata import RomMetadata
     from domain.rom_save_sync_state import RomSaveSyncState
+    from domain.rom_savestate_sync_state import RomSavestateSyncState
     from domain.sync_run import SyncRun
 
 
@@ -252,6 +254,22 @@ class RomSaveSyncStateRepository(Protocol):
 
     def iter_all(self) -> Iterator[tuple[int, RomSaveSyncState]]:
         """Iterate ``(rom_id, state)`` for every ROM. (saves/service.py save-inventory scan)"""
+        ...
+
+
+class RomSavestateSyncStateRepository(Protocol):
+    """Persistence seam for the ``RomSavestateSyncState`` aggregate (savestate backup records).
+
+    Keyed by *rom_id*; the adapter stores one row per slot. Kept apart from
+    ``RomSaveSyncStateRepository`` because savestates are backed up, never synced.
+    """
+
+    def get(self, rom_id: int) -> RomSavestateSyncState | None:
+        """Return the savestate backup state for *rom_id*, or ``None`` when nothing is recorded."""
+        ...
+
+    def save(self, rom_id: int, state: RomSavestateSyncState) -> None:
+        """Replace every slot record of *rom_id* with the slots of *state*."""
         ...
 
 

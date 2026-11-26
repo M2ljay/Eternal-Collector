@@ -30,3 +30,21 @@ export function saveSyncToastBody(uploaded?: number, downloaded?: number): strin
   if (down > 0) return "Saves downloaded from RomM";
   return null;
 }
+
+/**
+ * The after-exit toast body with the savestate backup's clause added (ADR-0031).
+ *
+ * Nothing changes when no savestate was backed up. Otherwise the clause follows
+ * whichever body the save sync produced ("Saves uploaded to RomM · 2 savestates
+ * backed up"), or stands alone when the save sync had nothing to say.
+ *
+ * @param body - the save-sync toast body, or ``null`` when none fires.
+ * @param savestatesBackedUp - savestates uploaded after the save sync (absent → 0).
+ */
+export function withSavestateClause(body: string | null, savestatesBackedUp?: number): string | null {
+  const count = savestatesBackedUp ?? 0;
+  if (count <= 0) return body;
+  const noun = count === 1 ? "savestate" : "savestates";
+  if (body === null) return `${count} ${noun} backed up to RomM`;
+  return `${body} · ${count} ${noun} backed up`;
+}

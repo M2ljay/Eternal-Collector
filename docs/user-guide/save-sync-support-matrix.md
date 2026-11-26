@@ -29,7 +29,7 @@ Where the audit has already corrected an earlier assumption, this page reflects 
 | ✅ | **Synced today.** Your saves for this system carry across devices automatically.                                                                                                                                                                               |
 | 🔜 | **Planned.** This save type isn't synced yet, but it fits the model and is on the way in a future release.                                                                                                                                                     |
 | ❌ | **Not synced yet.** This system's default core writes a _shared_ card (one file for many games), keeps saves outside the per-game save folder, or hasn't been pinned down yet — so it doesn't fit per-game sync today. Handled differently in a later release. |
-| ⚪ | **No save data.** This system's emulator has no in-game save to sync (you can still use save states locally).                                                                                                                                                  |
+| ⚪ | **No save data.** This system's emulator has no in-game save to sync (RetroArch savestates can still be [backed up](save-sync.md#savestate-backup)).                                                                                                           |
 
 ## What syncs today ✅
 

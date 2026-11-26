@@ -8,6 +8,7 @@ from typing import Any
 
 import pytest
 
+from domain.savestate_backup import SavestateBackupOutcome
 from services.session_lifecycle import (
     SessionFinalizeMigration,
     SessionFinalizeResult,
@@ -57,6 +58,30 @@ class FakePostExitSync:
         if self.side_effect is not None:
             raise self.side_effect
         return self.payload
+
+
+class FakeSavestateBackup:
+    """In-memory ``SessionSavestateBackup`` for tests."""
+
+    def __init__(
+        self,
+        *,
+        outcome: SavestateBackupOutcome | None = None,
+        side_effect: BaseException | None = None,
+        order: list[str] | None = None,
+    ) -> None:
+        self.outcome = outcome if outcome is not None else SavestateBackupOutcome()
+        self.side_effect = side_effect
+        self.order = order
+        self.calls: list[int] = []
+
+    async def backup_after_session(self, rom_id: int) -> SavestateBackupOutcome:
+        self.calls.append(rom_id)
+        if self.order is not None:
+            self.order.append("savestates")
+        if self.side_effect is not None:
+            raise self.side_effect
+        return self.outcome
 
 
 class FakeAchievementSync:
@@ -133,11 +158,13 @@ def _make_service(
     achievement_sync: FakeAchievementSync,
     migration_reader: FakeMigrationReader,
     logger: logging.Logger,
+    savestate_backup: FakeSavestateBackup | None = None,
 ) -> SessionLifecycleService:
     return SessionLifecycleService(
         config=SessionLifecycleServiceConfig(
             playtime_recorder=playtime_recorder,
             post_exit_sync=post_exit_sync,
+            savestate_backup=savestate_backup if savestate_backup is not None else FakeSavestateBackup(),
             achievement_sync=achievement_sync,
             migration_reader=migration_reader,
             logger=logger,
@@ -1034,6 +1061,92 @@ class TestFinalizeResultShape:
                 save_sort={"pending": False},
             ),
         )
+
+
+class _OrderedPostExitSync(FakePostExitSync):
+    """``FakePostExitSync`` that records when it ran relative to the savestate backup."""
+
+    def __init__(self, order: list[str], **kwargs: Any) -> None:
+        super().__init__(**kwargs)
+        self.order = order
+
+    async def post_exit_sync(self, rom_id: int) -> dict[str, Any]:
+        self.order.append("saves")
+        return await super().post_exit_sync(rom_id)
+
+
+class TestFinalizeSavestateBackup:
+    def _service(self, logger, *, post=None, backup=None, migration=None) -> SessionLifecycleService:
+        return _make_service(
+            playtime_recorder=FakePlaytimeRecorder(),
+            post_exit_sync=post if post is not None else FakePostExitSync(),
+            achievement_sync=FakeAchievementSync(),
+            migration_reader=migration if migration is not None else FakeMigrationReader(),
+            logger=logger,
+            savestate_backup=backup,
+        )
+
+    def test_backup_runs_after_the_save_sync(self, event_loop, logger):
+        order: list[str] = []
+        backup = FakeSavestateBackup(order=order)
+        service = self._service(logger, post=_OrderedPostExitSync(order), backup=backup)
+
+        event_loop.run_until_complete(service.finalize(7))
+        event_loop.run_until_complete(_drain_background_tasks(service))
+
+        assert order == ["saves", "savestates"]
+        assert backup.calls == [7]
+
+    def test_backed_up_count_reaches_the_result(self, event_loop, logger):
+        backup = FakeSavestateBackup(outcome=SavestateBackupOutcome(backed_up=2, unchanged=1))
+        service = self._service(logger, backup=backup)
+
+        result = event_loop.run_until_complete(service.finalize(7))
+        event_loop.run_until_complete(_drain_background_tasks(service))
+
+        assert result.savestates_backed_up == 2
+
+    def test_backup_runs_even_when_the_save_sync_failed(self, event_loop, logger):
+        backup = FakeSavestateBackup(outcome=SavestateBackupOutcome(backed_up=1))
+        service = self._service(logger, post=FakePostExitSync(payload={"success": False}), backup=backup)
+
+        result = event_loop.run_until_complete(service.finalize(7))
+        event_loop.run_until_complete(_drain_background_tasks(service))
+
+        assert backup.calls == [7]
+        assert result.savestates_backed_up == 1
+
+    def test_offline_save_sync_skips_the_backup(self, event_loop, logger):
+        backup = FakeSavestateBackup(outcome=SavestateBackupOutcome(backed_up=3))
+        service = self._service(logger, post=FakePostExitSync(payload={"offline": True}), backup=backup)
+
+        result = event_loop.run_until_complete(service.finalize(7))
+        event_loop.run_until_complete(_drain_background_tasks(service))
+
+        assert backup.calls == []
+        assert result.savestates_backed_up == 0
+
+    def test_pending_migration_skips_the_backup(self, event_loop, logger):
+        backup = FakeSavestateBackup(outcome=SavestateBackupOutcome(backed_up=3))
+        service = self._service(logger, backup=backup, migration=FakeMigrationReader(pending=True))
+
+        result = event_loop.run_until_complete(service.finalize(7))
+        event_loop.run_until_complete(_drain_background_tasks(service))
+
+        assert backup.calls == []
+        assert result.savestates_backed_up == 0
+
+    def test_backup_failure_is_logged_and_counts_as_none(self, event_loop, logger, caplog):
+        backup = FakeSavestateBackup(side_effect=RuntimeError("disk gone"))
+        service = self._service(logger, backup=backup)
+
+        with caplog.at_level(logging.WARNING, logger="test_session_lifecycle"):
+            result = event_loop.run_until_complete(service.finalize(7))
+        event_loop.run_until_complete(_drain_background_tasks(service))
+
+        assert result.savestates_backed_up == 0
+        assert result.sync.success is True
+        assert "savestate backup failed for rom_id=7: disk gone" in caplog.text
 
 
 class TestBackgroundTaskTracking:

@@ -75,7 +75,9 @@ Open **Save Sync** from the main QAM page to configure sync behavior.
 - **Sync after exit** (default: on) — runs sync after closing a game. A toast confirms what moved and which way — "Saves
   uploaded to RomM", "Saves downloaded from RomM", or "Saves synced with RomM (1 up, 2 down)" when a run went both ways;
   a sync that transferred nothing shows no toast. If the sync fails, the toast names the actual cause (see
-  [Offline Behavior](#offline-behavior)) instead of a generic message.
+  [Offline Behavior](#offline-behavior)) instead of a generic message. When the
+  [savestate backup](#savestate-backup) uploaded savestates too, the same toast says so: "Saves uploaded to RomM · 2
+  savestates backed up".
 
 ### When saves conflict
 
@@ -96,6 +98,48 @@ Tap **Sync All Saves Now** to sync saves for all installed ROMs at once. This is
 This only covers games you've already set up save sync for (games whose save slot you've confirmed). Games you haven't
 configured yet are left untouched, so a stale local save can't accidentally overwrite newer progress from another
 device.
+
+## Savestate backup
+
+Save sync moves your **in-game saves**. **Savestates** — the snapshots RetroArch's quick save writes (`.state`,
+`.state1`…`.state9`, `.state.auto`) — are a different thing, and the plugin can **back them up** to RomM. It does not
+sync them.
+
+**Backup, not sync.** After a RetroArch game exits, and after its saves have synced, the plugin uploads that game's
+savestates that changed since the last backup. That is all it does: it never downloads a savestate, never puts one on
+this device, and never replaces or deletes a savestate you have. Restoring a backed-up savestate is a separate, manual
+step that is not part of this release. The reason is that a savestate is tied to the exact core — often the exact core
+version — that wrote it, and loading an older one also loads the older in-game save inside it, which save sync would
+then upload as your newest progress. That must never happen on its own.
+
+Two settings in the **Save Sync** section, shown when save sync is on:
+
+- **Back up savestates to RomM** (default: off).
+- **Which savestates** — **Auto-state only** (default), the `.state.auto` RetroArch writes when you quit with auto-save
+  on; or **All slots**, the auto-state plus slots 0–9. Slots above 9 are not backed up.
+
+What gets uploaded:
+
+- **Only savestates written after you turn the backup on.** Savestates you already had are noted, not uploaded; each one
+  is backed up the next time the game overwrites it. Turning the backup off and on again starts over from that moment.
+- **Only savestates that changed.** An unchanged savestate is never uploaded twice.
+- **One copy per slot per device.** Each device keeps one backup per slot on the server, named after the game with a
+  short tag for the device — `Chrono Trigger (USA) [3f2a9c1e].state.auto` — and each new backup replaces that device's
+  previous one. Two devices never overwrite each other's backups. RetroArch's thumbnail is uploaded with it, so the
+  savestate shows a screenshot in RomM.
+- **RetroArch only.** Games that launch with a standalone emulator (PCSX2, Dolphin, DuckStation, …) are skipped, and so
+  is RetroArch set to keep savestates next to the ROM (`savestates_in_content_dir`).
+
+Uploads can be large: a PlayStation savestate is a few MB, and **All slots** uploads every slot you saved to. A
+savestate larger than RomM's default upload limit (512 MiB) is skipped. If the server is offline after a game, nothing
+is backed up that time; the savestates go up after the next session that changes them.
+
+!!! warning "RomM's web player opens on the States tab once a game has a savestate"
+
+    In RomM's web player, a game that has any savestate on the server opens its pre-play screen on the **States** tab
+    with no save selected. Choosing **Save & Quit** from there creates a save in no slot, which this plugin (and the
+    other slot-based clients) do not see. Backing up a game's savestates makes this happen for that game. If you play
+    in the web player, select your save on the **Saves** tab before you start.
 
 ## Resolving Conflicts
 

@@ -1,12 +1,13 @@
 """SessionLifecycleService — single-callable end-of-session orchestration.
 
-Composes the four cross-service reads the frontend's game-stop handler
+Composes the cross-service reads the frontend's game-stop handler
 used to interleave into one round-trip: end-of-session playtime
-record, fire-and-forget achievement refresh, post-exit save sync, and
-the migration-state refresh. Returns a typed ``SessionFinalizeResult``
-carrying the playtime delta plus the per-direction transfer counts and
-the migration-status payloads the frontend feeds into its in-memory
-stores. The playtime-display update (Steam's ``appStore`` mutation)
+record, fire-and-forget achievement refresh, post-exit save sync, the
+savestate backup that follows it, and the migration-state refresh.
+Returns a typed ``SessionFinalizeResult`` carrying the playtime delta
+plus the per-direction transfer counts, the number of savestates backed
+up, and the migration-status payloads the frontend feeds into its
+in-memory stores. The playtime-display update (Steam's ``appStore`` mutation)
 stays on the frontend because it touches Steam IPC; everything else
 about the end-of-session flow is now a backend decision.
 
@@ -33,6 +34,7 @@ if TYPE_CHECKING:
         SessionMigrationReader,
         SessionPlaytimeRecorder,
         SessionPostExitSync,
+        SessionSavestateBackup,
     )
 
 
@@ -116,21 +118,23 @@ class SessionFinalizeResult:
     total_seconds: int | None
     sync: SessionFinalizeSyncResult
     migration: SessionFinalizeMigration | None
+    savestates_backed_up: int = 0
 
 
 @dataclass(frozen=True)
 class SessionLifecycleServiceConfig:
     """Frozen wiring bundle handed to ``SessionLifecycleService.__init__``.
 
-    All four deps are Protocol-typed cross-service seams that the
+    The five deps are Protocol-typed cross-service seams that the
     composition root satisfies with the existing playtime, save,
-    achievement, and migration services. ``logger`` is carried for
+    savestate, achievement, and migration services. ``logger`` is carried for
     backend-side reporting of the fire-and-forget achievement sync —
     its result and failures never reach the frontend.
     """
 
     playtime_recorder: SessionPlaytimeRecorder
     post_exit_sync: SessionPostExitSync
+    savestate_backup: SessionSavestateBackup
     achievement_sync: SessionAchievementSync
     migration_reader: SessionMigrationReader
     logger: logging.Logger
@@ -179,11 +183,12 @@ def _render_conflicts_toast(conflicts: list[dict[str, Any]]) -> str | None:
 
 
 class SessionLifecycleService:
-    """End-of-session orchestration composed from four cross-service reads."""
+    """End-of-session orchestration composed from five cross-service reads."""
 
     def __init__(self, *, config: SessionLifecycleServiceConfig) -> None:
         self._playtime_recorder = config.playtime_recorder
         self._post_exit_sync = config.post_exit_sync
+        self._savestate_backup = config.savestate_backup
         self._achievement_sync = config.achievement_sync
         self._migration_reader = config.migration_reader
         self._logger = config.logger
@@ -206,7 +211,7 @@ class SessionLifecycleService:
             await asyncio.gather(*self._background_tasks, return_exceptions=True)
 
     async def finalize(self, rom_id: int) -> SessionFinalizeResult:
-        """Run the four end-of-session steps and return the combined verdict.
+        """Run the end-of-session steps and return the combined verdict.
 
         Parameters
         ----------
@@ -223,17 +228,23 @@ class SessionLifecycleService:
             ``failure_toast`` / ``conflicts_toast`` strings, and the raw
             offline / success flags the frontend still needs for the
             ``romm_data_changed`` event dispatch. ``migration`` carries
-            the two migration-status payloads.
+            the two migration-status payloads. ``savestates_backed_up``
+            counts the savestates the backup uploaded after the save sync.
         """
         total_seconds = await self._record_playtime(rom_id)
         self._schedule_achievement_sync(rom_id)
         sync_result = await self._build_sync_result(rom_id)
+        # The savestate backup must start only once the save sync is done: it
+        # reads the same states folder the emulator just let go of, and must never
+        # hold up or reorder the save sync's uploads.
+        savestates_backed_up = await self._backup_savestates(rom_id, sync_result)
         migration = await self._refresh_migration()
 
         return SessionFinalizeResult(
             total_seconds=total_seconds,
             sync=sync_result,
             migration=migration,
+            savestates_backed_up=savestates_backed_up,
         )
 
     async def _record_playtime(self, rom_id: int) -> int | None:
@@ -365,6 +376,23 @@ class SessionLifecycleService:
             conflicts_toast=conflicts_toast,
             blocked_toast=blocked_toast,
         )
+
+    async def _backup_savestates(self, rom_id: int, sync_result: SessionFinalizeSyncResult) -> int:
+        """Back up the ROM's changed savestates and return how many reached RomM.
+
+        Skipped while a RetroDECK migration is pending (the states folder is about
+        to move) and when the save sync just found the server offline (every upload
+        would wait out the same timeout). A failure is logged and counts as none:
+        a backup never turns a finished session into an error.
+        """
+        if sync_result.offline or self._migration_reader.is_retrodeck_migration_pending():
+            return 0
+        try:
+            outcome = await self._savestate_backup.backup_after_session(rom_id)
+        except Exception as e:
+            self._logger.warning(f"SessionLifecycle savestate backup failed for rom_id={rom_id}: {e}")
+            return 0
+        return outcome.backed_up
 
     async def _refresh_migration(self) -> SessionFinalizeMigration | None:
         """Re-detect migration state and return the typed status pair.
