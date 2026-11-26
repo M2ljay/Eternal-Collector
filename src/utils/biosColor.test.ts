@@ -1,24 +1,25 @@
 import { describe, it, expect } from "vitest";
 import { biosColorForLevel } from "./biosColor";
+import { core } from "../theme/coreTokens";
 
 describe("biosColorForLevel", () => {
   it("maps 'ok' to green", () => {
-    expect(biosColorForLevel("ok")).toBe("#5ba32b");
+    expect(biosColorForLevel("ok")).toBe(core.success);
   });
 
   it("maps 'partial' to amber", () => {
-    expect(biosColorForLevel("partial")).toBe("#d4a72c");
+    expect(biosColorForLevel("partial")).toBe(core.warning);
   });
 
-  it("maps 'missing' to red", () => {
-    expect(biosColorForLevel("missing")).toBe("#d94126");
+  it("maps 'missing' to crimson", () => {
+    expect(biosColorForLevel("missing")).toBe(core.crimson);
   });
 
-  it("maps 'unmanaged' (no registry coverage) to neutral grey", () => {
-    expect(biosColorForLevel("unmanaged")).toBe("#8f98a0");
+  it("maps 'unmanaged' (no registry coverage) to neutral", () => {
+    expect(biosColorForLevel("unmanaged")).toBe(core.neutral);
   });
 
-  it("maps null (no level data) to neutral grey", () => {
-    expect(biosColorForLevel(null)).toBe("#8f98a0");
+  it("maps null (no level data) to neutral", () => {
+    expect(biosColorForLevel(null)).toBe(core.neutral);
   });
 });

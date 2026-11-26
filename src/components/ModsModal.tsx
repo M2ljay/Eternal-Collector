@@ -26,14 +26,15 @@ import { formatBytes } from "../utils/formatters";
 import { showToast } from "../utils/toast";
 import { detach } from "../utils/detach";
 import type { GameModsAnswer, ModEntry, ModFailure, ModInstallPreview, ModSource, ModTarget } from "../types";
+import { core } from "../theme/coreTokens";
 
-const LABEL = { fontSize: "12px", color: "rgba(255,255,255,0.55)" } as const;
-const BODY = { fontSize: "13px", color: "rgba(255,255,255,0.8)" } as const;
-const PATH = { fontSize: "12px", color: "rgba(255,255,255,0.7)", wordBreak: "break-all" } as const;
+const LABEL = { fontSize: "12px", color: core.hint } as const;
+const BODY = { fontSize: "13px", color: core.text } as const;
+const PATH = { fontSize: "12px", color: core.steel, wordBreak: "break-all" } as const;
 const SECTION = {
   padding: "10px 12px",
   marginBottom: "10px",
-  background: "rgba(255,255,255,0.04)",
+  background: core.gunmetal,
   borderRadius: "4px",
 } as const;
 const PREVIEW_ROWS = 20;
@@ -207,7 +208,7 @@ export const ModsModal: FC<ModsModalProps> = ({ romId, gameName, closeModal }) =
 
   const header = (
     <div style={{ marginBottom: "10px" }}>
-      <div style={{ fontSize: "16px", fontWeight: "bold", color: "#fff" }}>Mods — {gameName}</div>
+      <div style={{ fontSize: "16px", fontWeight: "bold", color: core.white }}>Mods — {gameName}</div>
       {answer?.success && answer.emulator ? (
         <div style={LABEL}>
           {answer.emulator.label}
@@ -292,7 +293,7 @@ interface TargetSectionProps {
 
 const TargetSection: FC<TargetSectionProps> = ({ target, hint, busy, onRemove, onEnable, onOpen, onBrowse }) => (
   <div style={SECTION}>
-    <div style={{ fontSize: "14px", fontWeight: "bold", color: "#fff" }}>{target.label}</div>
+    <div style={{ fontSize: "14px", fontWeight: "bold", color: core.white }}>{target.label}</div>
     <div style={PATH}>
       {target.scope === "patch" ? `Beside the ROM: ${target.path}` : target.path}
       {target.scope === "shared" ? " (shared by every game)" : ""}
@@ -304,7 +305,7 @@ const TargetSection: FC<TargetSectionProps> = ({ target, hint, busy, onRemove, o
     ))}
     {hint ? (
       <Focusable flow-children="row" style={{ display: "flex", alignItems: "center", gap: "8px", marginTop: "6px" }}>
-        <div style={{ ...BODY, color: "#d4a72c", flex: 1 }}>{hint}</div>
+        <div style={{ ...BODY, color: core.warning, flex: 1 }}>{hint}</div>
         {target.setting?.can_enable ? (
           <DialogButton disabled={busy} onClick={onEnable} style={{ width: "auto", minWidth: "90px" }}>
             Turn On
@@ -374,7 +375,7 @@ const SourcesView: FC<SourcesViewProps> = ({ view, busy, onPick, onBack }) => {
       {view.sources?.map((source) => (
         <DialogButton key={source.name} disabled={busy || !source.supported} onClick={() => onPick(source)}>
           <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-start" }}>
-            <div style={{ fontSize: "13px", color: "#fff" }}>
+            <div style={{ fontSize: "13px", color: core.white }}>
               {source.name}
               {source.is_dir ? "\\" : ""}
             </div>
@@ -409,7 +410,7 @@ const PreviewView: FC<PreviewViewProps> = ({ preview, busy, onInstall, onBack })
       </div>
     ) : null}
     {preview.replace_count ? (
-      <div style={{ ...BODY, color: "#d4a72c" }}>
+      <div style={{ ...BODY, color: core.warning }}>
         {preview.replace_count} existing files will be replaced. They are moved to {preview.backup_root} first.
       </div>
     ) : (

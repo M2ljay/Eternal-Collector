@@ -9,6 +9,7 @@ import { FC } from "react";
 import { PanelSection, PanelSectionRow, ButtonItem, Field } from "@decky/ui";
 import type { SaveSortMigrationStatus } from "../../types";
 import { sortLabel } from "./helpers";
+import { core, tint } from "../../theme/coreTokens";
 
 interface SaveSortMigrationSectionProps {
   migration: SaveSortMigrationStatus;
@@ -31,27 +32,25 @@ export const SaveSortMigrationSection: FC<SaveSortMigrationSectionProps> = ({
         <div
           style={{
             padding: "8px 12px",
-            backgroundColor: "rgba(212, 167, 44, 0.15)",
-            borderLeft: "3px solid #d4a72c",
+            backgroundColor: tint(core.warning, 0.15),
+            borderLeft: `3px solid ${core.warning}`,
             borderRadius: "4px",
           }}
         >
-          <div style={{ fontSize: "13px", fontWeight: "bold", color: "#d4a72c", marginBottom: "6px" }}>
+          <div style={{ fontSize: "13px", fontWeight: "bold", color: core.warning, marginBottom: "6px" }}>
             {"⚠️"} RetroArch save sorting changed
           </div>
           {migration.old_settings && (
-            <div style={{ fontSize: "12px", color: "rgba(255, 255, 255, 0.7)", marginBottom: "4px" }}>
+            <div style={{ fontSize: "12px", color: core.steel, marginBottom: "4px" }}>
               From: {sortLabel(migration.old_settings)}
             </div>
           )}
           {migration.new_settings && (
-            <div style={{ fontSize: "12px", color: "rgba(255, 255, 255, 0.7)", marginBottom: "4px" }}>
+            <div style={{ fontSize: "12px", color: core.steel, marginBottom: "4px" }}>
               To: {sortLabel(migration.new_settings)}
             </div>
           )}
-          <div style={{ fontSize: "12px", color: "rgba(255, 255, 255, 0.9)" }}>
-            {migration.saves_count ?? 0} save file(s) to migrate
-          </div>
+          <div style={{ fontSize: "12px", color: core.text }}>{migration.saves_count ?? 0} save file(s) to migrate</div>
         </div>
       </PanelSectionRow>
       <PanelSectionRow>

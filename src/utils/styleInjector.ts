@@ -1,4 +1,5 @@
 import { findSP } from "./deckyUiInternals";
+import { core, tint } from "../theme/coreTokens";
 
 const ROMM_PLAY_HIDE_ID = "romm-hide-native-play";
 const ROMM_FOCUS_STYLES_ID = "romm-focus-styles";
@@ -32,53 +33,53 @@ export function hideNativePlaySection(playSectionClass: string) {
     const focusStyle = sp.window.document.createElement("style");
     focusStyle.id = ROMM_FOCUS_STYLES_ID;
     focusStyle.textContent = `
-/* Blue hover/focus highlight is scoped to the IDLE Download button
-   (romm-btn-download-idle): its base is already blue, so brightening to blue is
+/* Crimson hover/focus highlight is scoped to the IDLE Download button
+   (romm-btn-download-idle): its base is already crimson, so brightening it is
    correct. The active download button (downloading/paused/extracting) shares
-   romm-btn-download for position/overflow but has a dark base under a green
-   progress fill — this !important blue must NOT reach it, or a focused/hovered
+   romm-btn-download for position/overflow but has a gunmetal base under the
+   progress fill — this !important crimson must NOT reach it, or a focused/hovered
    active button (e.g. the rehydrated paused one that the initial-focus grab
-   gpfocus-marks) repaints its dark remainder bright blue. */
+   gpfocus-marks) repaints its unfilled remainder as if it were complete. */
 .romm-btn-download-idle:hover, .romm-btn-download-idle.gpfocus {
-  background: linear-gradient(to right, #47b3ff, #1a9fff) !important;
+  background: ${core.crimson} !important;
   filter: brightness(1.3);
 }
 .romm-btn-play:hover, .romm-btn-play.gpfocus {
-  background: linear-gradient(to right, #80e62a, #01b866) !important;
+  background: ${core.success} !important;
   filter: brightness(1.2);
 }
 .romm-btn-play.romm-offline:hover, .romm-btn-play.romm-offline.gpfocus {
-  background: linear-gradient(to right, #7a8b7a, #6b7b6b) !important;
+  background: ${core.gunmetalRaised} !important;
   filter: brightness(1.1);
 }
 .romm-btn-conflict:hover, .romm-btn-conflict.gpfocus {
-  background: linear-gradient(to right, #c49a28, #a6851b) !important;
+  background: ${core.crimson} !important;
   filter: brightness(1.2);
 }
 .romm-btn-dropdown:hover, .romm-btn-dropdown.gpfocus {
   filter: brightness(1.3);
 }
 .romm-btn-cancel:hover, .romm-btn-cancel.gpfocus, .romm-btn-cancel:focus {
-  background: rgba(255, 255, 255, 0.25) !important;
+  background: ${core.gunmetalRaised} !important;
 }
 [data-romm] .gpfocus {
-  outline: 2px solid #1a9fff;
+  outline: 2px solid ${core.crimson};
   outline-offset: 2px;
 }
 .romm-wizard-btn:hover,
 .romm-wizard-btn:focus,
 .romm-wizard-btn.gpfocus {
-  background: rgba(255, 255, 255, 0.1) !important;
-  border-color: rgba(255, 255, 255, 0.7) !important;
-  outline: 2px solid #1a9fff !important;
+  background: ${core.gunmetalRaised} !important;
+  border-color: ${core.steel} !important;
+  outline: 2px solid ${core.crimson} !important;
   outline-offset: 2px;
 }
 .romm-wizard-btn-primary:hover,
 .romm-wizard-btn-primary:focus,
 .romm-wizard-btn-primary.gpfocus {
-  background: rgba(26, 159, 255, 0.3) !important;
-  border-color: rgba(26, 159, 255, 0.9) !important;
-  outline: 2px solid #1a9fff !important;
+  background: ${tint(core.crimson, 0.3)} !important;
+  border-color: ${tint(core.crimson, 0.9)} !important;
+  outline: 2px solid ${core.crimson} !important;
   outline-offset: 2px;
 }
 @keyframes romm-spin {
@@ -88,22 +89,22 @@ export function hideNativePlaySection(playSectionClass: string) {
   display: inline-block;
   width: 18px;
   height: 18px;
-  border: 2px solid rgba(255,255,255,0.3);
-  border-top-color: #fff;
+  border: 2px solid ${core.gunmetalRaised};
+  border-top-color: ${core.white};
   border-radius: 50%;
   animation: romm-spin 0.8s linear infinite;
   flex-shrink: 0;
 }
 @keyframes romm-dl-pulse {
-  0%, 100% { box-shadow: 0 0 4px var(--romm-pulse-color, rgba(26,159,255,0.3)); }
-  50% { box-shadow: 0 0 20px var(--romm-pulse-color, rgba(26,159,255,0.7)); }
+  0%, 100% { box-shadow: 0 0 4px var(--romm-pulse-color, ${tint(core.crimson, 0.3)}); }
+  50% { box-shadow: 0 0 20px var(--romm-pulse-color, ${tint(core.crimson, 0.7)}); }
 }
 @keyframes romm-dl-complete {
-  0% { box-shadow: 0 0 0px rgba(112,214,29,0); filter: brightness(1); transform: scale(1); }
-  12% { box-shadow: 0 0 50px rgba(112,214,29,1), inset 0 0 25px rgba(255,255,255,0.4); filter: brightness(2.2); transform: scale(1.06); }
-  30% { box-shadow: 0 0 30px rgba(112,214,29,0.7), inset 0 0 12px rgba(255,255,255,0.2); filter: brightness(1.5); transform: scale(1.02); }
-  60% { box-shadow: 0 0 15px rgba(112,214,29,0.4), inset 0 0 5px rgba(255,255,255,0.08); filter: brightness(1.2); transform: scale(1); }
-  100% { box-shadow: 0 0 0px rgba(112,214,29,0); filter: brightness(1.2); transform: scale(1); }
+  0% { box-shadow: 0 0 0px ${tint(core.success, 0)}; filter: brightness(1); transform: scale(1); }
+  12% { box-shadow: 0 0 50px ${core.success}, inset 0 0 25px ${tint(core.white, 0.4)}; filter: brightness(2.2); transform: scale(1.06); }
+  30% { box-shadow: 0 0 30px ${tint(core.success, 0.7)}, inset 0 0 12px ${tint(core.white, 0.2)}; filter: brightness(1.5); transform: scale(1.02); }
+  60% { box-shadow: 0 0 15px ${tint(core.success, 0.4)}, inset 0 0 5px ${tint(core.white, 0.08)}; filter: brightness(1.2); transform: scale(1); }
+  100% { box-shadow: 0 0 0px ${tint(core.success, 0)}; filter: brightness(1.2); transform: scale(1); }
 }
 .romm-btn-download {
   position: relative;
@@ -131,9 +132,9 @@ export function hideNativePlaySection(playSectionClass: string) {
   animation: romm-dl-complete 1s ease-out forwards;
 }
 @keyframes romm-dl-uninstall {
-  0% { box-shadow: 0 0 0px rgba(26,159,255,0); filter: brightness(0.4); transform: scale(0.95); }
-  40% { box-shadow: 0 0 35px rgba(26,159,255,0.8); filter: brightness(1.5); transform: scale(1.03); }
-  100% { box-shadow: 0 0 0px rgba(26,159,255,0); filter: brightness(1.3); transform: scale(1); }
+  0% { box-shadow: 0 0 0px ${tint(core.crimson, 0)}; filter: brightness(0.4); transform: scale(0.95); }
+  40% { box-shadow: 0 0 35px ${tint(core.crimson, 0.8)}; filter: brightness(1.5); transform: scale(1.03); }
+  100% { box-shadow: 0 0 0px ${tint(core.crimson, 0)}; filter: brightness(1.3); transform: scale(1); }
 }
 .romm-dl-uninstall-flash {
   animation: romm-dl-uninstall 0.5s ease-out forwards;
@@ -160,21 +161,21 @@ export function hideNativePlaySection(playSectionClass: string) {
   font-weight: 600;
   letter-spacing: 0.5px;
   text-transform: uppercase;
-  color: #8f98a0;
+  color: ${core.hint};
   line-height: 1.2;
   white-space: nowrap;
 }
 .romm-info-value {
   font-size: 13px;
   font-weight: 500;
-  color: #dcdedf;
+  color: ${core.text};
   line-height: 1.4;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 .romm-info-muted .romm-info-value {
-  color: #5e6770;
+  color: ${core.hint};
   font-style: italic;
 }
 .romm-status-dot {
@@ -204,11 +205,11 @@ export function hideNativePlaySection(playSectionClass: string) {
   flex-direction: column;
   padding: 16px 2.8vw;
   gap: 16px;
-  background: rgba(14, 20, 27, 0.33);
+  background: ${tint(core.gunmetal, 0.6)};
 }
 .romm-panel-section {
   padding-bottom: 16px;
-  border-bottom: 1px solid rgba(255,255,255,0.06);
+  border-bottom: 1px solid ${core.gunmetalRaised};
 }
 .romm-panel-section:last-child {
   border-bottom: none;
@@ -219,19 +220,19 @@ export function hideNativePlaySection(playSectionClass: string) {
   font-weight: 600;
   letter-spacing: 0.5px;
   text-transform: uppercase;
-  color: #8f98a0;
+  color: ${core.hint};
   margin-bottom: 8px;
   line-height: 1.2;
 }
 .romm-panel-rom-name {
-  color: #ffffff;
+  color: ${core.white};
   font-size: 16px;
   font-weight: 700;
   line-height: 1.25;
   margin-bottom: 8px;
 }
 .romm-panel-summary {
-  color: #acb2b8;
+  color: ${core.steel};
   font-size: 13px;
   line-height: 1.5;
   margin-bottom: 8px;
@@ -243,13 +244,13 @@ export function hideNativePlaySection(playSectionClass: string) {
   padding: 2px 0;
 }
 .romm-panel-label {
-  color: #8f98a0;
+  color: ${core.hint};
   font-size: 12px;
   flex-shrink: 0;
   min-width: 120px;
 }
 .romm-panel-value {
-  color: #dcdedf;
+  color: ${core.text};
   font-size: 13px;
 }
 .romm-panel-tags {
@@ -261,9 +262,9 @@ export function hideNativePlaySection(playSectionClass: string) {
   font-size: 11px;
   padding: 2px 8px;
   border-radius: 3px;
-  background: rgba(255,255,255,0.06);
-  color: #8f98a0;
-  border: 1px solid rgba(255,255,255,0.1);
+  background: ${core.gunmetal};
+  color: ${core.hint};
+  border: 1px solid ${core.gunmetalRaised};
 }
 .romm-panel-status-row {
   display: flex;
@@ -277,20 +278,20 @@ export function hideNativePlaySection(playSectionClass: string) {
   font-weight: 600;
 }
 .romm-panel-status-installed {
-  background: rgba(91,163,43,0.2);
-  color: #5ba32b;
+  background: ${tint(core.success, 0.2)};
+  color: ${core.success};
 }
 .romm-panel-status-not-installed {
-  background: rgba(143,152,160,0.15);
-  color: #8f98a0;
+  background: ${tint(core.neutral, 0.15)};
+  color: ${core.hint};
 }
 .romm-panel-platform-badge {
   font-size: 11px;
   padding: 3px 10px;
   border-radius: 3px;
   font-weight: 600;
-  background: rgba(26,159,255,0.15);
-  color: #1a9fff;
+  background: ${core.gunmetalRaised};
+  color: ${core.steel};
 }
 .romm-panel-actions-row {
   display: flex;
@@ -301,29 +302,29 @@ export function hideNativePlaySection(playSectionClass: string) {
   font-size: 12px;
   padding: 6px 14px;
   border-radius: 3px;
-  background: rgba(255,255,255,0.06);
-  color: #dcdedf;
-  border: 1px solid rgba(255,255,255,0.1);
+  background: ${core.gunmetal};
+  color: ${core.text};
+  border: 1px solid ${core.gunmetalRaised};
   cursor: pointer;
 }
 .romm-panel-action-btn:hover, .romm-panel-action-btn.gpfocus {
-  background: rgba(255,255,255,0.12);
+  background: ${core.gunmetalRaised};
   filter: brightness(1.1);
 }
 .romm-panel-action-destructive {
-  color: #d94126;
-  border-color: rgba(217,65,38,0.3);
+  color: ${core.crimsonText};
+  border-color: ${tint(core.crimson, 0.3)};
 }
 .romm-panel-action-destructive:hover, .romm-panel-action-destructive.gpfocus {
-  background: rgba(217,65,38,0.15);
+  background: ${tint(core.crimson, 0.15)};
 }
 .romm-panel-muted {
-  color: #5e6770;
+  color: ${core.hint};
   font-size: 13px;
   font-style: italic;
 }
 .romm-panel-loading {
-  color: #8f98a0;
+  color: ${core.hint};
   font-size: 13px;
   padding: 8px 0;
 }
@@ -353,12 +354,12 @@ export function hideNativePlaySection(playSectionClass: string) {
 }
 .romm-panel-file-name {
   font-size: 12px;
-  color: #dcdedf;
+  color: ${core.text};
   font-weight: 500;
 }
 .romm-panel-file-path {
   font-size: 11px;
-  color: #5e6770;
+  color: ${core.hint};
   font-family: monospace;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -367,23 +368,23 @@ export function hideNativePlaySection(playSectionClass: string) {
 }
 .romm-panel-file-detail {
   font-size: 11px;
-  color: #8f98a0;
+  color: ${core.hint};
   white-space: nowrap;
 }
 .romm-panel-file-conflict {
   font-size: 11px;
-  color: #d94126;
+  color: ${core.crimsonText};
   font-weight: 600;
 }
 /* Slot panel (collapsible) */
 .romm-slot-panel {
   margin-bottom: 8px;
-  border: 1px solid rgba(255,255,255,0.08);
+  border: 1px solid ${core.gunmetalRaised};
   border-radius: 6px;
   overflow: hidden;
 }
 .romm-slot-panel-active {
-  border-color: rgba(91,163,43,0.3);
+  border-color: ${tint(core.success, 0.3)};
 }
 /* Legacy (RomM web-player) bucket — read-only, visually demoted */
 .romm-slot-panel-legacy {
@@ -391,7 +392,7 @@ export function hideNativePlaySection(playSectionClass: string) {
 }
 .romm-slot-legacy-note {
   font-size: 11px;
-  color: #8f98a0;
+  color: ${core.hint};
   font-style: italic;
   padding: 4px 12px 0;
 }
@@ -402,13 +403,13 @@ export function hideNativePlaySection(playSectionClass: string) {
 }
 .romm-slot-stale-note {
   font-size: 11px;
-  color: #8f98a0;
+  color: ${core.hint};
   font-style: italic;
   margin-bottom: 8px;
 }
 .romm-slot-stale-detail {
   font-size: 11px;
-  color: #8f98a0;
+  color: ${core.hint};
   padding: 0 12px 8px;
 }
 .romm-slot-header-static {
@@ -416,7 +417,7 @@ export function hideNativePlaySection(playSectionClass: string) {
   align-items: center;
   justify-content: space-between;
   padding: 10px 12px;
-  background: rgba(255,255,255,0.03);
+  background: ${core.gunmetal};
 }
 .romm-slot-header {
   display: flex;
@@ -424,11 +425,11 @@ export function hideNativePlaySection(playSectionClass: string) {
   justify-content: space-between;
   padding: 10px 12px;
   cursor: pointer;
-  background: rgba(255,255,255,0.03);
+  background: ${core.gunmetal};
   transition: background 0.15s;
 }
 .romm-slot-header:hover {
-  background: rgba(255,255,255,0.06);
+  background: ${core.gunmetalRaised};
 }
 .romm-slot-header-left {
   display: flex;
@@ -446,7 +447,7 @@ export function hideNativePlaySection(playSectionClass: string) {
 .romm-slot-name {
   font-size: 13px;
   font-weight: 600;
-  color: #dcdedf;
+  color: ${core.text};
 }
 .romm-slot-badge {
   font-size: 10px;
@@ -456,29 +457,29 @@ export function hideNativePlaySection(playSectionClass: string) {
   text-transform: uppercase;
 }
 .romm-slot-badge-active {
-  background: rgba(91,163,43,0.2);
-  color: #5ba32b;
+  background: ${tint(core.success, 0.2)};
+  color: ${core.success};
 }
 .romm-slot-badge-server {
-  background: rgba(26,159,255,0.15);
-  color: #1a9fff;
+  background: ${core.gunmetalRaised};
+  color: ${core.steel};
 }
 .romm-slot-badge-local {
-  background: rgba(212,167,44,0.15);
-  color: #d4a72c;
+  background: ${tint(core.warning, 0.15)};
+  color: ${core.warning};
 }
 .romm-slot-count {
   font-size: 12px;
-  color: #8f98a0;
+  color: ${core.hint};
 }
 .romm-slot-chevron {
   font-size: 14px;
-  color: #8f98a0;
+  color: ${core.hint};
   transition: transform 0.2s;
 }
 .romm-slot-body {
   padding: 8px 12px 12px;
-  border-top: 1px solid rgba(255,255,255,0.06);
+  border-top: 1px solid ${core.gunmetalRaised};
 }
 .romm-slot-sync-summary {
   font-size: 12px;
@@ -504,8 +505,8 @@ export function hideNativePlaySection(playSectionClass: string) {
   min-width: 36px !important;
   height: 36px !important;
   border-radius: 4px !important;
-  border: 1px solid rgba(255,255,255,0.1);
-  background: rgba(255,255,255,0.06) !important;
+  border: 1px solid ${core.gunmetalRaised};
+  background: ${core.gunmetal} !important;
   cursor: pointer;
   transition: background 0.15s ease, filter 0.15s ease;
   padding: 0 !important;
@@ -513,13 +514,13 @@ export function hideNativePlaySection(playSectionClass: string) {
   line-height: normal !important;
 }
 .romm-gear-btn:hover {
-  background: rgba(255,255,255,0.14);
+  background: ${core.gunmetalRaised};
   filter: brightness(1.2);
 }
 .romm-gear-btn.gpfocus {
-  background: rgba(255,255,255,0.14) !important;
+  background: ${core.gunmetalRaised} !important;
   filter: brightness(1.3);
-  border-color: rgba(255,255,255,0.5) !important;
+  border-color: ${core.steel} !important;
 }
 .romm-gear-btn:active {
   filter: brightness(0.9);
@@ -534,21 +535,21 @@ export function hideNativePlaySection(playSectionClass: string) {
   height: 48px !important;
   padding: 0 12px !important;
   border-radius: 2px !important;
-  border: 1px solid rgba(255,255,255,0.1);
-  background: rgba(255,255,255,0.06) !important;
+  border: 1px solid ${core.gunmetalRaised};
+  background: ${core.gunmetal} !important;
   cursor: pointer;
   transition: background 0.15s ease, filter 0.15s ease;
   flex-shrink: 0;
   line-height: normal !important;
 }
 .romm-disc-btn:hover {
-  background: rgba(255,255,255,0.14);
+  background: ${core.gunmetalRaised};
   filter: brightness(1.2);
 }
 .romm-disc-btn.gpfocus {
-  background: rgba(255,255,255,0.14) !important;
+  background: ${core.gunmetalRaised} !important;
   filter: brightness(1.3);
-  border-color: rgba(255,255,255,0.5) !important;
+  border-color: ${core.steel} !important;
 }
 .romm-disc-btn:active {
   filter: brightness(0.9);
@@ -572,10 +573,10 @@ export function hideNativePlaySection(playSectionClass: string) {
    row's trash black — at (0,2,0) it also outranks the (0,1,0) red base, so
    the red would never paint on a menu row at all. */
 .romm-vanished-trash {
-  color: #d94126;
+  color: ${core.crimsonText};
 }
 .gpfocus .romm-vanished-trash-row {
-  color: #000;
+  color: ${core.black};
 }`;
     sp.window.document.head.appendChild(gearStyle);
   }
@@ -588,9 +589,9 @@ export function hideNativePlaySection(playSectionClass: string) {
 .romm-tab-bar {
   display: flex;
   gap: 0;
-  border-bottom: 1px solid rgba(255,255,255,0.08);
+  border-bottom: 1px solid ${core.gunmetalRaised};
   padding: 0 2.8vw;
-  background: rgba(14, 20, 27, 0.33);
+  background: ${tint(core.gunmetal, 0.6)};
 }
 .romm-tab {
   padding: 10px 16px;
@@ -598,7 +599,7 @@ export function hideNativePlaySection(playSectionClass: string) {
   font-weight: 600;
   letter-spacing: 0.5px;
   text-transform: uppercase;
-  color: #8f98a0;
+  color: ${core.hint};
   cursor: pointer;
   border-bottom: 2px solid transparent;
   transition: color 0.15s ease, border-color 0.15s ease;
@@ -609,23 +610,23 @@ export function hideNativePlaySection(playSectionClass: string) {
   white-space: nowrap;
 }
 .romm-tab:hover {
-  color: #dcdedf !important;
+  color: ${core.text} !important;
 }
 .romm-tab.gpfocus,
 .romm-tab:focus,
 .romm-tab.Focusable.gpfocus {
-  color: #dcdedf !important;
-  background: rgba(255,255,255,0.06) !important;
+  color: ${core.text} !important;
+  background: ${core.gunmetal} !important;
   outline: none;
-  border-bottom-color: #1a9fff;
+  border-bottom-color: ${core.crimson};
 }
 .romm-tab-active {
-  color: #dcdedf !important;
-  border-bottom-color: #1a9fff;
+  color: ${core.text} !important;
+  border-bottom-color: ${core.crimson};
 }
 .romm-tab-content {
   padding: 16px 2.8vw;
-  background: rgba(14, 20, 27, 0.33);
+  background: ${tint(core.gunmetal, 0.6)};
 }`;
     sp.window.document.head.appendChild(tabStyle);
   }
@@ -635,7 +636,7 @@ export function hideNativePlaySection(playSectionClass: string) {
     const cheevoStyle = sp.window.document.createElement("style");
     cheevoStyle.id = ROMM_ACHIEVEMENTS_ID;
     cheevoStyle.textContent = `
-@keyframes romm-gold-sparkle {
+@keyframes romm-sparkle {
   0%, 100% { opacity: 0; transform: scale(0); }
   15% { opacity: 1; transform: scale(1.2); }
   30% { opacity: 0.9; transform: scale(0.9); }
@@ -666,27 +667,26 @@ export function hideNativePlaySection(playSectionClass: string) {
   width: 2px;
   height: 2px;
   border-radius: 50%;
-  background: #fff8dc;
-  box-shadow: 0 0 2px 1px #ffd700, 0 0 4px 1px rgba(255, 215, 0, 0.5);
-  animation: romm-gold-sparkle var(--romm-sparkle-dur, 2s) ease-in-out infinite;
+  background: ${core.white};
+  box-shadow: 0 0 2px 1px ${core.crimson};
+  animation: romm-sparkle var(--romm-sparkle-dur, 2s) ease-in-out infinite;
   animation-delay: var(--romm-sparkle-delay, 0s);
   top: var(--romm-sparkle-top, 50%);
   left: var(--romm-sparkle-left, 50%);
 }
 .romm-cheevo-trophy {
-  color: #ffd700;
+  color: ${core.crimson};
   font-size: 14px;
-  filter: drop-shadow(0 0 2px rgba(255, 215, 0, 0.5));
 }
 .romm-cheevo-trophy-none {
-  color: #8f98a0;
+  color: ${core.hint};
   font-size: 14px;
   filter: none;
 }
 .romm-cheevo-count {
   font-size: 13px;
   font-weight: 500;
-  color: #dcdedf;
+  color: ${core.text};
 }
 .romm-cheevo-list {
   display: flex;
@@ -695,14 +695,14 @@ export function hideNativePlaySection(playSectionClass: string) {
 }
 .romm-cheevo-progress-bar {
   height: 6px;
-  background: rgba(255,255,255,0.08);
+  background: ${core.gunmetal};
   border-radius: 3px;
   overflow: hidden;
   margin: 8px 0 16px 0;
 }
 .romm-cheevo-progress-fill {
   height: 100%;
-  background: linear-gradient(to right, #ffd700, #ffaa00);
+  background: ${core.crimson};
   border-radius: 3px;
   transition: width 0.4s ease-out;
 }
@@ -712,12 +712,12 @@ export function hideNativePlaySection(playSectionClass: string) {
   gap: 12px;
   padding: 8px;
   border-radius: 4px;
-  background: rgba(255,255,255,0.03);
+  background: ${core.gunmetal};
   border-left: 3px solid transparent;
 }
 .romm-cheevo-row-earned {
-  background: rgba(255, 215, 0, 0.06);
-  border-left-color: #ffd700;
+  background: ${core.gunmetal};
+  border-left-color: ${core.crimson};
 }
 .romm-cheevo-img-wrap {
   position: relative;
@@ -739,9 +739,9 @@ export function hideNativePlaySection(playSectionClass: string) {
   width: 2.5px;
   height: 2.5px;
   border-radius: 50%;
-  background: #fff8dc;
-  box-shadow: 0 0 2px 1px #ffd700, 0 0 5px 1px rgba(255, 215, 0, 0.5);
-  animation: romm-gold-sparkle var(--romm-sparkle-dur, 2.5s) ease-in-out infinite;
+  background: ${core.white};
+  box-shadow: 0 0 2px 1px ${core.crimson};
+  animation: romm-sparkle var(--romm-sparkle-dur, 2.5s) ease-in-out infinite;
   animation-delay: var(--romm-sparkle-delay, 0s);
   top: var(--romm-sparkle-top, 50%);
   left: var(--romm-sparkle-left, 50%);
@@ -752,7 +752,7 @@ export function hideNativePlaySection(playSectionClass: string) {
   border-radius: 4px;
   flex-shrink: 0;
   object-fit: cover;
-  background: rgba(255,255,255,0.05);
+  background: ${core.gunmetal};
 }
 .romm-cheevo-details {
   flex: 1;
@@ -761,31 +761,31 @@ export function hideNativePlaySection(playSectionClass: string) {
 .romm-cheevo-title {
   font-size: 13px;
   font-weight: 600;
-  color: #dcdedf;
+  color: ${core.text};
   line-height: 1.3;
 }
 .romm-cheevo-desc {
   font-size: 12px;
-  color: #8f98a0;
+  color: ${core.hint};
   line-height: 1.4;
   margin-top: 2px;
 }
 .romm-cheevo-points {
   font-size: 11px;
-  color: #ffd700;
+  color: ${core.text};
   font-weight: 600;
   flex-shrink: 0;
   padding: 2px 8px;
-  background: rgba(255, 215, 0, 0.1);
+  background: ${core.gunmetalRaised};
   border-radius: 3px;
 }
 .romm-cheevo-points-locked {
-  color: #8f98a0;
-  background: rgba(255,255,255,0.05);
+  color: ${core.hint};
+  background: ${core.gunmetal};
 }
 .romm-cheevo-earned-label {
   font-size: 10px;
-  color: #5ba32b;
+  color: ${core.success};
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.3px;
@@ -795,7 +795,7 @@ export function hideNativePlaySection(playSectionClass: string) {
   font-weight: 600;
   letter-spacing: 0.5px;
   text-transform: uppercase;
-  color: #8f98a0;
+  color: ${core.hint};
   margin: 12px 0 8px 0;
 }
 .romm-cheevo-summary {
@@ -807,15 +807,15 @@ export function hideNativePlaySection(playSectionClass: string) {
 .romm-cheevo-summary-text {
   font-size: 14px;
   font-weight: 600;
-  color: #dcdedf;
+  color: ${core.text};
 }
 .romm-cheevo-summary-sub {
   font-size: 12px;
-  color: #8f98a0;
+  color: ${core.hint};
 }
 .romm-cheevo-rarity {
   font-size: 10px;
-  color: #8f98a0;
+  color: ${core.hint};
   white-space: nowrap;
 }
 .romm-cheevo-dates {
@@ -827,10 +827,10 @@ export function hideNativePlaySection(playSectionClass: string) {
 }
 .romm-cheevo-date {
   font-size: 10px;
-  color: #8f98a0;
+  color: ${core.hint};
   white-space: nowrap;
   padding: 2px 6px;
-  background: rgba(255,255,255,0.06);
+  background: ${core.gunmetal};
   border-radius: 3px;
 }
 .romm-cheevo-hc-badge {
@@ -839,16 +839,13 @@ export function hideNativePlaySection(playSectionClass: string) {
   font-size: 9px;
   font-weight: 700;
   letter-spacing: 0.5px;
-  color: #ffd700;
+  color: ${core.white};
   padding: 1px 5px;
-  background: rgba(255, 215, 0, 0.15);
+  background: ${core.crimson};
   border-radius: 3px;
-  box-shadow: 0 0 4px rgba(255, 215, 0, 0.3), 0 0 8px rgba(255, 215, 0, 0.15);
-  text-shadow: 0 0 4px rgba(255, 215, 0, 0.5);
 }
 .romm-cheevo-badge-img-hc {
-  box-shadow: 0 0 6px rgba(255, 215, 0, 0.4), 0 0 12px rgba(255, 215, 0, 0.2);
-  border: 1px solid rgba(255, 215, 0, 0.3);
+  border: 1px solid ${core.crimson};
 }`;
     sp.window.document.head.appendChild(cheevoStyle);
   }

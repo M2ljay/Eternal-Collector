@@ -4,6 +4,7 @@ import { ModalRoot, DialogButton, showModal } from "@decky/ui";
 import { resolveSyncConflict, logError } from "../api/backend";
 import type { SyncConflict } from "../types";
 import { formatBytes, formatTimestamp } from "../utils/formatters";
+import { core, tint } from "../theme/coreTokens";
 
 type SyncConflictAction = "keep_local" | "use_server";
 export type SyncConflictResolution = SyncConflictAction | "cancel";
@@ -54,7 +55,7 @@ const SyncConflictModal: FC<SyncConflictModalProps> = ({
             fontSize: "16px",
             fontWeight: "bold",
             marginBottom: "4px",
-            color: "#fff",
+            color: core.white,
           }}
         >
           Save conflict for {conflict.filename}
@@ -62,7 +63,7 @@ const SyncConflictModal: FC<SyncConflictModalProps> = ({
         <div
           style={{
             fontSize: "12px",
-            color: "rgba(255, 255, 255, 0.6)",
+            color: core.steel,
             marginBottom: "16px",
             lineHeight: "1.4",
           }}
@@ -75,16 +76,16 @@ const SyncConflictModal: FC<SyncConflictModalProps> = ({
         <div
           style={{
             padding: "10px",
-            background: "rgba(76, 175, 80, 0.15)",
+            background: tint(core.success, 0.15),
             borderRadius: "4px",
-            border: "1px solid rgba(76, 175, 80, 0.3)",
+            border: `1px solid ${tint(core.success, 0.3)}`,
             marginBottom: "10px",
           }}
         >
-          <div style={{ fontSize: "12px", fontWeight: "bold", color: "#81c784", marginBottom: "6px" }}>
+          <div style={{ fontSize: "12px", fontWeight: "bold", color: core.success, marginBottom: "6px" }}>
             Your local save
           </div>
-          <div style={{ fontSize: "12px", color: "rgba(255, 255, 255, 0.7)", marginBottom: "2px" }}>
+          <div style={{ fontSize: "12px", color: core.steel, marginBottom: "2px" }}>
             {formatSize(conflict.local_size)} · modified {formatTimestamp(conflict.local_mtime)}
           </div>
           <div style={{ marginTop: "8px" }}>
@@ -98,16 +99,16 @@ const SyncConflictModal: FC<SyncConflictModalProps> = ({
         <div
           style={{
             padding: "10px",
-            background: "rgba(33, 150, 243, 0.15)",
+            background: tint(core.steel, 0.1),
             borderRadius: "4px",
-            border: "1px solid rgba(33, 150, 243, 0.3)",
+            border: `1px solid ${tint(core.steel, 0.3)}`,
             marginBottom: "10px",
           }}
         >
-          <div style={{ fontSize: "12px", fontWeight: "bold", color: "#64b5f6", marginBottom: "6px" }}>
+          <div style={{ fontSize: "12px", fontWeight: "bold", color: core.steel, marginBottom: "6px" }}>
             Server save (id={conflict.server_save_id})
           </div>
-          <div style={{ fontSize: "12px", color: "rgba(255, 255, 255, 0.7)", marginBottom: "2px" }}>
+          <div style={{ fontSize: "12px", color: core.steel, marginBottom: "2px" }}>
             {formatSize(conflict.server_size)} · uploaded {formatTimestamp(conflict.server_updated_at)}
           </div>
           <div style={{ marginTop: "8px" }}>
@@ -121,12 +122,12 @@ const SyncConflictModal: FC<SyncConflictModalProps> = ({
           <div
             style={{
               padding: "8px 10px",
-              background: "rgba(244, 67, 54, 0.15)",
+              background: tint(core.crimson, 0.15),
               borderRadius: "4px",
-              border: "1px solid rgba(244, 67, 54, 0.3)",
+              border: `1px solid ${tint(core.crimson, 0.3)}`,
               marginBottom: "12px",
               fontSize: "12px",
-              color: "#ef9a9a",
+              color: core.crimsonText,
               lineHeight: "1.4",
             }}
           >

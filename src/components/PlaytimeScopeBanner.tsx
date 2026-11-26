@@ -1,6 +1,7 @@
 import { FC } from "react";
 import { PanelSection, PanelSectionRow, ButtonItem } from "@decky/ui";
 import { setPlaytimeScopeState } from "../utils/playtimeScopeStore";
+import { core, tint } from "../theme/coreTokens";
 
 /** Title of the account-wide QAM playtime-scope banner. */
 export const PLAYTIME_SCOPE_TITLE = "Cross-device playtime";
@@ -28,8 +29,8 @@ export const PlaytimeScopeBanner: FC = () => {
         <div
           style={{
             padding: "8px 12px",
-            backgroundColor: "rgba(212, 167, 44, 0.15)",
-            borderLeft: "3px solid #d4a72c",
+            backgroundColor: tint(core.warning, 0.15),
+            borderLeft: `3px solid ${core.warning}`,
             borderRadius: "4px",
           }}
         >
@@ -37,15 +38,13 @@ export const PlaytimeScopeBanner: FC = () => {
             style={{
               fontSize: "13px",
               fontWeight: "bold",
-              color: "#d4a72c",
+              color: core.warning,
               marginBottom: "6px",
             }}
           >
             {"⚠️"} {PLAYTIME_SCOPE_TITLE}
           </div>
-          <div style={{ fontSize: "12px", color: "rgba(255, 255, 255, 0.85)", lineHeight: 1.5 }}>
-            {PLAYTIME_SCOPE_MESSAGE}
-          </div>
+          <div style={{ fontSize: "12px", color: core.text, lineHeight: 1.5 }}>{PLAYTIME_SCOPE_MESSAGE}</div>
         </div>
       </PanelSectionRow>
       <PanelSectionRow>

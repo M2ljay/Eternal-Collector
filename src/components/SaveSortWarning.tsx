@@ -5,21 +5,22 @@
  */
 
 import { FC } from "react";
+import { core, tint } from "../theme/coreTokens";
 
 export const SaveSortWarning: FC = () => (
   <div
     style={{
       padding: "8px 12px",
       marginBottom: "12px",
-      backgroundColor: "rgba(212, 167, 44, 0.15)",
-      borderLeft: "3px solid #d4a72c",
+      backgroundColor: tint(core.warning, 0.15),
+      borderLeft: `3px solid ${core.warning}`,
       borderRadius: "4px",
     }}
   >
-    <div style={{ fontSize: "13px", fontWeight: "bold", color: "#d4a72c", marginBottom: "4px" }}>
+    <div style={{ fontSize: "13px", fontWeight: "bold", color: core.warning, marginBottom: "4px" }}>
       {"\u26A0\uFE0F RetroArch save sorting changed"}
     </div>
-    <div style={{ fontSize: "12px", color: "rgba(255, 255, 255, 0.7)" }}>
+    <div style={{ fontSize: "12px", color: core.steel }}>
       Save file paths may be incorrect. Go to Settings to migrate.
     </div>
   </div>

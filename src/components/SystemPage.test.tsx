@@ -74,6 +74,7 @@ vi.mock("@decky/ui", async () => {
 // it to capture the config SystemPage hands it, so a test can drive its
 // ``onPick(label)`` — the direct replacement for the old dropdown ``onChange``.
 import type { EmulatorMenuConfig } from "../utils/emulatorMenu";
+import { core } from "../theme/coreTokens";
 const capturedMenuConfigs: EmulatorMenuConfig[] = [];
 vi.mock("../utils/emulatorMenu", () => ({
   buildEmulatorMenu: vi.fn((config: EmulatorMenuConfig) => {
@@ -1080,7 +1081,7 @@ describe("SystemPage", () => {
       expect(container.textContent).toContain("1 missing");
     });
 
-    it("renders 'Not managed by the plugin' + a neutral grey dot for an unmanaged platform (#1520)", async () => {
+    it("renders 'Not managed by the plugin' + a neutral dot for an unmanaged platform (#1520)", async () => {
       // Server files present but none registry-known → backend ships bios_level
       // "unmanaged". The System page must render honest neutral text (not a false
       // all-clear) with the shared grey status dot, and never flag it "BIOS needed".
@@ -1111,8 +1112,8 @@ describe("SystemPage", () => {
       expect(container.textContent).toContain("Not managed by the plugin");
       expect(container.textContent).toContain("1 file(s) on server the plugin doesn't recognise");
       // Neutral grey dot via the shared helper — never green.
-      expect(container.innerHTML).toContain("#8f98a0");
-      expect(container.innerHTML).not.toContain("#5ba32b");
+      expect(container.innerHTML).toContain(core.neutral);
+      expect(container.innerHTML).not.toContain(core.success);
       // Not flagged as needing BIOS (title carries no "BIOS needed" suffix).
       expect(container.textContent).not.toContain("BIOS needed");
     });

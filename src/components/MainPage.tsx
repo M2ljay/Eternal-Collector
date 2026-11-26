@@ -77,6 +77,7 @@ import { SessionBudgetBanner, formatGb, formatSignedGb, memoryLevelColor } from 
 import type { SyncProgress, SyncStage, SyncStats, SyncPreview, SyncPreviewSummary, Page } from "../types";
 import { detach } from "../utils/detach";
 import { wrapText } from "../utils/textStyles";
+import { core, tint } from "../theme/coreTokens";
 
 interface MainPageProps {
   onNavigate: (page: Exclude<Page, "main">) => void;
@@ -124,7 +125,7 @@ export const ConnectionIndicator: FC<{
   if (connected === "backend_failed") {
     return (
       <>
-        <FaExclamationTriangle style={{ color: "#d4a72c", fontSize: "14px" }} />
+        <FaExclamationTriangle style={{ color: core.warning, fontSize: "14px" }} />
         <span style={{ fontSize: "12px" }}>Backend error</span>
       </>
     );
@@ -140,14 +141,14 @@ export const ConnectionIndicator: FC<{
   if (connected) {
     return (
       <>
-        <FaCheckCircle style={{ color: "#59bf40", fontSize: "14px" }} />
+        <FaCheckCircle style={{ color: core.success, fontSize: "14px" }} />
         <span style={{ fontSize: "12px" }}>Connected</span>
       </>
     );
   }
   return (
     <>
-      <FaTimesCircle style={{ color: "#d4343c", fontSize: "14px" }} />
+      <FaTimesCircle style={{ color: core.crimsonText, fontSize: "14px" }} />
       <span style={{ fontSize: "12px" }}>{connectionFailureLabel(failure)}</span>
     </>
   );
@@ -423,13 +424,13 @@ const PREVIEW_COUNTDOWN_TICK_MS = 1000;
  */
 const BlockSeparator: FC = () => (
   <PanelSectionRow>
-    <div data-testid="block-separator" style={{ height: "1px", backgroundColor: "rgba(255, 255, 255, 0.12)" }} />
+    <div data-testid="block-separator" style={{ height: "1px", backgroundColor: core.gunmetalRaised }} />
   </PanelSectionRow>
 );
 
 /** The affirmative green — matches the connection checkmark and the healthy
  *  memory level — used only for a cleanly-finished sync's status line. */
-const STATUS_SUCCESS_COLOR = "#59bf40";
+const STATUS_SUCCESS_COLOR = core.success;
 
 /** How long the transient status line lingers before auto-clearing. Kept long
  *  enough to still be readable after a glance away from a just-finished sync. */
@@ -1234,7 +1235,7 @@ export const MainPage: FC<MainPageProps> = ({ onNavigate }) => {
         {hasChanges && (
           <PanelSectionRow>
             <Focusable>
-              <div style={{ fontSize: "12px", color: "rgba(255, 255, 255, 0.6)", padding: "4px 0" }}>{hintText}</div>
+              <div style={{ fontSize: "12px", color: core.steel, padding: "4px 0" }}>{hintText}</div>
             </Focusable>
           </PanelSectionRow>
         )}
@@ -1245,8 +1246,8 @@ export const MainPage: FC<MainPageProps> = ({ onNavigate }) => {
                 data-testid="budget-advisory"
                 style={{
                   fontSize: "12px",
-                  color: "#7fbcff",
-                  borderLeft: "3px solid rgba(61, 157, 246, 0.6)",
+                  color: core.warning,
+                  borderLeft: `3px solid ${core.warning}`,
                   paddingLeft: "8px",
                   margin: "4px 0",
                   lineHeight: 1.4,
@@ -1265,7 +1266,7 @@ export const MainPage: FC<MainPageProps> = ({ onNavigate }) => {
                 data-testid="preview-expiry"
                 style={{
                   fontSize: "12px",
-                  color: expired ? "#e5b93c" : "rgba(255, 255, 255, 0.6)",
+                  color: expired ? core.warning : core.steel,
                   padding: "4px 0",
                 }}
               >
@@ -1416,8 +1417,8 @@ export const MainPage: FC<MainPageProps> = ({ onNavigate }) => {
     // there is no run to collide with, and the connection is all that can gate them.
     syncBody = (
       <>
-        {/* Persistent session-budget banner (#1383): blue while the last run was
-            paused (restart Steam, then press the sync button), or yellow when the
+        {/* Persistent session-budget banner (#1383): amber while the last run was
+            paused (restart Steam, then press the sync button), or when the
             live heap is high after a completed run. Only in the idle state, so it
             clears the moment a resume/new sync starts. It is HANDED the sync
             button rather than working the name out from the same inputs — the
@@ -1553,7 +1554,7 @@ export const MainPage: FC<MainPageProps> = ({ onNavigate }) => {
           <PanelSectionRow>
             <Field label="Steam memory" focusable={true} bottomSeparator="none">
               <span data-testid="steam-memory" style={{ fontSize: "12px" }}>
-                {/* Only the value gets traffic-light colouring (green/yellow/red),
+                {/* Only the value gets traffic-light colouring (green/amber/crimson),
                     driven by the payload thresholds; the delta stays muted. Both sit
                     on one line: "0.6 GB · last run +0.7". */}
                 <span
@@ -1619,18 +1620,16 @@ export const MainPage: FC<MainPageProps> = ({ onNavigate }) => {
                 <div
                   style={{
                     padding: "8px 12px",
-                    backgroundColor: "rgba(212, 167, 44, 0.15)",
-                    borderLeft: "3px solid #d4a72c",
+                    backgroundColor: tint(core.warning, 0.15),
+                    borderLeft: `3px solid ${core.warning}`,
                     borderRadius: "4px",
                     fontSize: "12px",
                   }}
                 >
-                  <div style={{ fontWeight: "bold", color: "#d4a72c", marginBottom: "4px" }}>
+                  <div style={{ fontWeight: "bold", color: core.warning, marginBottom: "4px" }}>
                     {"\u26A0\uFE0F"} RetroArch save sorting changed
                   </div>
-                  <div style={{ color: "rgba(255, 255, 255, 0.7)" }}>
-                    {saveSortMigration.saves_count ?? 0} save file(s) to migrate
-                  </div>
+                  <div style={{ color: core.steel }}>{saveSortMigration.saves_count ?? 0} save file(s) to migrate</div>
                 </div>
               </Focusable>
             </PanelSectionRow>

@@ -25,6 +25,7 @@ import { FC, Fragment, useState, useRef, ChangeEvent, KeyboardEvent } from "reac
 import { TextField, DropdownItem, Focusable } from "@decky/ui";
 import { withTimeout, TimeoutError } from "../../utils/withTimeout";
 import { ValidatingModalShell } from "./ValidatingModalShell";
+import { core } from "../../theme/coreTokens";
 
 type SignInMode = "credentials" | "token" | "pairing";
 
@@ -67,12 +68,12 @@ const GENERIC_SIGN_IN_ERROR = "Sign-in failed. Check your connection and try aga
 const SIGN_IN_TIMEOUT_MS = 60_000;
 const SIGN_IN_TIMEOUT_ERROR = "The plugin backend never answered. Reload Decky or restart Steam, then try again.";
 
-const helperTextStyle = { fontSize: "12px", marginBottom: "12px", color: "rgba(255,255,255,0.6)" } as const;
+const helperTextStyle = { fontSize: "12px", marginBottom: "12px", color: core.steel } as const;
 const codeLabelStyle = {
   fontSize: "12px",
   fontWeight: 600,
   marginBottom: "8px",
-  color: "rgba(255,255,255,0.6)",
+  color: core.steel,
 } as const;
 // A single non-wrapping row: eight fixed-size boxes plus the hyphen must always
 // stay on one line (8·36 (boxes) + 8·6 (gaps between the 9 flex children) + ~8
@@ -116,7 +117,7 @@ const codeSeparatorStyle = {
   alignItems: "center",
   fontSize: "18px",
   lineHeight: 1,
-  color: "rgba(255,255,255,0.6)",
+  color: core.steel,
 } as const;
 
 /**

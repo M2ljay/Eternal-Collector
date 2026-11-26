@@ -15,6 +15,7 @@ import { getInstallIntegrity, logError, type InstallIntegrity } from "../api/bac
 import { detach } from "../utils/detach";
 import { canSelfUpdate, reinstallPlugin } from "../utils/pluginUpdate";
 import { PLUGIN_DISPLAY_NAME } from "../utils/toast";
+import { core, tint } from "../theme/coreTokens";
 
 type Shown = Extract<InstallIntegrity, { success: true }>;
 
@@ -86,12 +87,12 @@ export const InstallIntegrityNotice: FC = () => {
         <div
           style={{
             padding: "8px 12px",
-            backgroundColor: "rgba(212, 167, 44, 0.15)",
-            borderLeft: "3px solid #d4a72c",
+            backgroundColor: tint(core.warning, 0.15),
+            borderLeft: `3px solid ${core.warning}`,
             borderRadius: "4px",
             fontSize: "13px",
             lineHeight: 1.5,
-            color: "rgba(255, 255, 255, 0.9)",
+            color: core.text,
           }}
         >
           {notice.body}

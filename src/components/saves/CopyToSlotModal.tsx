@@ -11,6 +11,7 @@ import { useState, FC, ChangeEvent, KeyboardEvent } from "react";
 import { ModalRoot, DialogButton, TextField } from "@decky/ui";
 import type { SaveSlotSummary } from "../../types";
 import { displaySlot } from "./helpers";
+import { core } from "../../theme/coreTokens";
 
 export const CopyToSlotModal: FC<{
   availableSlots: SaveSlotSummary[];
@@ -48,10 +49,7 @@ export const CopyToSlotModal: FC<{
           </DialogButton>
         ))
       : [
-          <div
-            key="no-existing"
-            style={{ fontSize: "12px", color: "rgba(255,255,255,0.5)", fontStyle: "italic" as const }}
-          >
+          <div key="no-existing" style={{ fontSize: "12px", color: core.hint, fontStyle: "italic" as const }}>
             No other slots yet — create one below.
           </div>,
         ];
@@ -59,10 +57,10 @@ export const CopyToSlotModal: FC<{
   return (
     <ModalRoot {...(closeModal !== undefined ? { closeModal } : {})}>
       <div style={{ padding: "16px", minWidth: "320px" }}>
-        <div style={{ fontSize: "16px", fontWeight: "bold", marginBottom: "4px", color: "#fff" }}>
+        <div style={{ fontSize: "16px", fontWeight: "bold", marginBottom: "4px", color: core.white }}>
           Copy save to slot
         </div>
-        <div style={{ fontSize: "13px", color: "rgba(255,255,255,0.6)", marginBottom: "16px", lineHeight: "1.4" }}>
+        <div style={{ fontSize: "13px", color: core.steel, marginBottom: "16px", lineHeight: "1.4" }}>
           Copies this save into the chosen slot, which becomes the active slot. The original save is kept.
         </div>
         {/* Existing-slot targets. */}

@@ -165,6 +165,7 @@ vi.mock("../utils/saveSortMigrationStore", () => {
   return mod;
 });
 import * as saveSortMigrationStore from "../utils/saveSortMigrationStore";
+import { core } from "../theme/coreTokens";
 
 // ----- @decky/ui — global stub from test-setup.ts covers Focusable +
 // DialogButton. Pass-through is enough for this panel.
@@ -1332,7 +1333,7 @@ describe("RomMGameInfoPanel", () => {
         globalThis.dispatchEvent(new CustomEvent("romm_tab_switch", { detail: { tab: "bios" } }));
         await Promise.resolve();
       });
-      expect(view.container.innerHTML).toContain("#d4a72c");
+      expect(view.container.innerHTML).toContain(core.warning);
     });
 
     it("bios: detail.platform_slug absent → no fetch (early return)", async () => {
@@ -2910,13 +2911,13 @@ describe("RomMGameInfoPanel", () => {
         globalThis.dispatchEvent(new CustomEvent("romm_tab_switch", { detail: { tab: "bios" } }));
         await Promise.resolve();
       });
-      // Active core line: amber + bold.
+      // Active core line: crimson accent + bold.
       const activeLine = getByText("Beetle PSX HW (required)");
-      expect(activeLine.style.color).toBe("#d4a72c");
+      expect(activeLine.style.color).toBe(core.crimsonText);
       expect(activeLine.style.fontWeight).toBe("bold");
       // Non-active core line: grey + normal weight.
       const inactiveLine = getByText("SwanStation (optional)");
-      expect(inactiveLine.style.color).toBe("rgba(255, 255, 255, 0.5)");
+      expect(inactiveLine.style.color).toBe(core.hint);
       expect(inactiveLine.style.fontWeight).toBe("normal");
     });
 
@@ -2983,10 +2984,10 @@ describe("RomMGameInfoPanel", () => {
         await Promise.resolve();
       });
       const beetleLine = getByText("Beetle PSX HW (required)");
-      expect(beetleLine.style.color).toBe("rgba(255, 255, 255, 0.5)");
+      expect(beetleLine.style.color).toBe(core.hint);
       expect(beetleLine.style.fontWeight).toBe("normal");
       const swanLine = getByText("SwanStation (optional)");
-      expect(swanLine.style.color).toBe("rgba(255, 255, 255, 0.5)");
+      expect(swanLine.style.color).toBe(core.hint);
       expect(swanLine.style.fontWeight).toBe("normal");
     });
 
@@ -3047,7 +3048,7 @@ describe("RomMGameInfoPanel", () => {
       // Fallback label = `.so` key with `_libretro` stripped; not the active core,
       // so it stays grey + normal weight.
       const fallbackLine = getByText("some_obscure (required)");
-      expect(fallbackLine.style.color).toBe("rgba(255, 255, 255, 0.5)");
+      expect(fallbackLine.style.color).toBe(core.hint);
       expect(fallbackLine.style.fontWeight).toBe("normal");
     });
   });
@@ -3152,28 +3153,28 @@ describe("RomMGameInfoPanel", () => {
       return view;
     }
 
-    it("done >= total → green (#5ba32b) status dot", async () => {
+    it("done >= total → green status dot", async () => {
       const { container } = await renderWithBios(5, 5, 5, true);
-      expect(container.innerHTML).toContain("#5ba32b");
+      expect(container.innerHTML).toContain(core.success);
       expect(container.textContent).toContain("All required ready");
     });
 
-    it("0 < done < total → amber (#d4a72c) status dot", async () => {
+    it("0 < done < total → amber status dot", async () => {
       const { container } = await renderWithBios(2, 5, 2, false);
-      expect(container.innerHTML).toContain("#d4a72c");
+      expect(container.innerHTML).toContain(core.warning);
       expect(container.textContent).toContain("2/5 required files ready");
     });
 
-    it("done = 0 → red (#d94126) status dot", async () => {
+    it("done = 0 → crimson status dot", async () => {
       const { container } = await renderWithBios(0, 5, 0, false);
-      expect(container.innerHTML).toContain("#d94126");
+      expect(container.innerHTML).toContain(core.crimson);
     });
 
     it("required_count null + all_downloaded=true → green; localCount>0 (no req) → amber; localCount=0 → red", async () => {
       // a) all_downloaded=true → green
       {
         const { container } = await renderWithBios(null, null, 1, true);
-        expect(container.innerHTML).toContain("#5ba32b");
+        expect(container.innerHTML).toContain(core.success);
         expect(container.textContent).toContain("All ready");
       }
     });
@@ -3230,8 +3231,8 @@ describe("RomMGameInfoPanel", () => {
         await Promise.resolve();
       });
       // Neutral grey dot via the shared helper — never the green "all ready" dot.
-      expect(container.innerHTML).toContain("#8f98a0");
-      expect(container.innerHTML).not.toContain("#5ba32b");
+      expect(container.innerHTML).toContain(core.neutral);
+      expect(container.innerHTML).not.toContain(core.success);
       // Honest header text, not "All ready".
       expect(container.textContent).toContain("Not managed by the plugin");
       expect(container.textContent).not.toContain("All ready");

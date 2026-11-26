@@ -3,6 +3,7 @@ import { PanelSection, PanelSectionRow, ButtonItem } from "@decky/ui";
 import { dismissSettingsResetNotice, logError } from "../api/backend";
 import { setSettingsResetState } from "../utils/settingsResetStore";
 import { detach } from "../utils/detach";
+import { core, tint } from "../theme/coreTokens";
 
 /** Title shared by the QAM banner and the game-detail card. */
 export const SETTINGS_RESET_TITLE = "Settings were reset";
@@ -54,8 +55,8 @@ export const SettingsResetBanner: FC<SettingsResetBannerProps> = ({ backedUpTo }
         <div
           style={{
             padding: "8px 12px",
-            backgroundColor: "rgba(212, 167, 44, 0.15)",
-            borderLeft: "3px solid #d4a72c",
+            backgroundColor: tint(core.warning, 0.15),
+            borderLeft: `3px solid ${core.warning}`,
             borderRadius: "4px",
           }}
         >
@@ -63,15 +64,13 @@ export const SettingsResetBanner: FC<SettingsResetBannerProps> = ({ backedUpTo }
             style={{
               fontSize: "13px",
               fontWeight: "bold",
-              color: "#d4a72c",
+              color: core.warning,
               marginBottom: "6px",
             }}
           >
             {"⚠️"} {SETTINGS_RESET_TITLE}
           </div>
-          <div style={{ fontSize: "12px", color: "rgba(255, 255, 255, 0.85)", lineHeight: 1.5 }}>
-            {settingsResetMessage(backedUpTo)}
-          </div>
+          <div style={{ fontSize: "12px", color: core.text, lineHeight: 1.5 }}>{settingsResetMessage(backedUpTo)}</div>
         </div>
       </PanelSectionRow>
       <PanelSectionRow>

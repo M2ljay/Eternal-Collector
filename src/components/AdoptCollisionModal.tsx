@@ -20,6 +20,7 @@
 import { FC } from "react";
 import { ModalRoot, DialogButton, showModal } from "@decky/ui";
 import type { CollisionChoice, RenameCollision } from "../types";
+import { core } from "../theme/coreTokens";
 
 interface AdoptCollisionModalProps {
   collisions: RenameCollision[];
@@ -27,7 +28,7 @@ interface AdoptCollisionModalProps {
   onChoice: (choice: CollisionChoice | "cancel") => void;
 }
 
-const LABEL_STYLE = { fontSize: "12px", color: "rgba(255,255,255,0.55)" };
+const LABEL_STYLE = { fontSize: "12px", color: core.hint };
 
 const KIND_LABEL: Record<RenameCollision["kind"], string> = {
   rom: "game file",
@@ -44,17 +45,17 @@ export const AdoptCollisionModal: FC<AdoptCollisionModalProps> = ({ collisions, 
   return (
     <ModalRoot closeModal={closeModal}>
       <div style={{ padding: "16px", minWidth: "420px" }}>
-        <div style={{ fontSize: "16px", fontWeight: "bold", color: "#fff", marginBottom: "4px" }}>
+        <div style={{ fontSize: "16px", fontWeight: "bold", color: core.white, marginBottom: "4px" }}>
           Some of These Names Are Taken
         </div>
-        <div style={{ fontSize: "13px", color: "rgba(255,255,255,0.7)", marginBottom: "12px" }}>
+        <div style={{ fontSize: "13px", color: core.steel, marginBottom: "12px" }}>
           Moving this game&apos;s files to the name your server uses would land on files that already exist. Nothing has
           been moved yet.
         </div>
 
         <div style={{ marginBottom: "12px" }}>
           {collisions.map((collision) => (
-            <div key={collision.path} style={{ fontSize: "13px", color: "#fff", marginBottom: "2px" }}>
+            <div key={collision.path} style={{ fontSize: "13px", color: core.white, marginBottom: "2px" }}>
               {collision.name} <span style={LABEL_STYLE}>({KIND_LABEL[collision.kind]})</span>
             </div>
           ))}

@@ -5,8 +5,9 @@
  */
 
 import type { DeviceSyncInfo, SaveStatus, SyncConflict, SlotDeleteInfo } from "../../types";
+import { core } from "../../theme/coreTokens";
 
-export const MUTED_COLOR = "#8f98a0";
+export const MUTED_COLOR = core.hint;
 
 /** Display a slot name, labelling the null/empty (legacy) slot explicitly */
 export function displaySlot(slot: string | null | undefined): string {
@@ -104,18 +105,18 @@ export function statusLabel(status: string, lastSyncAt: string | null): { color:
   switch (status) {
     case "synced":
     case "skip":
-      return { color: "#5ba32b", label: "Synced" };
+      return { color: core.success, label: "Synced" };
     case "upload":
-      return { color: "#d4a72c", label: "Local changes" };
+      return { color: core.warning, label: "Local changes" };
     case "download":
-      return { color: "#1a9fff", label: "Server newer" };
+      return { color: core.warning, label: "Server newer" };
     case "conflict":
-      return { color: "#d94126", label: "Conflict" };
+      return { color: core.crimsonText, label: "Conflict" };
     case "unknown":
-      return { color: "#8f98a0", label: "Status unknown" };
+      return { color: core.hint, label: "Status unknown" };
     default:
-      if (lastSyncAt) return { color: "#5ba32b", label: "Synced" };
-      return { color: "#8f98a0", label: "Not synced" };
+      if (lastSyncAt) return { color: core.success, label: "Synced" };
+      return { color: core.hint, label: "Not synced" };
   }
 }
 
@@ -131,7 +132,7 @@ export function statusLabel(status: string, lastSyncAt: string | null): { color:
  *
  * The summary is derived from the per-file matrix statuses so it can never
  * disagree with the per-file badges (`statusLabel`): any file pending upload
- * shows yellow "Local changes", any file the server has newer shows blue
+ * shows amber "Local changes", any file the server has newer shows amber
  * "Server newer", and only an all-synced slot shows a green "Synced …". A
  * failed post-exit upload therefore reads as "Local changes", not a false
  * green ✓ (#1334).
@@ -152,17 +153,20 @@ export function computeSyncSummary(
   const hasConflict = conflicts.length > 0;
   const files = saveStatus.files;
 
-  if (hasConflict) return { syncSummaryText: "Conflict detected", syncSummaryColor: "#d94126" };
+  if (hasConflict) return { syncSummaryText: "Conflict detected", syncSummaryColor: core.crimsonText };
   if (files.length === 0) return { syncSummaryText: "No saves found", syncSummaryColor: MUTED_COLOR };
   if (files.some((f) => f.status === "upload")) {
-    return { syncSummaryText: "Local changes", syncSummaryColor: "#d4a72c" };
+    return { syncSummaryText: "Local changes", syncSummaryColor: core.warning };
   }
   if (files.some((f) => f.status === "download")) {
-    return { syncSummaryText: "Server newer", syncSummaryColor: "#1a9fff" };
+    return { syncSummaryText: "Server newer", syncSummaryColor: core.warning };
   }
   if (saveStatus.last_sync_check_at) {
     const rel = formatRelativeTime(saveStatus.last_sync_check_at);
-    return { syncSummaryText: rel === "just now" ? "Synced just now" : `Synced ${rel}`, syncSummaryColor: "#5ba32b" };
+    return {
+      syncSummaryText: rel === "just now" ? "Synced just now" : `Synced ${rel}`,
+      syncSummaryColor: core.success,
+    };
   }
   return { syncSummaryText: "Not synced", syncSummaryColor: MUTED_COLOR };
 }

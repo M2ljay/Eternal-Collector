@@ -27,6 +27,7 @@ import type { SaveSetupInfo, SlotMigrationConflict } from "../types";
 import { detach } from "../utils/detach";
 import { ConnectingIndicator } from "./saves/ConnectingIndicator";
 import { displaySlot } from "./saves/helpers";
+import { core, tint } from "../theme/coreTokens";
 
 interface SlotSetupWizardProps {
   romId: number;
@@ -46,21 +47,21 @@ function formatTimestamp(iso: string | null): string {
 // Compact button styling — white text, subtle border, small
 const btnStyle: React.CSSProperties = {
   background: "transparent",
-  border: "1px solid rgba(255, 255, 255, 0.3)",
+  border: `1px solid ${core.gunmetalRaised}`,
   borderRadius: "4px",
   padding: "4px 12px",
   minWidth: "auto",
   width: "auto",
   fontSize: "12px",
-  color: "#fff",
+  color: core.white,
   cursor: "pointer",
 };
 
 const btnPrimaryStyle: React.CSSProperties = {
   ...btnStyle,
-  background: "rgba(26, 159, 255, 0.15)",
-  border: "1px solid rgba(26, 159, 255, 0.4)",
-  color: "#1a9fff",
+  background: tint(core.crimson, 0.15),
+  border: `1px solid ${tint(core.crimson, 0.4)}`,
+  color: core.crimsonText,
 };
 
 function getWizardDescription(info: SaveSetupInfo): string {
@@ -134,29 +135,29 @@ const LegacyMigrationConflictModal: FC<{
   return (
     <ModalRoot {...(closeModal !== undefined ? { closeModal } : {})}>
       <div style={{ padding: "8px 4px", minWidth: "360px" }}>
-        <div style={{ fontSize: "15px", fontWeight: "bold", color: "#fff", marginBottom: "4px" }}>
+        <div style={{ fontSize: "15px", fontWeight: "bold", color: core.white, marginBottom: "4px" }}>
           A local save differs from the legacy save
         </div>
-        <div style={{ fontSize: "12px", color: "rgba(255, 255, 255, 0.6)", marginBottom: "12px", lineHeight: "1.4" }}>
+        <div style={{ fontSize: "12px", color: core.steel, marginBottom: "12px", lineHeight: "1.4" }}>
           Copying the legacy save into &lsquo;{slot}&rsquo; replaces your local save.
         </div>
         {conflicts.map((c) => (
           <div key={c.filename} style={{ marginBottom: "10px" }}>
-            <div style={{ fontSize: "12px", color: "#fff", marginBottom: "4px" }}>{c.filename}</div>
+            <div style={{ fontSize: "12px", color: core.white, marginBottom: "4px" }}>{c.filename}</div>
             <div style={{ display: "flex", gap: "8px" }}>
               <div
                 style={{
                   flex: 1,
                   padding: "8px",
-                  background: "rgba(76, 175, 80, 0.15)",
-                  border: "1px solid rgba(76, 175, 80, 0.3)",
+                  background: tint(core.success, 0.15),
+                  border: `1px solid ${tint(core.success, 0.3)}`,
                   borderRadius: "4px",
                 }}
               >
-                <div style={{ fontSize: "11px", fontWeight: "bold", color: "#81c784", marginBottom: "2px" }}>
+                <div style={{ fontSize: "11px", fontWeight: "bold", color: core.success, marginBottom: "2px" }}>
                   Your local save
                 </div>
-                <div style={{ fontSize: "11px", color: "rgba(255, 255, 255, 0.7)" }}>
+                <div style={{ fontSize: "11px", color: core.steel }}>
                   {formatSize(c.local_size)} · modified {formatTimestamp(c.local_mtime)}
                 </div>
               </div>
@@ -164,22 +165,22 @@ const LegacyMigrationConflictModal: FC<{
                 style={{
                   flex: 1,
                   padding: "8px",
-                  background: "rgba(33, 150, 243, 0.15)",
-                  border: "1px solid rgba(33, 150, 243, 0.3)",
+                  background: tint(core.steel, 0.1),
+                  border: `1px solid ${tint(core.steel, 0.3)}`,
                   borderRadius: "4px",
                 }}
               >
-                <div style={{ fontSize: "11px", fontWeight: "bold", color: "#64b5f6", marginBottom: "2px" }}>
+                <div style={{ fontSize: "11px", fontWeight: "bold", color: core.steel, marginBottom: "2px" }}>
                   Legacy save on server
                 </div>
-                <div style={{ fontSize: "11px", color: "rgba(255, 255, 255, 0.7)" }}>
+                <div style={{ fontSize: "11px", color: core.steel }}>
                   {formatSize(c.server_size)} · saved {formatTimestamp(c.server_updated_at)}
                 </div>
               </div>
             </div>
           </div>
         ))}
-        <div style={{ fontSize: "11px", color: "rgba(255, 255, 255, 0.5)", margin: "4px 0 12px", lineHeight: "1.4" }}>
+        <div style={{ fontSize: "11px", color: core.hint, margin: "4px 0 12px", lineHeight: "1.4" }}>
           {legacyConflictReplaceNotice(slot)}
         </div>
         <div style={{ display: "flex", gap: "8px", justifyContent: "flex-end" }}>
@@ -288,8 +289,8 @@ function buildLocalSavesColumn(info: SaveSetupInfo): React.ReactNode[] {
             key={f.filename}
             style={{ display: "flex", alignItems: "center", gap: "6px", padding: "4px 0", fontSize: "12px" }}
           >
-            <span className="romm-status-dot" style={{ backgroundColor: "#5ba32b" }} />
-            <span style={{ color: "#fff" }}>{f.filename}</span>
+            <span className="romm-status-dot" style={{ backgroundColor: core.success }} />
+            <span style={{ color: core.white }}>{f.filename}</span>
             <span className="romm-panel-muted">{formatBytes(f.size)}</span>
           </div>
         ))}
@@ -327,8 +328,8 @@ function buildSlotRow(
       }}
     >
       <div style={{ minWidth: 0 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "13px", color: "#fff" }}>
-          <span className="romm-status-dot" style={{ backgroundColor: "#1a9fff" }} />
+        <div style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "13px", color: core.white }}>
+          <span className="romm-status-dot" style={{ backgroundColor: core.neutral }} />
           {displaySlot(s.slot)}
         </div>
         <div className="romm-panel-muted" style={{ fontSize: "11px", marginLeft: "18px" }}>
@@ -397,9 +398,7 @@ function buildServerSlotsColumn(
 
   // Divider + "Start fresh" section — only show "Use default" when it's not already in the server list
   const defaultExistsOnServer = info.server_slots.some((s) => s.slot === defaultSlot);
-  children.push(
-    <div key="divider" style={{ borderTop: "1px solid rgba(255, 255, 255, 0.1)", margin: "10px 0 8px" }} />,
-  );
+  children.push(<div key="divider" style={{ borderTop: `1px solid ${core.gunmetalRaised}`, margin: "10px 0 8px" }} />);
   if (!defaultExistsOnServer) {
     children.push(
       <div key="fresh-label" className="romm-panel-muted" style={{ fontSize: "11px", marginBottom: "6px" }}>
@@ -629,7 +628,7 @@ export const SlotSetupWizard: FC<SlotSetupWizardProps> = ({ romId, onComplete })
     return (
       <div style={{ padding: "12px 0" }}>
         <div className="romm-panel-section-title">Save Slot Setup</div>
-        <div style={{ color: "#d4513f", fontSize: "12px", marginBottom: "8px" }}>{error}</div>
+        <div style={{ color: core.crimsonText, fontSize: "12px", marginBottom: "8px" }}>{error}</div>
         <DialogButton className="romm-wizard-btn" style={btnStyle} onClick={retry}>
           Retry
         </DialogButton>
@@ -649,7 +648,7 @@ export const SlotSetupWizard: FC<SlotSetupWizardProps> = ({ romId, onComplete })
       <div className="romm-panel-section-title" style={{ marginBottom: "4px" }}>
         Save Slot Setup
       </div>
-      {error && <div style={{ color: "#d4513f", fontSize: "12px", marginBottom: "8px" }}>{error}</div>}
+      {error && <div style={{ color: core.crimsonText, fontSize: "12px", marginBottom: "8px" }}>{error}</div>}
       <div className="romm-panel-muted" style={{ fontSize: "12px", marginBottom: "12px" }}>
         {getWizardDescription(info)}
       </div>

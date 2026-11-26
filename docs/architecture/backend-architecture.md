@@ -518,15 +518,15 @@ same seams feed the UI surfaces: `sync_preview` returns `pause_likely` (a `predi
 new creates + changed updates, never fully-unchanged items, so an unchanged re-sync never warns), a clean run's
 `sync_complete` carries `restart_recommended` (`post_run_advisory`, RSS > ~1.8 GB, read GC-first), and the
 `get_session_budget_status` callable returns a live RSS reading (no GC) plus the three fixed threshold lines (`warn_kb`
-≈1.8 GB, `ceiling_kb` ≈2.2 GB, `cliff_kb` ≈2.45 GB) for the persistent QAM banners (a blue "paused" banner, a yellow
+≈1.8 GB, `ceiling_kb` ≈2.2 GB, `cliff_kb` ≈2.45 GB) for the persistent QAM banners (an amber "paused" banner, an amber
 high-heap banner) and the always-on "Steam memory" status row. The row's value text is traffic-light coloured against
-those three thresholds — green / yellow (`warn_kb`) / red (`ceiling_kb`) — so the frontend holds no threshold magic
+those three thresholds — green / amber (`warn_kb`) / crimson (`ceiling_kb`) — so the frontend holds no threshold magic
 numbers, and while a sync runs (or a paused banner is showing) the row polls the callable (~5 s during a sync, ~10 s
-while paused) so the number tracks the climbing RSS and the blue paused banner notices once a Steam restart frees
+while paused) so the number tracks the climbing RSS and the paused banner notices once a Steam restart frees
 memory. That notice is driven by `resume_ready` on the callable (`domain.session_budget.resume_would_proceed`:
 `rss + RESUME_HEADROOM_CHUNKS × FULL_CHUNK_WORST_KB < ceiling` — room for TWO worst-case chunks, ≈1.2 GB bar, because a
 one-chunk bar sits exactly on the pause point where Steam's own small frees flicker the verdict; `None` when RSS is
-unreadable) — when it flips `true` the blue banner announces memory is free and hides the restart button. The callable
+unreadable) — when it flips `true` the paused banner announces memory is free and hides the restart button. The callable
 also carries the paused run's progress (`run_done_items` / `run_total_items`), so that banner can read "1200 of 2001
 games done": the counters are run-scoped fields on `LibrarySyncStateBox`, stamped with the plan's ROM total and grown by
 the delta-restricted apply's SKIPPED entries (already correct on their shortcut), each wholesale-skipped unit's ROMs,

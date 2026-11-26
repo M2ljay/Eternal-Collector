@@ -168,6 +168,7 @@ import { registerConnectionHeartbeat } from "../utils/connectionHeartbeat";
 import { useVersionError } from "./VersionErrorCard";
 import { useMigrationStatus } from "../utils/migrationStore";
 import { detach } from "../utils/detach";
+import { core, tint } from "../theme/coreTokens";
 
 // S3776 is raised on the declaration line, so its NOSONAR must stay there. prettier-ignore stops
 // Prettier from relocating the trailing comment into the body (which would break the suppression).
@@ -914,9 +915,9 @@ export const RomMPlaySection: FC<RomMPlaySectionProps> = ({ appId }) => { // NOS
     infoItems.push(
       <div key="offline-indicator" className={rc("romm-info-item")}>
         <div className={rc("romm-info-header")}>
-          <FaExclamationTriangle size={12} color="#ff8800" />
+          <FaExclamationTriangle size={12} color={core.warning} />
         </div>
-        <div className={rc("romm-info-value")} style={{ color: "#ff8800" }}>
+        <div className={rc("romm-info-value")} style={{ color: core.warning }}>
           RomM offline
         </div>
       </div>,
@@ -1002,7 +1003,7 @@ export const RomMPlaySection: FC<RomMPlaySectionProps> = ({ appId }) => { // NOS
     infoItems.push(
       <div key="legacy-slot-warning" className={rc("romm-info-item")}>
         <div className={rc("romm-info-header")}>SAVE SYNC</div>
-        <div style={{ fontSize: "11px", color: "#ff8800", marginTop: "4px" }}>{"\u26A0 Legacy save slot"}</div>
+        <div style={{ fontSize: "11px", color: core.warning, marginTop: "4px" }}>{"\u26A0 Legacy save slot"}</div>
       </div>,
     );
   }
@@ -1086,7 +1087,7 @@ export const RomMPlaySection: FC<RomMPlaySectionProps> = ({ appId }) => { // NOS
         alignItems: "center",
         gap: "20px",
         padding: "16px 2.8vw",
-        background: "rgba(14, 20, 27, 0.33)",
+        background: tint(core.gunmetal, 0.6),
         boxSizing: "border-box",
       }}
     >
@@ -1123,7 +1124,7 @@ export const RomMPlaySection: FC<RomMPlaySectionProps> = ({ appId }) => { // NOS
       >
         {/* RomM actions button */}
         <NativeMenuButton className="romm-gear-btn" onClick={showRomMMenu} onFocus={scrollToTop} title="RomM Actions">
-          <FaGamepad size={18} color="#553e98" />
+          <FaGamepad size={18} color={core.steel} />
         </NativeMenuButton>
         {/* Core selection button (only when multiple emulators to choose between) */}
         {detail.emulators.length > 1 ? (
@@ -1134,12 +1135,12 @@ export const RomMPlaySection: FC<RomMPlaySectionProps> = ({ appId }) => { // NOS
             onFocus={scrollToTop}
             title="Emulator Core"
           >
-            <FaMicrochip size={18} color={detail.activeCoreIsDefault ? "#8f98a0" : "#d4a72c"} />
+            <FaMicrochip size={18} color={detail.activeCoreIsDefault ? core.steel : core.crimson} />
           </NativeMenuButton>
         ) : null}
         {/* Steam properties button */}
         <NativeMenuButton className="romm-gear-btn" onClick={showSteamMenu} onFocus={scrollToTop} title="Steam Properties">
-          <FaCog size={18} color="#8f98a0" />
+          <FaCog size={18} color={core.steel} />
         </NativeMenuButton>
       </div>
     </Focusable>

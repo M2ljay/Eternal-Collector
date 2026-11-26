@@ -22,6 +22,7 @@ import { FC } from "react";
 import { ModalRoot, DialogButton, showModal } from "@decky/ui";
 import { ENTRY_KIND_LABEL } from "../utils/formatters";
 import type { UnusableNamesakeResult } from "../types";
+import { core } from "../theme/coreTokens";
 
 export type UnusableChoice = "download" | "cancel";
 
@@ -31,7 +32,7 @@ interface AdoptUnusableModalProps {
   onChoice: (choice: UnusableChoice) => void;
 }
 
-const LABEL_STYLE = { fontSize: "12px", color: "rgba(255,255,255,0.55)" };
+const LABEL_STYLE = { fontSize: "12px", color: core.hint };
 
 export const AdoptUnusableModal: FC<AdoptUnusableModalProps> = ({ unusable, closeModal, onChoice }) => {
   const choose = (choice: UnusableChoice) => {
@@ -44,17 +45,17 @@ export const AdoptUnusableModal: FC<AdoptUnusableModalProps> = ({ unusable, clos
   return (
     <ModalRoot closeModal={closeModal}>
       <div style={{ padding: "16px", minWidth: "420px" }}>
-        <div style={{ fontSize: "16px", fontWeight: "bold", color: "#fff", marginBottom: "4px" }}>
+        <div style={{ fontSize: "16px", fontWeight: "bold", color: core.white, marginBottom: "4px" }}>
           Something With This Name Is Already Here
         </div>
-        <div style={{ fontSize: "13px", color: "rgba(255,255,255,0.7)", marginBottom: "12px" }}>
+        <div style={{ fontSize: "13px", color: core.steel, marginBottom: "12px" }}>
           Your server sends this game as {servedWord}, and what is in this folder is not something The Collector can use
           as this game. Downloading leaves you with two copies — the one below, and the one it fetches.
         </div>
 
         <div style={{ marginBottom: "12px" }}>
           {unusable.existing.map((entry) => (
-            <div key={entry.path} style={{ fontSize: "13px", color: "#fff", marginBottom: "2px" }}>
+            <div key={entry.path} style={{ fontSize: "13px", color: core.white, marginBottom: "2px" }}>
               {entry.name} <span style={LABEL_STYLE}>({ENTRY_KIND_LABEL[entry.kind]})</span>
             </div>
           ))}

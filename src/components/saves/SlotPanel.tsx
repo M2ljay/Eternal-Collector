@@ -24,6 +24,7 @@ import { InactiveSlotBody } from "./InactiveSlotBody";
 import { VersionHistoryPanel } from "./VersionHistoryPanel";
 import { renderCopyToSlotButton, type CopyToSlotHandler } from "./CopyToSlotButton";
 import { detach } from "../../utils/detach";
+import { core } from "../../theme/coreTokens";
 
 /**
  * Multi-file note (#908 interim guard) — replaces the Previous-Versions /
@@ -34,13 +35,13 @@ function renderMultiFileNote(componentFiles: string[]): ReactElement {
   const n = componentFiles.length;
   return (
     <div key="multi-file-note" style={{ marginTop: "6px", marginLeft: "8px" }}>
-      <div style={{ fontSize: "11px", color: "#8f98a0", fontWeight: 600 }}>{`Files in this save (${n})`}</div>
+      <div style={{ fontSize: "11px", color: core.hint, fontWeight: 600 }}>{`Files in this save (${n})`}</div>
       {componentFiles.map((fn) => (
         <div
           key={`comp-${fn}`}
           style={{
             fontSize: "11px",
-            color: "#8f98a0",
+            color: core.hint,
             fontFamily: "monospace",
             wordBreak: "break-all" as const,
             marginTop: "1px",

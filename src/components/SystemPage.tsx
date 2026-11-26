@@ -32,6 +32,7 @@ import {
   withPruneLease,
 } from "../utils/pruneLease";
 import { batchConfirmLaunchOptions } from "../utils/launchOptionsReconcile";
+import { core } from "../theme/coreTokens";
 
 /**
  * Build the per-platform summary label/description from the backend BIOS
@@ -104,7 +105,7 @@ const PlatformSeparator: FC = () => (
         rather than hugging the block above it. */}
     <div
       data-testid="platform-separator"
-      style={{ height: "1px", marginTop: "14px", backgroundColor: "rgba(255, 255, 255, 0.12)" }}
+      style={{ height: "1px", marginTop: "14px", backgroundColor: core.gunmetalRaised }}
     />
   </PanelSectionRow>
 );
@@ -357,7 +358,7 @@ export const SystemPage: FC<SystemPageProps> = ({ onBack }) => {
         {platform.platform_slug === "xbox" && xemuBanner && (
           <PanelSectionRow>
             <Field
-              label={<span style={{ color: "#ffaa00" }}>{xemuBanner.title}</span>}
+              label={<span style={{ color: core.warning }}>{xemuBanner.title}</span>}
               description={xemuBanner.message}
               bottomSeparator="none"
             />
@@ -407,13 +408,13 @@ export const SystemPage: FC<SystemPageProps> = ({ onBack }) => {
             {platform.files.map((file) => {
               let dotColor: string;
               if (file.classification === "unknown") {
-                dotColor = "#d4a72c";
+                dotColor = core.warning;
               } else if (file.downloaded) {
-                dotColor = "#5ba32b";
+                dotColor = core.success;
               } else if (file.classification === "required") {
-                dotColor = "#d94126";
+                dotColor = core.crimson;
               } else {
-                dotColor = "#8f98a0";
+                dotColor = core.neutral;
               }
               return (
                 <PanelSectionRow key={file.id}>
@@ -518,14 +519,14 @@ export const SystemPage: FC<SystemPageProps> = ({ onBack }) => {
 
       <PanelSection title="System">
         <PanelSectionRow>
-          <div style={{ fontSize: "11px", color: "#8f98a0", padding: "0 16px 4px" }}>
+          <div style={{ fontSize: "11px", color: core.hint, padding: "0 16px 4px" }}>
             Per-system emulator core and BIOS files. The active core determines which BIOS files a system needs.
           </div>
         </PanelSectionRow>
         {/* General note about core switching — shown once at the top, not per
             platform, since the caveat is the same for every system (#938). */}
         <PanelSectionRow>
-          <div style={{ fontSize: "11px", color: "#ffb74d", padding: "0 16px 4px" }}>
+          <div style={{ fontSize: "11px", color: core.warning, padding: "0 16px 4px" }}>
             Switching cores may affect save compatibility
           </div>
         </PanelSectionRow>

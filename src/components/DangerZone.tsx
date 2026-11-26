@@ -47,6 +47,7 @@ import {
   withPruneLease,
 } from "../utils/pruneLease";
 import { withTimeout } from "../utils/withTimeout";
+import { core } from "../theme/coreTokens";
 
 const REMOVAL_REPORT_TIMEOUT_MS = 15000;
 const DANGER_ZONE_LEASE_OWNER = "danger-zone";
@@ -130,7 +131,7 @@ const PlatformActionModal: FC<{
   return (
     <ModalRoot closeModal={closeModal}>
       <div style={{ padding: "16px", minWidth: "320px" }}>
-        <div style={{ fontSize: "16px", fontWeight: "bold", color: "#fff", marginBottom: "16px" }}>
+        <div style={{ fontSize: "16px", fontWeight: "bold", color: core.white, marginBottom: "16px" }}>
           Actions for {platform.name}
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
@@ -474,7 +475,7 @@ const ShortcutRemovalSection: FC<ShortcutRemovalSectionProps> = ({
             description={syncRunning ? SYNC_RUNNING_HINT : undefined}
           >
             {confirmRemoveAllRomm ? (
-              <span style={{ color: "#ff8800" }}>Confirm: remove all RomM shortcuts?</span>
+              <span style={{ color: core.warning }}>Confirm: remove all RomM shortcuts?</span>
             ) : (
               "Remove All RomM Shortcuts"
             )}
@@ -507,7 +508,7 @@ const ShortcutRemovalSection: FC<ShortcutRemovalSectionProps> = ({
             description={syncRunning ? SYNC_RUNNING_HINT : undefined}
           >
             {confirmUninstall ? (
-              <span style={{ color: "#ff8800" }}>Confirm: delete all ROM files?</span>
+              <span style={{ color: core.warning }}>Confirm: delete all ROM files?</span>
             ) : (
               "Uninstall All Installed ROMs"
             )}
@@ -517,7 +518,7 @@ const ShortcutRemovalSection: FC<ShortcutRemovalSectionProps> = ({
           <PanelSectionRow>
             <Field
               label={
-                <span style={{ color: "#ff8800" }}>
+                <span style={{ color: core.warning }}>
                   This will delete all downloaded ROM files. Shortcuts remain so you can re-download later.
                 </span>
               }
@@ -604,7 +605,7 @@ const OrphanedGridCleanupSection: FC = () => {
           description={syncRunning ? SYNC_RUNNING_HINT : undefined}
         >
           {confirmCleanup ? (
-            <span style={{ color: "#ff8800" }}>
+            <span style={{ color: core.warning }}>
               Confirm: remove {candidateCount} orphaned image{candidateCount === 1 ? "" : "s"}?
             </span>
           ) : (
@@ -616,7 +617,7 @@ const OrphanedGridCleanupSection: FC = () => {
         <PanelSectionRow>
           <Field
             label={
-              <span style={{ color: "#ff8800" }}>
+              <span style={{ color: core.warning }}>
                 Deletes leftover Steam grid artwork whose shortcut no longer exists. Artwork of live shortcuts
                 (including non-RomM ones) is kept.
               </span>
@@ -802,13 +803,15 @@ const RetroDeckSection: FC<RetroDeckSectionProps> = ({
   const removeButtonLabel = () => {
     if (confirmRetrodeck) {
       return (
-        <span style={{ color: "#ff4444", fontWeight: "bold" }}>!! RETRODECK WILL BE REMOVED !! Click to confirm</span>
+        <span style={{ color: core.crimsonText, fontWeight: "bold" }}>
+          !! RETRODECK WILL BE REMOVED !! Click to confirm
+        </span>
       );
     }
     if (confirmRemoveAll) {
       if (retrodeckAtRisk) {
         return (
-          <span style={{ color: "#ff8800" }}>
+          <span style={{ color: core.warning }}>
             WARNING: RetroDECK not protected! Remove {nonSteamApps.length - whitelistedIds.size} games?
           </span>
         );
@@ -843,7 +846,7 @@ const RetroDeckSection: FC<RetroDeckSectionProps> = ({
             <PanelSectionRow>
               <Field
                 label={
-                  <span style={{ color: "#ff4444" }}>
+                  <span style={{ color: core.crimsonText }}>
                     RetroDECK is NOT in the whitelist and will be permanently removed!
                   </span>
                 }

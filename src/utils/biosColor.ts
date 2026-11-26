@@ -1,3 +1,4 @@
+import { core } from "../theme/coreTokens";
 /**
  * Shared BIOS status-dot color mapping. The unmanaged/ok/partial/missing
  * CLASSIFICATION is a single backend source of truth
@@ -9,23 +10,23 @@
  * only the color mapping is shared here.
  */
 
-/** Map a backend BIOS level to the status-dot hex color.
+/** Map a backend BIOS level to the status-dot colour.
  *  - `ok` → green
  *  - `partial` → amber
- *  - `missing` → red
- *  - `unmanaged` (no registry coverage — plugin makes no claim) → neutral grey
- *  - `null` (no level data) → neutral grey */
+ *  - `missing` → crimson
+ *  - `unmanaged` (no registry coverage — plugin makes no claim) → neutral
+ *  - `null` (no level data) → neutral */
 export function biosColorForLevel(level: "ok" | "partial" | "missing" | "unmanaged" | null): string {
   switch (level) {
     case "ok":
-      return "#5ba32b";
+      return core.success;
     case "partial":
-      return "#d4a72c";
+      return core.warning;
     case "missing":
-      return "#d94126";
+      return core.crimson;
     case "unmanaged":
-      return "#8f98a0";
+      return core.neutral;
     default:
-      return "#8f98a0";
+      return core.neutral;
   }
 }

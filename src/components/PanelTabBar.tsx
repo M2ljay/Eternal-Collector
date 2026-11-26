@@ -10,6 +10,7 @@
 
 import { FC } from "react";
 import { DialogButton, Focusable } from "@decky/ui";
+import { core } from "../theme/coreTokens";
 
 interface PanelTabBarProps {
   activeTab: string;
@@ -39,7 +40,7 @@ export const PanelTabBar: FC<PanelTabBarProps> = ({ activeTab, hasAchievements, 
             style={{
               background: "transparent",
               border: "none",
-              borderBottom: activeTab === t.id ? "2px solid #1a9fff" : "2px solid transparent",
+              borderBottom: activeTab === t.id ? `2px solid ${core.crimson}` : "2px solid transparent",
               padding: "10px 16px",
               minWidth: "auto",
               width: "auto",

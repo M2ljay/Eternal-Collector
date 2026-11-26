@@ -13,6 +13,7 @@
 import { FC, useState, ChangeEvent, KeyboardEvent } from "react";
 import { TextField, Focusable } from "@decky/ui";
 import { ValidatingModalShell } from "./ValidatingModalShell";
+import { core } from "../../theme/coreTokens";
 
 /** The subset of the verify result the modal needs to decide whether to save
  *  (success) or surface an error and stay open (failure). */
@@ -29,7 +30,7 @@ interface SgdbApiKeyModalProps {
   onSave: (key: string) => Promise<void>;
 }
 
-const helperTextStyle = { fontSize: "12px", marginBottom: "12px", color: "rgba(255,255,255,0.6)" } as const;
+const helperTextStyle = { fontSize: "12px", marginBottom: "12px", color: core.steel } as const;
 
 const GENERIC_VERIFY_ERROR = "Could not verify the key. Check your connection and try again.";
 const GENERIC_SAVE_ERROR = "The key is valid, but saving it failed. Check your connection and try again.";

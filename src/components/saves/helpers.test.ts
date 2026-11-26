@@ -10,6 +10,7 @@ import {
   statusLabel,
 } from "./helpers";
 import type { DeviceSyncInfo, SaveStatus, SyncConflict, SlotDeleteInfo } from "../../types";
+import { core } from "../../theme/coreTokens";
 
 describe("displaySlot", () => {
   it("returns 'Legacy' for null", () => {
@@ -172,39 +173,39 @@ describe("formatAttributionSegment", () => {
 
 describe("statusLabel", () => {
   it("returns green 'Synced' for status 'synced'", () => {
-    expect(statusLabel("synced", null)).toEqual({ color: "#5ba32b", label: "Synced" });
+    expect(statusLabel("synced", null)).toEqual({ color: core.success, label: "Synced" });
   });
 
   it("returns green 'Synced' for status 'skip'", () => {
-    expect(statusLabel("skip", null)).toEqual({ color: "#5ba32b", label: "Synced" });
+    expect(statusLabel("skip", null)).toEqual({ color: core.success, label: "Synced" });
   });
 
   it("returns yellow 'Local changes' for status 'upload'", () => {
-    expect(statusLabel("upload", null)).toEqual({ color: "#d4a72c", label: "Local changes" });
+    expect(statusLabel("upload", null)).toEqual({ color: core.warning, label: "Local changes" });
   });
 
   it("returns blue 'Server newer' for status 'download'", () => {
-    expect(statusLabel("download", null)).toEqual({ color: "#1a9fff", label: "Server newer" });
+    expect(statusLabel("download", null)).toEqual({ color: core.warning, label: "Server newer" });
   });
 
   it("returns red 'Conflict' for status 'conflict'", () => {
-    expect(statusLabel("conflict", null)).toEqual({ color: "#d94126", label: "Conflict" });
+    expect(statusLabel("conflict", null)).toEqual({ color: core.crimsonText, label: "Conflict" });
   });
 
   it("returns grey 'Status unknown' for status 'unknown'", () => {
-    expect(statusLabel("unknown", null)).toEqual({ color: "#8f98a0", label: "Status unknown" });
+    expect(statusLabel("unknown", null)).toEqual({ color: core.hint, label: "Status unknown" });
   });
 
   it("returns grey 'Status unknown' for status 'unknown' even when lastSyncAt is set", () => {
-    expect(statusLabel("unknown", "2025-06-15T10:00:00Z")).toEqual({ color: "#8f98a0", label: "Status unknown" });
+    expect(statusLabel("unknown", "2025-06-15T10:00:00Z")).toEqual({ color: core.hint, label: "Status unknown" });
   });
 
   it("defaults to green 'Synced' when status is unknown but lastSyncAt is set", () => {
-    expect(statusLabel("weird", "2025-06-15T10:00:00Z")).toEqual({ color: "#5ba32b", label: "Synced" });
+    expect(statusLabel("weird", "2025-06-15T10:00:00Z")).toEqual({ color: core.success, label: "Synced" });
   });
 
   it("defaults to grey 'Not synced' when status is unknown and lastSyncAt is null", () => {
-    expect(statusLabel("weird", null)).toEqual({ color: "#8f98a0", label: "Not synced" });
+    expect(statusLabel("weird", null)).toEqual({ color: core.hint, label: "Not synced" });
   });
 });
 
@@ -280,14 +281,14 @@ describe("computeSyncSummary", () => {
   it("returns null text for inactive slot", () => {
     expect(computeSyncSummary(false, makeStatus(), [])).toEqual({
       syncSummaryText: null,
-      syncSummaryColor: "#8f98a0",
+      syncSummaryColor: core.hint,
     });
   });
 
   it("returns null text when saveStatus is null", () => {
     expect(computeSyncSummary(true, null, [])).toEqual({
       syncSummaryText: null,
-      syncSummaryColor: "#8f98a0",
+      syncSummaryColor: core.hint,
     });
   });
 
@@ -314,7 +315,7 @@ describe("computeSyncSummary", () => {
     });
     expect(computeSyncSummary(true, status, [])).toEqual({
       syncSummaryText: "Server unreachable",
-      syncSummaryColor: "#8f98a0",
+      syncSummaryColor: core.hint,
     });
   });
 
@@ -360,7 +361,7 @@ describe("computeSyncSummary", () => {
     ];
     expect(computeSyncSummary(true, status, conflicts)).toEqual({
       syncSummaryText: "Server unreachable",
-      syncSummaryColor: "#8f98a0",
+      syncSummaryColor: core.hint,
     });
   });
 
@@ -383,14 +384,14 @@ describe("computeSyncSummary", () => {
     ];
     expect(computeSyncSummary(true, status, conflicts)).toEqual({
       syncSummaryText: "Conflict detected",
-      syncSummaryColor: "#d94126",
+      syncSummaryColor: core.crimsonText,
     });
   });
 
   it("returns 'No saves found' when fileCount is 0 and no conflicts", () => {
     expect(computeSyncSummary(true, makeStatus(), [])).toEqual({
       syncSummaryText: "No saves found",
-      syncSummaryColor: "#8f98a0",
+      syncSummaryColor: core.hint,
     });
   });
 
@@ -398,7 +399,7 @@ describe("computeSyncSummary", () => {
     const status = makeStatus({ files: [mkFile("synced")] });
     expect(computeSyncSummary(true, status, [])).toEqual({
       syncSummaryText: "Not synced",
-      syncSummaryColor: "#8f98a0",
+      syncSummaryColor: core.hint,
     });
   });
 
@@ -406,7 +407,7 @@ describe("computeSyncSummary", () => {
     const status = makeStatus({ last_sync_check_at: new Date().toISOString(), files: [mkFile("upload")] });
     expect(computeSyncSummary(true, status, [])).toEqual({
       syncSummaryText: "Local changes",
-      syncSummaryColor: "#d4a72c",
+      syncSummaryColor: core.warning,
     });
   });
 
@@ -417,7 +418,7 @@ describe("computeSyncSummary", () => {
     });
     expect(computeSyncSummary(true, status, [])).toEqual({
       syncSummaryText: "Local changes",
-      syncSummaryColor: "#d4a72c",
+      syncSummaryColor: core.warning,
     });
   });
 
@@ -428,7 +429,7 @@ describe("computeSyncSummary", () => {
     });
     expect(computeSyncSummary(true, status, [])).toEqual({
       syncSummaryText: "Server newer",
-      syncSummaryColor: "#1a9fff",
+      syncSummaryColor: core.warning,
     });
   });
 
@@ -455,7 +456,7 @@ describe("computeSyncSummary", () => {
     });
     expect(computeSyncSummary(true, status, [])).toEqual({
       syncSummaryText: "Synced just now",
-      syncSummaryColor: "#5ba32b",
+      syncSummaryColor: core.success,
     });
   });
 
@@ -481,7 +482,7 @@ describe("computeSyncSummary", () => {
       ],
     });
     const result = computeSyncSummary(true, status, []);
-    expect(result.syncSummaryColor).toBe("#5ba32b");
+    expect(result.syncSummaryColor).toBe(core.success);
     expect(result.syncSummaryText).toMatch(/^Synced \d+m ago$/);
   });
 });

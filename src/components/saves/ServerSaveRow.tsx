@@ -8,6 +8,7 @@ import type { SlotSaveFile } from "../../types";
 import { formatBytes } from "../../utils/formatters";
 import { formatRelativeTime } from "./helpers";
 import { renderCopyToSlotButton, type CopyToSlotRowProps } from "./CopyToSlotButton";
+import { core } from "../../theme/coreTokens";
 
 export function renderServerSaveRow(f: SlotSaveFile, copy?: CopyToSlotRowProps): ReactElement {
   // Lead with the server save id (#<id> · …), matching the version-history
@@ -21,16 +22,16 @@ export function renderServerSaveRow(f: SlotSaveFile, copy?: CopyToSlotRowProps):
       key={`server-${f.id}`}
       style={{
         padding: "4px 0",
-        borderBottom: "1px solid rgba(255,255,255,0.04)",
+        borderBottom: `1px solid ${core.gunmetalRaised}`,
         display: "flex",
         alignItems: "flex-start",
         gap: "8px",
       }}
     >
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontSize: "12px", color: "#dcdedf", fontWeight: 500 }}>{f.filename}</div>
+        <div style={{ fontSize: "12px", color: core.text, fontWeight: 500 }}>{f.filename}</div>
         {details.length > 0 ? (
-          <div style={{ fontSize: "11px", color: "#8f98a0", marginTop: "2px" }}>{details.join(" · ")}</div>
+          <div style={{ fontSize: "11px", color: core.hint, marginTop: "2px" }}>{details.join(" · ")}</div>
         ) : null}
       </div>
       {copy ? renderCopyToSlotButton(`copy-${f.id}`, f.id, copy) : null}

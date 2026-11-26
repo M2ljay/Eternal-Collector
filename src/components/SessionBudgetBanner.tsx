@@ -2,6 +2,7 @@ import { FC, ReactNode } from "react";
 import { PanelSectionRow, ButtonItem, Focusable } from "@decky/ui";
 import { showToast } from "../utils/toast";
 import { isAnyAppRunning } from "../utils/runningApps";
+import { core, tint } from "../theme/coreTokens";
 
 /**
  * Live renderer RSS (KB) above which a completed run recommends a Steam restart.
@@ -31,15 +32,15 @@ export function formatSignedGb(kb: number): string {
 
 /**
  * Traffic-light colour for a live memory reading, decided entirely by the
- * backend-supplied thresholds (no frontend magic numbers, #1383): RED at/above the
- * pause ceiling (every further chunk would pause), YELLOW strictly above the
- * advisory floor (high heap — the same strict trigger as the yellow banner and the
- * backend advisory), else GREEN. The hexes match the existing status palette.
+ * backend-supplied thresholds (no frontend magic numbers, #1383): crimson at/above the
+ * pause ceiling (every further chunk would pause), amber strictly above the
+ * advisory floor (high heap — the same strict trigger as the high-heap banner and the
+ * backend advisory), else green.
  */
 export function memoryLevelColor(rssKb: number, warnKb: number, ceilingKb: number): string {
-  if (rssKb >= ceilingKb) return "#d4343c";
-  if (rssKb > warnKb) return "#d4a72c";
-  return "#59bf40";
+  if (rssKb >= ceilingKb) return core.crimson;
+  if (rssKb > warnKb) return core.warning;
+  return core.success;
 }
 
 /**
@@ -75,7 +76,7 @@ function bannerCard(accent: string, background: string, testId: string, title: s
           }}
         >
           <div style={{ fontSize: "13px", fontWeight: "bold", color: accent, marginBottom: "6px" }}>{title}</div>
-          <div style={{ fontSize: "12px", color: "rgba(255, 255, 255, 0.85)", lineHeight: 1.5 }}>{body}</div>
+          <div style={{ fontSize: "12px", color: core.text, lineHeight: 1.5 }}>{body}</div>
         </div>
       </Focusable>
     </PanelSectionRow>
@@ -100,7 +101,7 @@ export interface SyncButton {
 }
 
 interface SessionBudgetBannerProps {
-  /** ``stats.last_attempt?.status`` — a ``"paused"`` last run shows the blue resume banner. */
+  /** ``stats.last_attempt?.status`` — a ``"paused"`` last run shows the resume banner. */
   lastAttemptStatus?: string | undefined;
   /**
    * The sync button this banner points the user at. Required, and deliberately not
@@ -138,9 +139,9 @@ interface SessionBudgetBannerProps {
 }
 
 /**
- * Persistent QAM banner for the session-budget UX (#1383). Renders a BLUE/info
+ * Persistent QAM banner for the session-budget UX (#1383). Renders an amber
  * banner while the last run is ``paused`` — restart Steam, then press whatever the
- * sync button currently says ({@link SyncButton}) — or a YELLOW/warning banner
+ * sync button currently says ({@link SyncButton}) — or an amber high-heap banner
  * when the live renderer heap is high after a completed run. A paused run takes
  * precedence (it is high-heap anyway). Returns nothing when neither applies.
  * When ``rssKb`` is ``null`` (measurement unavailable) the
@@ -191,10 +192,10 @@ export const SessionBudgetBanner: FC<SessionBudgetBannerProps> = ({
     : `Steam memory is full${liveReadingSuffix}.${progressSentence} Restart Steam, then ${syncButton.label}.`;
 
   const card = paused
-    ? bannerCard("#3d9df6", "rgba(61, 157, 246, 0.15)", "budget-paused-banner", "Sync paused", pausedBody)
+    ? bannerCard(core.warning, tint(core.warning, 0.15), "budget-paused-banner", "Sync paused", pausedBody)
     : bannerCard(
-        "#d4a72c",
-        "rgba(212, 167, 44, 0.15)",
+        core.warning,
+        tint(core.warning, 0.15),
         "budget-high-heap-banner",
         "Steam memory is high",
         `Steam memory is high: ${formatGb(rssKb!)} of 2.4 GB — restart Steam before further large syncs.`,

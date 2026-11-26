@@ -167,11 +167,11 @@ export interface SessionBudgetStatus {
   rss_kb: number | null;
   /**
    * The advisory floor in KB (~1.8 GB) — strictly above this the value colours
-   * yellow (and the yellow high-heap banner appears). Backend-supplied so the
+   * amber (and the amber high-heap banner appears). Backend-supplied so the
    * frontend holds no threshold magic numbers (#1383).
    */
   warn_kb: number;
-  /** The effective pause ceiling in KB (~2.2 GB) — a chunk projected past this pauses; value colours red at/above it. */
+  /** The effective pause ceiling in KB (~2.2 GB) — a chunk projected past this pauses; value colours crimson at/above it. */
   ceiling_kb: number;
   /** The measured OOM cliff in KB (~2.45 GB) the renderer crashes at. */
   cliff_kb: number;
@@ -315,7 +315,7 @@ export interface SyncPreview {
    * Post-preview session-budget prognosis (#1383): ``true`` when the backend
    * predicts that applying every planned touch would push Steam's renderer past
    * its per-session heap budget, so the sync will likely pause partway (and can
-   * always be resumed). Drives the yellow advisory hint on the preview. Absent /
+   * always be resumed). Drives the amber advisory hint on the preview. Absent /
    * ``false`` when the reading is unavailable or the run fits under the budget.
    */
   pause_likely?: boolean;

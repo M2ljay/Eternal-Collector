@@ -97,6 +97,7 @@ import {
 } from "../utils/pruneLease";
 import { reconfirmLaunchOptions } from "../utils/launchOptionsReconcile";
 import { saveSyncToastBody } from "../utils/saveSyncToast";
+import { core, tint } from "../theme/coreTokens";
 
 type PlayButtonState =
   | "loading"
@@ -125,20 +126,6 @@ interface DownloadProgress {
    */
   extracting: boolean;
 }
-
-function lerpColor(a: [number, number, number], b: [number, number, number], t: number): string {
-  const r = Math.round(a[0] + (b[0] - a[0]) * t);
-  const g = Math.round(a[1] + (b[1] - a[1]) * t);
-  const bl = Math.round(a[2] + (b[2] - a[2]) * t);
-  return `rgb(${r}, ${g}, ${bl})`;
-}
-
-// Download button blue gradient stops
-const BLUE_LEFT: [number, number, number] = [26, 159, 255]; // #1a9fff
-const BLUE_RIGHT: [number, number, number] = [0, 120, 212]; // #0078d4
-// Play button visible green (computed from gradient + backgroundSize 330% + backgroundPosition 25%)
-const GREEN_LEFT: [number, number, number] = [80, 200, 47]; // #50c82f
-const GREEN_RIGHT: [number, number, number] = [24, 177, 78]; // #18b14e
 
 function formatProgress(downloaded: number, total: number): string {
   // Show "x / y MB" with unit only on the total
@@ -1398,7 +1385,7 @@ export const CustomPlayButton: FC<CustomPlayButtonProps> = ({ appId }) => { // N
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
-    borderLeft: "1px solid rgba(0, 0, 0, 0.2)",
+    borderLeft: `1px solid ${tint(core.black, 0.2)}`,
   };
 
   // Consistent button container size across all states (Play has dropdown = 36px extra)
@@ -1414,7 +1401,7 @@ export const CustomPlayButton: FC<CustomPlayButtonProps> = ({ appId }) => { // N
     flex: "1 1 auto",
     padding: "4px 12px",
     border: "none",
-    color: "#fff",
+    color: core.white,
     fontSize: "16px",
     fontWeight: "bold",
   };
@@ -1438,7 +1425,8 @@ export const CustomPlayButton: FC<CustomPlayButtonProps> = ({ appId }) => { // N
           style={{
             ...mainBtnStyle,
             borderRadius: "2px 0 0 2px",
-            background: "linear-gradient(to right, #70d61d 0%, #01a75b 60%)",
+            background: core.success,
+            color: core.black,
             backgroundPosition: "25%",
             backgroundSize: "330% 100%",
           }}
@@ -1455,8 +1443,8 @@ export const CustomPlayButton: FC<CustomPlayButtonProps> = ({ appId }) => { // N
           title="Game actions"
           style={{
             ...dropdownArrowStyle,
-            background: "rgba(255, 255, 255, 0.15)",
-            color: "#fff",
+            background: core.gunmetalRaised,
+            color: core.white,
           }}
           onClick={(e: MouseEvent) => showRunningActionsMenu(e)}
         >
@@ -1490,7 +1478,8 @@ export const CustomPlayButton: FC<CustomPlayButtonProps> = ({ appId }) => { // N
           style={{
             ...mainBtnStyle,
             borderRadius: "2px",
-            background: "linear-gradient(to right, #80e62a, #01b866)",
+            background: core.success,
+            color: core.black,
             filter: "brightness(1.2)",
           }}
           disabled
@@ -1511,31 +1500,10 @@ export const CustomPlayButton: FC<CustomPlayButtonProps> = ({ appId }) => { // N
     // disabled throbber rather than the cancel X / Pause-Resume chevron.
     const extracting = downloading ? dlProgress.extracting : false;
 
-    // Fill color shifts from blue to green as download progresses. Extraction
-    // begins right after the transfer hit 100% green, so it keeps the solid
-    // green fill for visual continuity.
-    let fillColor: string;
-    if (extracting) {
-      fillColor = `linear-gradient(to right, rgb(${GREEN_LEFT.join(",")}), rgb(${GREEN_RIGHT.join(",")}))`;
-    } else if (downloading) {
-      fillColor = `linear-gradient(to right, ${lerpColor(BLUE_LEFT, GREEN_LEFT, t)}, ${lerpColor(BLUE_RIGHT, GREEN_RIGHT, t)})`;
-    } else {
-      fillColor = "linear-gradient(to right, #1a9fff, #0078d4)";
-    }
-
-    // Pulse color shifts from blue to green with progress; a paused download
-    // freezes to a dim amber so the whole group reads as "halted, not running".
-    // Extraction holds the green pulse — it just finished the transfer.
-    let pulseColor: string;
-    if (paused) {
-      pulseColor = "rgba(212,167,44,0.7)";
-    } else if (extracting) {
-      pulseColor = `rgb(${GREEN_LEFT.join(", ")})`;
-    } else if (downloading) {
-      pulseColor = lerpColor(BLUE_LEFT, GREEN_LEFT, t);
-    } else {
-      pulseColor = "rgba(26,159,255,0.7)";
-    }
+    // A paused download freezes to amber so the whole group reads as "halted,
+    // not running".
+    const fillColor = core.crimson;
+    const pulseColor = paused ? tint(core.warning, 0.7) : tint(core.crimson, 0.7);
 
     let dlLabel: string;
     if (extracting) {
@@ -1569,17 +1537,12 @@ export const CustomPlayButton: FC<CustomPlayButtonProps> = ({ appId }) => { // N
       dlLabel = "Download";
     }
 
-    // Unfilled portion: darker shade of the current fill color. Extraction
-    // keeps a dim green base (the transfer just completed green).
+    // Unfilled portion: gunmetal under a running transfer or an extraction.
     let baseBg: string;
-    if (isOffline) {
-      baseBg = "linear-gradient(to right, #6b7b8b, #5a6a7a)";
-    } else if (extracting) {
-      baseBg = "linear-gradient(to right, #1a4d1a, #0f3320)";
-    } else if (downloading) {
-      baseBg = `linear-gradient(to right, ${lerpColor([10, 50, 90], [5, 35, 65], t)}, ${lerpColor([5, 35, 65], [5, 50, 30], t)})`;
+    if (isOffline || extracting || downloading) {
+      baseBg = core.gunmetalRaised;
     } else {
-      baseBg = "linear-gradient(to right, #1a9fff, #0078d4)";
+      baseBg = core.crimson;
     }
 
     // While a download is actively running, the main button shares the row
@@ -1596,10 +1559,10 @@ export const CustomPlayButton: FC<CustomPlayButtonProps> = ({ appId }) => { // N
     const downloadBlockedByVanished = boundVanished && !downloading && !paused && !extracting;
     const downloadBtn = (
       <DialogButton
-        // romm-btn-download-idle carries the blue hover/focus highlight, which is
-        // only correct for the idle/starting button (blue base). The active button
-        // (downloading/paused/extracting) omits it so its dark baseBg + green fill
-        // aren't repainted blue when focused — the rehydrated-paused device bug.
+        // romm-btn-download-idle carries the crimson hover/focus highlight, which is
+        // only correct for the idle/starting button (crimson base). The active button
+        // (downloading/paused/extracting) omits it so its gunmetal baseBg isn't
+        // repainted crimson when focused — the rehydrated-paused device bug.
         className={[appActionButtonClasses?.PlayButton, "romm-btn-download", !downloading && "romm-btn-download-idle"]
           .filter(Boolean)
           .join(" ")}
@@ -1676,8 +1639,8 @@ export const CustomPlayButton: FC<CustomPlayButtonProps> = ({ appId }) => { // N
         title="Cancel download"
         style={{
           ...dropdownArrowStyle,
-          background: "rgba(255, 255, 255, 0.15)",
-          color: "#fff",
+          background: core.gunmetalRaised,
+          color: core.white,
         }}
         onClick={handleCancelDownload}
       >
@@ -1703,8 +1666,8 @@ export const CustomPlayButton: FC<CustomPlayButtonProps> = ({ appId }) => { // N
         title="Download actions"
         style={{
           ...dropdownArrowStyle,
-          background: "rgba(255, 255, 255, 0.15)",
-          color: "#fff",
+          background: core.gunmetalRaised,
+          color: core.white,
         }}
         onClick={(e: MouseEvent) => showDownloadActionsMenu(e, paused)}
       >
@@ -1730,8 +1693,8 @@ export const CustomPlayButton: FC<CustomPlayButtonProps> = ({ appId }) => { // N
         title="Extracting"
         style={{
           ...dropdownArrowStyle,
-          background: "rgba(255, 255, 255, 0.15)",
-          color: "#fff",
+          background: core.gunmetalRaised,
+          color: core.white,
         }}
         disabled
       >
@@ -1780,7 +1743,7 @@ export const CustomPlayButton: FC<CustomPlayButtonProps> = ({ appId }) => { // N
           style={{
             ...mainBtnStyle,
             borderRadius: "2px",
-            background: "linear-gradient(to right, #47b3ff, #1a9fff)",
+            background: core.crimson,
           }}
           disabled
         >
@@ -1808,7 +1771,7 @@ export const CustomPlayButton: FC<CustomPlayButtonProps> = ({ appId }) => { // N
           style={{
             ...mainBtnStyle,
             borderRadius: "2px",
-            background: "linear-gradient(to right, #47b3ff, #1a9fff)",
+            background: core.crimson,
             filter: "brightness(1.3)",
           }}
           disabled
@@ -1833,7 +1796,8 @@ export const CustomPlayButton: FC<CustomPlayButtonProps> = ({ appId }) => { // N
           style={{
             ...mainBtnStyle,
             borderRadius: "2px",
-            background: "linear-gradient(to right, #70d61d 0%, #01a75b 60%)",
+            background: core.success,
+            color: core.black,
             backgroundPosition: "25%",
             backgroundSize: "330% 100%",
             display: "flex",
@@ -1864,7 +1828,8 @@ export const CustomPlayButton: FC<CustomPlayButtonProps> = ({ appId }) => { // N
           style={{
             ...mainBtnStyle,
             borderRadius: "2px",
-            background: "linear-gradient(to right, #70d61d 0%, #01a75b 60%)",
+            background: core.success,
+            color: core.black,
             backgroundPosition: "25%",
             backgroundSize: "330% 100%",
             display: "flex",
@@ -1893,7 +1858,7 @@ export const CustomPlayButton: FC<CustomPlayButtonProps> = ({ appId }) => { // N
           style={{
             ...mainBtnStyle,
             borderRadius: "2px",
-            background: "linear-gradient(to right, #d4a72c, #b8941f)",
+            background: core.crimson,
           }}
           onClick={() => {
             detach(handleResolveConflict());
@@ -1945,12 +1910,8 @@ export const CustomPlayButton: FC<CustomPlayButtonProps> = ({ appId }) => { // N
       </Focusable>
     );
   }
-  const playBg = isOffline
-    ? "linear-gradient(to right, #6b7b6b 0%, #5a6a5a 60%)"
-    : "linear-gradient(to right, #70d61d 0%, #01a75b 60%)";
-  const dropdownBg = isOffline
-    ? "linear-gradient(to right, #5a6a5a, #4d5d4d)"
-    : "linear-gradient(to right, #4da636, #3f8a2b)";
+  const playBg = isOffline ? core.gunmetalRaised : core.success;
+  const playFg = isOffline ? core.white : core.black;
   return (
     <Focusable
       ref={containerRef}
@@ -1967,6 +1928,7 @@ export const CustomPlayButton: FC<CustomPlayButtonProps> = ({ appId }) => { // N
           ...mainBtnStyle,
           borderRadius: "2px 0 0 2px",
           background: playBg,
+          color: playFg,
           backgroundPosition: "25%",
           backgroundSize: "330% 100%",
         }}
@@ -1981,7 +1943,8 @@ export const CustomPlayButton: FC<CustomPlayButtonProps> = ({ appId }) => { // N
         className="romm-btn-dropdown"
         style={{
           ...dropdownArrowStyle,
-          background: dropdownBg,
+          background: playBg,
+          color: playFg,
         }}
         onClick={showDropdownMenu}
         onFocus={scrollToTop}

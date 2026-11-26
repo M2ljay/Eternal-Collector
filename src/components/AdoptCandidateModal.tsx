@@ -13,6 +13,7 @@ import { FC } from "react";
 import { ModalRoot, DialogButton, showModal } from "@decky/ui";
 import { formatBytes } from "../utils/formatters";
 import type { AdoptionCandidate, CandidatesFoundResult } from "../types";
+import { core } from "../theme/coreTokens";
 
 export type CandidateChoice =
   { kind: "candidate"; candidate: AdoptionCandidate } | { kind: "download" } | { kind: "cancel" };
@@ -23,7 +24,7 @@ interface AdoptCandidateModalProps {
   onChoice: (choice: CandidateChoice) => void;
 }
 
-const LABEL_STYLE = { fontSize: "12px", color: "rgba(255,255,255,0.55)" };
+const LABEL_STYLE = { fontSize: "12px", color: core.hint };
 
 export const AdoptCandidateModal: FC<AdoptCandidateModalProps> = ({ found, closeModal, onChoice }) => {
   const choose = (choice: CandidateChoice) => {
@@ -34,10 +35,10 @@ export const AdoptCandidateModal: FC<AdoptCandidateModalProps> = ({ found, close
   return (
     <ModalRoot closeModal={closeModal}>
       <div style={{ padding: "16px", minWidth: "420px" }}>
-        <div style={{ fontSize: "16px", fontWeight: "bold", color: "#fff", marginBottom: "4px" }}>
+        <div style={{ fontSize: "16px", fontWeight: "bold", color: core.white, marginBottom: "4px" }}>
           This Game May Already Be on Your Device
         </div>
-        <div style={{ fontSize: "13px", color: "rgba(255,255,255,0.7)", marginBottom: "12px" }}>
+        <div style={{ fontSize: "13px", color: core.steel, marginBottom: "12px" }}>
           These files sit in the same folder and carry this game&apos;s name. The Collector did not put them there, so
           nothing is touched until you pick one.
         </div>
@@ -46,7 +47,7 @@ export const AdoptCandidateModal: FC<AdoptCandidateModalProps> = ({ found, close
           {found.candidates.map((candidate) => (
             <DialogButton key={candidate.path} onClick={() => choose({ kind: "candidate", candidate })}>
               <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-start" }}>
-                <div style={{ fontSize: "13px", color: "#fff" }}>{candidate.name}</div>
+                <div style={{ fontSize: "13px", color: core.white }}>{candidate.name}</div>
                 <div style={LABEL_STYLE}>
                   {candidate.detail}
                   {candidate.is_dir ? " — folder" : ` — ${formatBytes(candidate.size_bytes)}`}

@@ -34,6 +34,7 @@ import { scrollToTop, scrollElementToTop } from "../utils/scrollHelpers";
 import { detach } from "../utils/detach";
 import { fuzzyMatch } from "../utils/fuzzyMatch";
 import { LoadingRow } from "./LoadingRow";
+import { core } from "../theme/coreTokens";
 
 type CollectionSubTab = "standard" | "smart" | "virtual";
 
@@ -494,7 +495,7 @@ export const LibraryPage: FC<LibraryPageProps> = ({ onBack }) => {
                     minWidth: 0,
                     padding: "8px 0",
                     opacity: ownerScope === scope ? 1 : 0.5,
-                    borderBottom: ownerScope === scope ? "2px solid #1a9fff" : "2px solid transparent",
+                    borderBottom: ownerScope === scope ? `2px solid ${core.crimson}` : "2px solid transparent",
                   }}
                   onClick={() => {
                     detach(handleOwnerScopeChange(scope));
@@ -522,7 +523,7 @@ export const LibraryPage: FC<LibraryPageProps> = ({ onBack }) => {
                 minWidth: 0,
                 padding: "8px 0",
                 opacity: activeSubTab === sub ? 1 : 0.5,
-                borderBottom: activeSubTab === sub ? "2px solid #1a9fff" : "2px solid transparent",
+                borderBottom: activeSubTab === sub ? `2px solid ${core.crimson}` : "2px solid transparent",
               }}
               onClick={() => handleSubTabChange(sub)}
             >
@@ -579,7 +580,7 @@ export const LibraryPage: FC<LibraryPageProps> = ({ onBack }) => {
                       justifyContent: "center",
                       textAlign: "center",
                       opacity: virtualTypeFilter === type ? 1 : 0.5,
-                      borderBottom: virtualTypeFilter === type ? "2px solid #1a9fff" : "2px solid transparent",
+                      borderBottom: virtualTypeFilter === type ? `2px solid ${core.crimson}` : "2px solid transparent",
                     }}
                     onClick={() => setVirtualTypeFilter(type)}
                   >
@@ -702,7 +703,7 @@ export const LibraryPage: FC<LibraryPageProps> = ({ onBack }) => {
             minWidth: 0,
             padding: "10px 0",
             opacity: activeTab === "platforms" ? 1 : 0.5,
-            borderBottom: activeTab === "platforms" ? "2px solid #1a9fff" : "2px solid transparent",
+            borderBottom: activeTab === "platforms" ? `2px solid ${core.crimson}` : "2px solid transparent",
           }}
           onClick={() => setActiveTab("platforms")}
         >
@@ -714,7 +715,7 @@ export const LibraryPage: FC<LibraryPageProps> = ({ onBack }) => {
             minWidth: 0,
             padding: "10px 0",
             opacity: activeTab === "collections" ? 1 : 0.5,
-            borderBottom: activeTab === "collections" ? "2px solid #1a9fff" : "2px solid transparent",
+            borderBottom: activeTab === "collections" ? `2px solid ${core.crimson}` : "2px solid transparent",
           }}
           onClick={handleCollectionsTabClick}
         >

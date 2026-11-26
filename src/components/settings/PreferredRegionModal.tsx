@@ -1,5 +1,6 @@
 import { FC } from "react";
 import { ModalRoot, DialogButton, showModal } from "@decky/ui";
+import { core, tint } from "../../theme/coreTokens";
 
 interface PreferredRegionModalProps {
   oldLabel: string;
@@ -30,23 +31,23 @@ const PreferredRegionModalContent: FC<PreferredRegionModalProps> = ({ oldLabel, 
       }}
     >
       <div style={{ padding: "16px", minWidth: "320px" }}>
-        <div style={{ fontSize: "16px", fontWeight: "bold", marginBottom: "4px", color: "#fff" }}>
+        <div style={{ fontSize: "16px", fontWeight: "bold", marginBottom: "4px", color: core.white }}>
           Change Preferred Region
         </div>
-        <div style={{ fontSize: "13px", color: "rgba(255, 255, 255, 0.6)", marginBottom: "16px" }}>
+        <div style={{ fontSize: "13px", color: core.steel, marginBottom: "16px" }}>
           {oldLabel} → {newLabel}
         </div>
 
         <div
           style={{
             padding: "10px",
-            background: "rgba(26, 159, 255, 0.12)",
+            background: tint(core.steel, 0.08),
             borderRadius: "4px",
-            border: "1px solid rgba(26, 159, 255, 0.3)",
+            border: `1px solid ${core.gunmetalRaised}`,
             marginBottom: "12px",
           }}
         >
-          <div style={{ fontSize: "12px", color: "rgba(255, 255, 255, 0.8)", lineHeight: "1.4" }}>
+          <div style={{ fontSize: "12px", color: core.text, lineHeight: "1.4" }}>
             This applies to games synced <b>from now on</b>. When a game has several regional versions, the plugin will
             prefer this region for the version it binds and the name it gives the new Steam shortcut.
             <br />

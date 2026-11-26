@@ -112,14 +112,14 @@ A few things worth knowing for a large library:
 - **A very large sync may pause itself to protect Steam.** Steam holds every shortcut it creates in memory for the rest
   of the session, and that memory only frees on a Steam restart. A very large first import can approach that limit, so
   the plugin watches Steam's memory and, when it gets close, pauses cleanly at a safe point rather than risking a Steam
-  crash. If the preview expects this, it shows a blue note up front ("will likely pause partway to protect Steam's
-  memory — normal for large syncs"). When a pause happens, the sync page shows a **blue banner** — "Steam memory is full
+  crash. If the preview expects this, it shows an amber note up front ("will likely pause partway to protect Steam's
+  memory — normal for large syncs"). When a pause happens, the sync page shows an **amber banner** — "Steam memory is full
   (2.3 GB). 1200 of 2001 games done. Restart Steam, then Resume Sync." — that stays until you resume, and a toast says
   the same. The banner reports how far the run got, so you can see how much is left before you resume. Restarting Steam
   frees the memory and the resume finishes the job. Once you've restarted, the banner notices on its own — it changes to
   "Steam memory is free again (0.4 GB). 1200 of 2001 games done. Press Resume Sync to continue." and drops the restart
   button, so you know a resume will actually work now rather than pausing again. Nothing is lost, and you are never
-  forced out of what you were doing. After a big run finishes with memory still high, a **yellow banner** recommends a
+  forced out of what you were doing. After a big run finishes with memory still high, an **amber banner** recommends a
   Steam restart before your next large sync; it clears itself once you restart.
   - **The banner names whichever button is actually there.** If you press **Force Full Sync** while a paused run is
     showing, there is no longer anything to resume — so the banner stops saying "Resume Sync" and names **Sync Library**
@@ -133,7 +133,7 @@ A few things worth knowing for a large library:
 - **The top of the panel shows Steam's current memory.** A **Steam memory** row sits alongside Connection and Last sync,
   so you can see how close Steam is to its limit at a glance (it's hidden only if the reading can't be taken); while a
   sync is running it refreshes every few seconds so you can watch the number climb. The number is colour-coded — green
-  when there's plenty of headroom, yellow as it gets high, red once it's near the limit where syncs pause. On the same
+  when there's plenty of headroom, amber as it gets high, crimson once it's near the limit where syncs pause. On the same
   line it shows how much the last run (whether it finished, paused, or was cancelled) grew Steam's memory — for example
   "0.6 GB · last run +1.5" — so a big import tells you why the number climbed.
 

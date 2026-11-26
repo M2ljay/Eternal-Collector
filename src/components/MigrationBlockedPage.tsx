@@ -7,6 +7,7 @@ import { clearMigration } from "../utils/migrationStore";
 import { MigrationConflictModal } from "./MigrationConflictModal";
 import { scrollToTop } from "../utils/scrollHelpers";
 import { detach } from "../utils/detach";
+import { core, tint } from "../theme/coreTokens";
 
 interface MigrationBlockedPageProps {
   migration: MigrationStatus;
@@ -84,8 +85,8 @@ export const MigrationBlockedPage: FC<MigrationBlockedPageProps> = ({ migration 
         <div
           style={{
             padding: "8px 12px",
-            backgroundColor: "rgba(212, 167, 44, 0.15)",
-            borderLeft: "3px solid #d4a72c",
+            backgroundColor: tint(core.warning, 0.15),
+            borderLeft: `3px solid ${core.warning}`,
             borderRadius: "4px",
           }}
         >
@@ -93,19 +94,19 @@ export const MigrationBlockedPage: FC<MigrationBlockedPageProps> = ({ migration 
             style={{
               fontSize: "13px",
               fontWeight: "bold",
-              color: "#d4a72c",
+              color: core.warning,
               marginBottom: "6px",
             }}
           >
             {"⚠️"} RetroDECK location changed
           </div>
-          <div style={{ fontSize: "12px", color: "rgba(255, 255, 255, 0.7)", marginBottom: "4px" }}>
+          <div style={{ fontSize: "12px", color: core.steel, marginBottom: "4px" }}>
             From: {migration.old_path ?? "unknown"}
           </div>
-          <div style={{ fontSize: "12px", color: "rgba(255, 255, 255, 0.7)", marginBottom: "4px" }}>
+          <div style={{ fontSize: "12px", color: core.steel, marginBottom: "4px" }}>
             To: {migration.new_path ?? "unknown"}
           </div>
-          <div style={{ fontSize: "12px", color: "rgba(255, 255, 255, 0.9)" }}>
+          <div style={{ fontSize: "12px", color: core.text }}>
             {migration.roms_count ?? 0} ROM(s), {migration.bios_count ?? 0} BIOS, {migration.saves_count ?? 0} save(s)
             to migrate
           </div>
@@ -133,7 +134,7 @@ export const MigrationBlockedPage: FC<MigrationBlockedPageProps> = ({ migration 
         </PanelSectionRow>
       )}
       <PanelSectionRow>
-        <div style={{ fontSize: "11px", color: "rgba(255, 255, 255, 0.55)", padding: "4px 0" }}>
+        <div style={{ fontSize: "11px", color: core.hint, padding: "4px 0" }}>
           Or revert RetroDECK to its previous location — the plugin will detect it automatically.
         </div>
       </PanelSectionRow>

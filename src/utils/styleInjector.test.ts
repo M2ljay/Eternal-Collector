@@ -15,6 +15,7 @@ const spWindow = { window: { document } } as unknown as Window;
 vi.mock("./deckyUiInternals", () => ({ findSP: vi.fn(() => spWindow) }));
 
 import { hideNativePlaySection, showNativePlaySection } from "./styleInjector";
+import { core } from "../theme/coreTokens";
 
 /** Every rule block hideNativePlaySection injects, concatenated. */
 function injectedCss(): string {
@@ -31,7 +32,7 @@ describe("styleInjector — vanished-version trash", () => {
 
   it("colours the trash from CSS so the icon needs no inline colour", () => {
     expect(injectedCss()).toContain(".romm-vanished-trash {");
-    expect(injectedCss()).toMatch(/\.romm-vanished-trash\s*\{[^}]*color:\s*#d94126/);
+    expect(injectedCss()).toMatch(new RegExp(`\\.romm-vanished-trash\\s*\\{[^}]*color:\\s*${core.crimsonText}`));
   });
 
   it("flips only the menu-row trash to black on gamepad focus", () => {

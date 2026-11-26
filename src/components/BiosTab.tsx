@@ -19,6 +19,7 @@ import { FC, type ReactElement } from "react";
 import type { BiosStatus, CoreInfo } from "../types";
 import { biosColorForLevel } from "../utils/biosColor";
 import { infoRow, section } from "./panelSection";
+import { core } from "../theme/coreTokens";
 
 interface BiosTabProps {
   /** The platform's BIOS requirement, or null when its core needs none — in
@@ -50,7 +51,7 @@ function buildBiosCoreLines(
       <div
         key={`core-${coreSo}`}
         style={{
-          color: isActiveCore ? "#d4a72c" : "rgba(255, 255, 255, 0.5)",
+          color: isActiveCore ? core.crimsonText : core.hint,
           fontSize: "12px",
           fontWeight: isActiveCore ? "bold" : "normal",
         }}
@@ -116,19 +117,19 @@ function buildBiosFileList(bios: BiosStatus, coreInfo: CoreInfo | null): ReactEl
   const fileElements = knownFiles.map((f) => {
     // Dot color logic:
     // Green: downloaded
-    // Red: missing + required by current core
-    // Orange: missing + required by another core (not current)
+    // Crimson: missing + required by current core
+    // Amber: missing + required by another core (not current)
     // Grey: optional for current core or not used by any known core
     let dotColor: string;
     if (f.downloaded) {
-      dotColor = "#5ba32b";
+      dotColor = core.success;
     } else if (f.used_by_active !== false && f.classification === "required") {
-      dotColor = "#d94126";
+      dotColor = core.crimson;
     } else if (!f.used_by_active && f.cores) {
       const requiredByOther = Object.values(f.cores).some((c) => c.required);
-      dotColor = requiredByOther ? "#d4a72c" : "#8f98a0";
+      dotColor = requiredByOther ? core.warning : core.neutral;
     } else {
-      dotColor = "#8f98a0";
+      dotColor = core.neutral;
     }
 
     // Build per-core lines
@@ -172,7 +173,7 @@ function buildBiosFileList(bios: BiosStatus, coreInfo: CoreInfo | null): ReactEl
       <div
         key="unknown-note"
         className="romm-panel-file-row"
-        style={{ color: "rgba(255, 255, 255, 0.4)", fontSize: "12px", marginTop: "8px" }}
+        style={{ color: core.hint, fontSize: "12px", marginTop: "8px" }}
       >
         {unknownNote}
       </div>,

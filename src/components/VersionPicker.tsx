@@ -65,15 +65,16 @@ import {
 import type { RommDataChangedDetail, RommRomUninstalledDetail } from "../types/events";
 import type { DownloadCompleteEvent, DownloadFailedEvent } from "../types";
 import { openRemovedGamesCleanupModal } from "./RemovedGamesCleanup";
+import { core, tint } from "../theme/coreTokens";
 
 interface VersionPickerProps {
   appId: number;
 }
 
-// Steam accent blue for the active version, neutral grey otherwise — the same
+// The crimson accent for the active version, neutral otherwise — the same
 // palette DiscSelector uses so the two game-detail pickers read as one system.
-const ACTIVE_ACCENT = "#59b6ff";
-const NEUTRAL_GREY = "#dcdedf";
+const ACTIVE_ACCENT = core.crimsonText;
+const NEUTRAL_GREY = core.text;
 
 const reportVersionListReachability = (result: VersionList): void => {
   if (result.server_query_failed) {
@@ -84,9 +85,9 @@ const reportVersionListReachability = (result: VersionList): void => {
 };
 
 const BADGE_COLORS: Record<"accent" | "muted" | "good", { bg: string; fg: string }> = {
-  accent: { bg: "rgba(89, 182, 255, 0.18)", fg: ACTIVE_ACCENT },
-  good: { bg: "rgba(91, 163, 43, 0.22)", fg: "#7ac74f" },
-  muted: { bg: "rgba(255, 255, 255, 0.10)", fg: "rgba(255, 255, 255, 0.55)" },
+  accent: { bg: tint(core.crimson, 0.18), fg: ACTIVE_ACCENT },
+  good: { bg: tint(core.success, 0.22), fg: core.success },
+  muted: { bg: core.gunmetalRaised, fg: core.hint },
 };
 
 /** The label a row (or a singleton binding) carries once RomM 404s its exact id. */
@@ -569,7 +570,7 @@ export const VersionPicker: FC<VersionPickerProps> = ({ appId }) => {
       {switching ? (
         <span className="romm-throbber" style={{ width: "14px", height: "14px" }} />
       ) : (
-        <FaChevronDown size={10} color="#cfd3d8" />
+        <FaChevronDown size={10} color={core.steel} />
       )}
     </DialogButton>
   );

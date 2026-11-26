@@ -144,6 +144,7 @@ vi.mock("../utils/saveSortMigrationStore", () => {
   return mod;
 });
 import * as saveSortMigrationStore from "../utils/saveSortMigrationStore";
+import { core } from "../theme/coreTokens";
 
 vi.mock("../utils/syncManager", () => ({
   requestSyncCancel: vi.fn(),
@@ -1280,14 +1281,14 @@ describe("MainPage", () => {
       return container;
     }
 
-    it("shows the BLUE (info) pause advisory when pause_likely is true", async () => {
+    it("shows the amber pause advisory when pause_likely is true", async () => {
       const c = await renderPreviewWithPause(true);
       const advisory = c.querySelector('[data-testid="budget-advisory"]') as HTMLElement | null;
       expect(advisory).not.toBeNull();
       expect(advisory?.textContent).toContain("Will likely pause partway to protect Steam");
       expect(advisory?.textContent).toContain("Restart Steam when prompted, then Resume Sync.");
       // Recolored from amber to blue — it announces normal, planned behavior (#1383).
-      expect(advisory?.style.color).toBe("#7fbcff");
+      expect(advisory?.style.color).toBe(core.warning);
     });
 
     it("hides the advisory when pause_likely is false", async () => {
@@ -1680,17 +1681,17 @@ describe("MainPage", () => {
 
     it("colours the value GREEN below the advisory floor", async () => {
       const c = await renderMemoryRow(440_000, null);
-      expect(valueColor(c)).toBe("#59bf40");
+      expect(valueColor(c)).toBe(core.success);
     });
 
-    it("colours the value YELLOW strictly above the advisory floor", async () => {
+    it("colours the value AMBER strictly above the advisory floor", async () => {
       const c = await renderMemoryRow(1_800_001, null);
-      expect(valueColor(c)).toBe("#d4a72c");
+      expect(valueColor(c)).toBe(core.warning);
     });
 
-    it("colours the value RED at/above the pause ceiling", async () => {
+    it("colours the value CRIMSON at/above the pause ceiling", async () => {
       const c = await renderMemoryRow(2_200_000, null);
-      expect(valueColor(c)).toBe("#d4343c");
+      expect(valueColor(c)).toBe(core.crimson);
     });
 
     it("does not colour the label or the delta part", async () => {
@@ -5312,7 +5313,7 @@ describe("MainPage", () => {
       expect(el?.textContent).toBe("Sync complete: 7 games");
       // Non-vacuous: both the affirmative green AND the small caption size sit on
       // the element — dropping the success tone (or the size) fails this.
-      expect(el?.style.color).toBe("#59bf40");
+      expect(el?.style.color).toBe(core.success);
       expect(el?.style.fontSize).toBe("12px");
     });
 

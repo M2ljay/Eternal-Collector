@@ -8,6 +8,7 @@ import { FC } from "react";
 import { PanelSection, PanelSectionRow, Field } from "@decky/ui";
 import type { RegisteredDevice } from "../../types";
 import { formatRelativeTime } from "./helpers";
+import { core } from "../../theme/coreTokens";
 
 interface RegisteredDevicesSectionProps {
   devicesLoading: boolean;
@@ -54,7 +55,7 @@ export const RegisteredDevicesSection: FC<RegisteredDevicesSectionProps> = ({
                   <span>
                     {device.name ?? "(unnamed)"}
                     {device.is_current_device && (
-                      <span style={{ color: "#6ab04c", marginLeft: "8px", fontSize: "12px" }}>(this device)</span>
+                      <span style={{ color: core.success, marginLeft: "8px", fontSize: "12px" }}>(this device)</span>
                     )}
                   </span>
                 }

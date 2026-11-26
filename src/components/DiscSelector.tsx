@@ -33,6 +33,7 @@ import {
   releasePruneLeasesByOwner,
   withPruneLease,
 } from "../utils/pruneLease";
+import { core } from "../theme/coreTokens";
 
 interface DiscSelectorProps {
   appId: number;
@@ -41,10 +42,10 @@ interface DiscSelectorProps {
 /** A disc option's `data` value: a disc filename, or `null` for the m3u default. */
 type DiscOptionData = string | null;
 
-// Neutral grey for the m3u default; Steam accent blue when a specific disc is
+// Neutral for the m3u default; the crimson accent when a specific disc is
 // pinned — an instant "this isn't the default" read.
-const DISC_GREY = "#dcdedf";
-const DISC_ACCENT = "#59b6ff";
+const DISC_GREY = core.text;
+const DISC_ACCENT = core.crimsonText;
 
 /** Two CDs stacked top-left → bottom-right: the front (opaque) disc at the
  * top-left, one behind it trailing down-right and faded — the m3u "all discs"
@@ -231,7 +232,7 @@ export const DiscSelector: FC<DiscSelectorProps> = ({ appId }) => {
       ) : (
         <DiscWithNumber size={22} color={isPinned ? DISC_ACCENT : DISC_GREY} num={activeNum} />
       )}
-      <FaChevronDown size={10} color="#cfd3d8" />
+      <FaChevronDown size={10} color={core.steel} />
     </DialogButton>
   );
 };

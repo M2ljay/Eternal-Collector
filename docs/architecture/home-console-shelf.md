@@ -11,8 +11,8 @@ Steam's tree, and what keeps a failure from ever breaking Home. The user-facing 
   keep cases spine-out for PS2, GameCube boxes, jewel cases for CD consoles, SNES and N64 cartridges, small carts for
   handhelds, a generic keep case for anything else; `src/utils/consoleMedia.ts`). Each tile shows the console name, the
   game count and when it was last played. No logos, no artwork, no individual games. The focused tile is gunmetal
-  `#1A1D21` with a crimson `#D7263D` ring, lifted 6 px; the palette is black `#000000`, gunmetal, crimson and steel
-  `#C9D1D9`.
+  with a crimson ring, lifted 6 px. Colours come from the Core palette in `src/theme/coreTokens.ts` (black, gunmetal,
+  crimson, steel), shared with the QAM panel and the game detail page.
 - **Console page** — route `/the-collector/console/:slug`. The console's games in its media style, "Continue" (the most
   recently played game of that console) first, then every other game by name in rows of six, paged 100 at a time with a
   "Show more" button. Each game shows when it was last played, whether it is downloaded, its save-sync chip and its

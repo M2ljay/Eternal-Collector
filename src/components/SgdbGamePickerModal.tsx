@@ -25,6 +25,7 @@ import { searchSgdbGames, applySgdbGameId, debugLog, type SgdbCandidate } from "
 import { applyArtwork } from "../utils/artwork";
 import { scrollToTop, scrollFocusedToCenter } from "../utils/scrollHelpers";
 import { detach } from "../utils/detach";
+import { core } from "../theme/coreTokens";
 
 export interface SgdbGamePickerModalProps {
   romId: number;
@@ -76,17 +77,17 @@ const Tile: FC<{
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          background: "rgba(255,255,255,0.08)",
+          background: core.gunmetal,
           borderRadius: "4px",
           fontSize: "11px",
-          color: "rgba(255,255,255,0.5)",
+          color: core.hint,
         }}
       >
         No preview
       </div>
     )}
-    <div style={{ fontSize: "12px", color: "#fff", textAlign: "center", lineHeight: "1.2" }}>{title}</div>
-    {subtitle ? <div style={{ fontSize: "11px", color: "rgba(255,255,255,0.55)" }}>{subtitle}</div> : null}
+    <div style={{ fontSize: "12px", color: core.white, textAlign: "center", lineHeight: "1.2" }}>{title}</div>
+    {subtitle ? <div style={{ fontSize: "11px", color: core.hint }}>{subtitle}</div> : null}
   </DialogButton>
 );
 
@@ -183,8 +184,8 @@ export const SgdbGamePickerModalContent: FC<SgdbGamePickerModalProps> = ({
         actionDescriptionMap={{ [GamepadButton.TRIGGER_RIGHT]: "Search" }}
         style={{ display: "flex", flexDirection: "column", gap: "12px", width: "100%" }}
       >
-        <div style={{ fontSize: "13px", color: "rgba(255,255,255,0.6)" }}>{romName}</div>
-        <div style={{ fontSize: "12px", color: "rgba(255,255,255,0.5)" }}>
+        <div style={{ fontSize: "13px", color: core.steel }}>{romName}</div>
+        <div style={{ fontSize: "12px", color: core.hint }}>
           No SteamGridDB match was found automatically — search by name and pick the right game.
         </div>
 
@@ -224,10 +225,10 @@ export const SgdbGamePickerModalContent: FC<SgdbGamePickerModalProps> = ({
           </div>
         ) : null}
 
-        {searchError ? <div style={{ fontSize: "12px", color: "#ff8800" }}>{searchError}</div> : null}
+        {searchError ? <div style={{ fontSize: "12px", color: core.warning }}>{searchError}</div> : null}
 
         {results.length > 0 ? (
-          <div style={{ fontSize: "11px", color: "rgba(255,255,255,0.5)" }}>
+          <div style={{ fontSize: "11px", color: core.hint }}>
             Showing the top 6 matches — refine your search if the right game isn&apos;t here.
           </div>
         ) : null}

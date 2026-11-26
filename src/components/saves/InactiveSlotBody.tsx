@@ -11,6 +11,7 @@ import { scrollFocusedToCenter } from "../../utils/scrollHelpers";
 import { MUTED_COLOR } from "./helpers";
 import { renderServerSaveRow } from "./ServerSaveRow";
 import type { CopyToSlotRowProps } from "./CopyToSlotButton";
+import { core } from "../../theme/coreTokens";
 
 export interface InactiveSlotBodyProps {
   loadingSlot: boolean;
@@ -86,7 +87,7 @@ export const InactiveSlotBody: FC<InactiveSlotBodyProps> = ({
         </DialogButton>
         <DialogButton
           key="delete-btn"
-          style={{ padding: "4px 12px", minWidth: "auto", fontSize: "12px", width: "auto", color: "#d94126" }}
+          style={{ padding: "4px 12px", minWidth: "auto", fontSize: "12px", width: "auto", color: core.crimsonText }}
           noFocusRing={false}
           onFocus={scrollFocusedToCenter}
           disabled={deleting || switching}
@@ -104,7 +105,7 @@ export const InactiveSlotBody: FC<InactiveSlotBodyProps> = ({
         </div>
       ) : null,
       switchError ? (
-        <div key="switch-error" style={{ fontSize: "11px", color: "#d94126", marginTop: "4px" }}>
+        <div key="switch-error" style={{ fontSize: "11px", color: core.crimsonText, marginTop: "4px" }}>
           {switchError}
         </div>
       ) : null,

@@ -25,6 +25,7 @@ import { debugLog, verifyExistingContent } from "../api/backend";
 import { ENTRY_KIND_LABEL, formatBytes } from "../utils/formatters";
 import { detach } from "../utils/detach";
 import type { AdoptionCandidate, TargetOccupiedResult, VerifyContentResult, VerifyProgressEvent } from "../types";
+import { core } from "../theme/coreTokens";
 
 export type AdoptChoice = "adopt" | "replace" | "cancel";
 
@@ -42,8 +43,8 @@ interface AdoptExistingModalProps {
   onChoice: (choice: AdoptChoice) => void;
 }
 
-const LABEL_STYLE = { fontSize: "12px", color: "rgba(255,255,255,0.55)" };
-const VALUE_STYLE = { fontSize: "13px", color: "#fff" };
+const LABEL_STYLE = { fontSize: "12px", color: core.hint };
+const VALUE_STYLE = { fontSize: "13px", color: core.white };
 
 /** "2026-08-06 14:31" from POSIX epoch seconds; the empty string for a zero stamp. */
 function formatTimestamp(epochSeconds: number): string {
@@ -139,11 +140,11 @@ function replaceWarning(occupied: TargetOccupiedResult, candidate: boolean, noun
 }
 
 const VERIFY_COLORS: Record<VerifyContentResult["status"], string> = {
-  match: "#6dd36d",
-  mismatch: "#ff8a80",
-  unverifiable: "rgba(255,255,255,0.7)",
-  missing: "#ff8a80",
-  error: "#ff8a80",
+  match: core.success,
+  mismatch: core.crimsonText,
+  unverifiable: core.steel,
+  missing: core.crimsonText,
+  error: core.crimsonText,
 };
 
 export const AdoptExistingModal: FC<AdoptExistingModalProps> = ({
@@ -193,10 +194,10 @@ export const AdoptExistingModal: FC<AdoptExistingModalProps> = ({
   return (
     <ModalRoot closeModal={closeModal}>
       <div style={{ padding: "16px", minWidth: "420px" }}>
-        <div style={{ fontSize: "16px", fontWeight: "bold", color: "#fff", marginBottom: "4px" }}>
+        <div style={{ fontSize: "16px", fontWeight: "bold", color: core.white, marginBottom: "4px" }}>
           This Game Is Already on Your Device
         </div>
-        <div style={{ fontSize: "13px", color: "rgba(255,255,255,0.7)", marginBottom: "12px" }}>
+        <div style={{ fontSize: "13px", color: core.steel, marginBottom: "12px" }}>
           {candidatePath
             ? `This ${noun} carries this game's name. The Collector did not put it there, so it will not be touched until ` +
               "you decide."
@@ -219,18 +220,18 @@ export const AdoptExistingModal: FC<AdoptExistingModalProps> = ({
             </div>
           </div>
         </div>
-        <div style={{ fontSize: "13px", color: "#fff", marginBottom: "12px" }}>
+        <div style={{ fontSize: "13px", color: core.white, marginBottom: "12px" }}>
           {sizeVerdict(occupied, Boolean(candidatePath))}
         </div>
         {candidatePath && (
-          <div style={{ fontSize: "13px", color: "rgba(255,255,255,0.7)", marginBottom: "12px" }}>
+          <div style={{ fontSize: "13px", color: core.steel, marginBottom: "12px" }}>
             Using it renames it to {occupied.incoming.name}, and moves any saves and savestates named after it with it,
             so this game works the same as one The Collector downloaded.
           </div>
         )}
 
         {verifying && (
-          <div style={{ fontSize: "13px", color: "rgba(255,255,255,0.7)", marginBottom: "12px" }}>
+          <div style={{ fontSize: "13px", color: core.steel, marginBottom: "12px" }}>
             {verifyProgress === null || verifyProgress === 0
               ? "Checking the files…"
               : `Checking the files… ${Math.round(verifyProgress * 100)}%`}
@@ -249,7 +250,7 @@ export const AdoptExistingModal: FC<AdoptExistingModalProps> = ({
 
         {confirmingReplace ? (
           <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-            <div style={{ fontSize: "13px", color: "#ff8a80" }}>
+            <div style={{ fontSize: "13px", color: core.crimsonText }}>
               {replaceWarning(occupied, Boolean(candidatePath), noun)}
             </div>
             <DialogButton onClick={() => choose("replace")}>Delete and Download</DialogButton>

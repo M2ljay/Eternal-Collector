@@ -200,7 +200,7 @@ A native-Windows install can enumerate more than one launch target (an installer
 real game binary, per-DLC executables, a bundled `.sh` patcher alongside the game's own `.exe`). `ExeSelector`
 (`src/components/ExeSelector.tsx`) is the structural twin of `DiscSelector`, mounted immediately to its right in the
 play-section row on the game detail page. It renders a compact icon-only trigger for an installed native-Windows ROM
-whose install enumerates at least one launchable target (neutral grey when following the default pick, accent-tinted
+whose install enumerates at least one launchable target (neutral when following the default pick, crimson
 when a specific one is pinned) and nothing at all otherwise — unknown, not-installed, non-Windows, and no-target ROMs
 all collapse to the backend's `{"has_executables": false}` answer. The frontend renders both kinds identically (a bare
 filename); it never reads `kind` — that branch lives entirely in `WindowsLaunchResolver.resolve_launch_options` on the

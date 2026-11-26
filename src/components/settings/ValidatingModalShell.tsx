@@ -11,14 +11,15 @@
 
 import { FC, ReactNode } from "react";
 import { ModalRoot, DialogButton } from "@decky/ui";
+import { core } from "../../theme/coreTokens";
 
 // ModalRoot renders only the shell + a close affordance (unlike ConfirmModal, it
 // has no strTitle / OK button), so the title, body, error line, and footer are
 // all rendered as content here.
 const modalBodyStyle = { padding: "16px", minWidth: "360px" } as const;
-const titleStyle = { fontSize: "16px", fontWeight: "bold", marginBottom: "12px", color: "#fff" } as const;
-// A failed submit surfaces here, above the footer, in a red-ish tone.
-const errorStyle = { color: "#d94126", fontSize: "13px", marginTop: "12px", marginBottom: "4px" } as const;
+const titleStyle = { fontSize: "16px", fontWeight: "bold", marginBottom: "12px", color: core.white } as const;
+// A failed submit surfaces here, above the footer, in the error tone.
+const errorStyle = { color: core.crimsonText, fontSize: "13px", marginTop: "12px", marginBottom: "4px" } as const;
 const footerStyle = { display: "flex", gap: "8px", marginTop: "16px" } as const;
 const footerButtonStyle = { flex: "1 1 0px", minWidth: 0 } as const;
 

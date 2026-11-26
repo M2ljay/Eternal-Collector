@@ -15,7 +15,7 @@ last played, so a console you binged years ago drops behind one you picked up th
 come last.
 
 With a controller: press down from Recent games to reach the row, left and right to move between consoles, and **A** to
-open one. The selected tile lifts slightly with a red ring.
+open one. The selected tile lifts slightly with a crimson ring.
 
 The row appears once the plugin has loaded and you have at least one synced game. It never contacts your RomM server
 while Home is on screen; it updates after a sync, after you finish playing, and when a game's save status changes.

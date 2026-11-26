@@ -37,6 +37,7 @@ import {
 import { scrollNearestToTop } from "../utils/scrollHelpers";
 import { getSyncProgress, onSyncProgressChange } from "../utils/syncProgress";
 import { withTimeout } from "../utils/withTimeout";
+import { core, tint } from "../theme/coreTokens";
 
 const PAGE_SIZE = 50;
 const SELECTION_PAGE_SIZE = 100;
@@ -468,7 +469,7 @@ const CleanupModal: FC<CleanupModalProps> = ({ initial, scope, romId, closeModal
         }}
       >
         <div style={{ fontSize: "20px", fontWeight: 700, marginBottom: "6px" }}>Clean Up Removed RomM Games</div>
-        <div style={{ color: "#c7d5e0", marginBottom: "14px" }}>
+        <div style={{ color: core.steel, marginBottom: "14px" }}>
           {`${candidateTotal} locally kept ${plural(candidateTotal, "version", "versions")}${
             scope === "bulk" ? "" : " of this game"
           } ${plural(candidateTotal, "is", "are")} no longer on your RomM server.`}{" "}
@@ -545,7 +546,7 @@ const CleanupModal: FC<CleanupModalProps> = ({ initial, scope, romId, closeModal
               <div
                 style={{
                   padding: "10px 0",
-                  borderTop: "1px solid rgba(255,255,255,0.10)",
+                  borderTop: `1px solid ${core.gunmetalRaised}`,
                   ...(item.candidate ? {} : { paddingLeft: "14px", opacity: 0.75 }),
                 }}
               >
@@ -556,20 +557,20 @@ const CleanupModal: FC<CleanupModalProps> = ({ initial, scope, romId, closeModal
                   item.fs_name_truncated ||
                   item.group_id_truncated ||
                   item.warning_truncated) && (
-                  <div style={{ color: "#e5a43b", fontSize: "12px" }}>
+                  <div style={{ color: core.warning, fontSize: "12px" }}>
                     One or more display fields were shortened to keep this preview page within the Decky wire limit.
                   </div>
                 )}
-                <div style={{ fontSize: "12px", color: "#8f98a0" }}>
+                <div style={{ fontSize: "12px", color: core.hint }}>
                   {item.platform_slug} · ROM {item.rom_id}
                   {item.group_size > 1 ? ` · one of ${item.group_size} versions of this game` : ""}
                 </div>
-                <div style={{ fontSize: "12px", color: item.candidate ? "#c7d5e0" : "#8f98a0" }}>
+                <div style={{ fontSize: "12px", color: item.candidate ? core.steel : core.hint }}>
                   {item.candidate
                     ? "Gone from RomM — removed once the server confirms it."
                     : "Still on RomM at your last sync. Removed only if the final check finds every version of this game gone — then the whole game goes, Steam shortcut included."}
                 </div>
-                {item.warning && <div style={{ color: "#e5a43b", fontSize: "12px" }}>{item.warning}</div>}
+                {item.warning && <div style={{ color: core.warning, fontSize: "12px" }}>{item.warning}</div>}
                 {item.installed && (
                   <ToggleField
                     label={`Include installed ROM content (${item.installed_bytes === null ? "size unavailable" : formatBytes(item.installed_bytes)})`}
@@ -579,7 +580,7 @@ const CleanupModal: FC<CleanupModalProps> = ({ initial, scope, romId, closeModal
                   />
                 )}
                 {item.installed && (!recovery || !includedContent.has(item.rom_id)) && (
-                  <div style={{ color: "#e5a43b", fontSize: "12px" }}>
+                  <div style={{ color: core.warning, fontSize: "12px" }}>
                     Without a backup, the downloaded ROM file is deleted along with this version.
                   </div>
                 )}
@@ -591,7 +592,7 @@ const CleanupModal: FC<CleanupModalProps> = ({ initial, scope, romId, closeModal
               reads as missing rather than as not applicable. Only claimed once
               every page is loaded — an unseen page could still hold one. */}
           {allEntriesLoaded && !visibleItems.some((item) => item.installed) && (
-            <div style={{ padding: "10px 0", fontSize: "12px", color: "#8f98a0" }}>
+            <div style={{ padding: "10px 0", fontSize: "12px", color: core.hint }}>
               None of these versions has ROM files downloaded on this device, so there is nothing to back up.
             </div>
           )}
@@ -601,21 +602,21 @@ const CleanupModal: FC<CleanupModalProps> = ({ initial, scope, romId, closeModal
             </DialogButton>
           )}
           {!allEntriesLoaded && (
-            <div style={{ color: "#ff8c6a", fontSize: "12px", marginTop: "8px" }}>
+            <div style={{ color: core.crimsonText, fontSize: "12px", marginTop: "8px" }}>
               Load every page before confirming so all potentially removed group members and installed content are
               disclosed.
             </div>
           )}
         </div>
 
-        <div style={{ marginTop: "14px", padding: "10px", background: "rgba(0,0,0,0.20)" }}>
+        <div style={{ marginTop: "14px", padding: "10px", background: tint(core.black, 0.2) }}>
           Selected ROM-content recovery estimate: {formatBytes(selectedBytes)} · Free at target:{" "}
           {formatBytes(freeBytes)}
-          <div style={{ color: "#8f98a0", fontSize: "12px", marginTop: "4px" }}>
+          <div style={{ color: core.hint, fontSize: "12px", marginTop: "4px" }}>
             This is a lower bound. The backend remeasures mandatory saves, histories, caches, and Steam files before any
             mutation.
           </div>
-          <div style={{ color: "#8f98a0", fontSize: "12px", marginTop: "4px" }}>
+          <div style={{ color: core.hint, fontSize: "12px", marginTop: "4px" }}>
             Large installed-content selections are staged in bounded pages before cleanup; every checked item remains
             part of this run.
           </div>
@@ -623,17 +624,17 @@ const CleanupModal: FC<CleanupModalProps> = ({ initial, scope, romId, closeModal
             Refresh free space
           </DialogButton>
           {insufficientSpace && (
-            <div style={{ color: "#ff8c6a", marginTop: "4px" }}>
+            <div style={{ color: core.crimsonText, marginTop: "4px" }}>
               {unknownSelectedSize ? "A selected installed ROM has no safe measurable size." : "Not enough free space."}
             </div>
           )}
         </div>
         {progress && (
-          <div style={{ marginTop: "10px", color: "#c7d5e0" }}>
+          <div style={{ marginTop: "10px", color: core.steel }}>
             <div role="status" aria-live="polite">
               <CleanupProgress progress={progress} />
             </div>
-            <div style={{ color: "#8f98a0", fontSize: "12px", marginTop: "4px" }}>{CANCEL_HINT}</div>
+            <div style={{ color: core.hint, fontSize: "12px", marginTop: "4px" }}>{CANCEL_HINT}</div>
             <DialogButton
               disabled={cancelling}
               onClick={() =>
@@ -654,14 +655,14 @@ const CleanupModal: FC<CleanupModalProps> = ({ initial, scope, romId, closeModal
               {cancelling ? "Stopping..." : "Stop Cleanup"}
             </DialogButton>
             {cancelling && (
-              <div role="status" aria-live="polite" style={{ color: "#8f98a0", fontSize: "12px", marginTop: "4px" }}>
+              <div role="status" aria-live="polite" style={{ color: core.hint, fontSize: "12px", marginTop: "4px" }}>
                 {CANCELLING_HINT}
               </div>
             )}
           </div>
         )}
         {complete && (
-          <div style={{ marginTop: "10px", color: complete.success ? "#8fd18b" : "#ffcc66" }}>
+          <div style={{ marginTop: "10px", color: complete.success ? core.success : core.warning }}>
             <FinishedCleanupBar />
             <div role="status" aria-live="polite">
               {complete.removed_count ?? complete.removed_rom_ids.length} removed;{" "}
@@ -714,17 +715,17 @@ const CleanupModal: FC<CleanupModalProps> = ({ initial, scope, romId, closeModal
           </div>
         )}
         {resultLost && (
-          <div role="status" aria-live="polite" style={{ marginTop: "10px", color: "#ff8c6a" }}>
+          <div role="status" aria-live="polite" style={{ marginTop: "10px", color: core.crimsonText }}>
             {RESULT_LOST_MESSAGE}
           </div>
         )}
         {status && !complete && (
-          <div role="status" aria-live="polite" style={{ marginTop: "10px", color: "#ffcc66" }}>
+          <div role="status" aria-live="polite" style={{ marginTop: "10px", color: core.warning }}>
             {status}
           </div>
         )}
         {blockedReason !== null && !runInFlight && (
-          <div style={{ marginTop: "10px", color: "#ff8c6a", fontSize: "12px" }}>{blockedReason}</div>
+          <div style={{ marginTop: "10px", color: core.crimsonText, fontSize: "12px" }}>{blockedReason}</div>
         )}
         <div style={{ display: "flex", justifyContent: "flex-end", gap: "10px", marginTop: "16px" }}>
           <DialogButton disabled={starting && complete === null} onClick={() => closeModal?.()}>

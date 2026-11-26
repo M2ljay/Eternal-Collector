@@ -330,6 +330,15 @@ Note that `.gitignore` ignores `.claude/*` (worktrees, local agents, `settings.l
 `.claude/rules/` explicitly. Adding a rule file works; adding anything else under `.claude/` will silently not be
 tracked.
 
+## Colours
+
+Every colour the plugin draws comes from the Core palette in `src/theme/coreTokens.ts`: black and gunmetal surfaces,
+steel secondary text, and crimson as the one accent — the selected or focused item, active progress, and every error or
+conflict. Status uses muted green (synced, installed), amber (pending, partial, update) and steel (unknown). There is no
+gold. Crimson words use `core.crimsonText`, because `core.crimson` falls short of 4.5:1 as text; text on a green or
+amber fill is black. `tint()` gives a palette colour at an alpha for tinted banners. `src/theme/coreTokens.test.ts`
+pins the contrast ratios. Write a token, never a hex literal: a new hex in `src/` is a colour outside the palette.
+
 ## Project Structure
 
 ```text

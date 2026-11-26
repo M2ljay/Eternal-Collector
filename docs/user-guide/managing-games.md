@@ -155,7 +155,7 @@ named `<game>_<date>_<id>`, and its `README.txt` lists every game the bundle cov
 copied file with the exact path to put it back, the playtime in hours and minutes, and the steps to restore by hand
 starting with `sha256sum -c checksums.sha256`. The recovery folder itself carries a `README.txt` explaining what it is.
 
-A synced vanished row carries a red trash icon at its right edge in the version picker, and activating that row opens
+A synced vanished row carries a crimson trash icon at its right edge in the version picker, and activating that row opens
 the same confirmation scoped to that one version. A synced singleton vanished binding shows the same trash action as a
 single button, without opening an otherwise empty picker. The vanished version itself remains non-switchable either way
 — selecting it can only ever start the cleanup, never rebind the shortcut to it. A vanished version with no local data
@@ -497,8 +497,8 @@ A native-Windows install can contain more than one launchable file — a launche
 uninstaller, per-DLC executables, or a bundled Linux launcher/patcher script (a `.sh` file — see
 [Bundled Linux launcher scripts](#bundled-linux-launcher-scripts) below). When an installed native-Windows game has more
 than one, a small **picker icon** (a Windows logo) appears on its detail page, right next to the Play button — in the
-same spot the disc and version pickers occupy for other games. Its color shows whether you've made a pick: grey means
-the plugin is using its default (the first one it finds, alphabetically), accent-colored means you've pinned a specific
+same spot the disc and version pickers occupy for other games. Its color shows whether you've made a pick: neutral means
+the plugin is using its default (the first one it finds, alphabetically), crimson means you've pinned a specific
 one.
 
 To change it:

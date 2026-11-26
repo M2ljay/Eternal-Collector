@@ -10,6 +10,7 @@ import type { SaveFileStatus, SyncConflict } from "../../types";
 import { scrollFocusedToCenter } from "../../utils/scrollHelpers";
 import { formatBytes, formatTimestamp } from "../../utils/formatters";
 import { formatAttributionSegment, formatRelativeTime, pickLastSyncer, statusLabel } from "./helpers";
+import { core } from "../../theme/coreTokens";
 
 // Label column width — keeps values aligned vertically across rows
 const LABEL_WIDTH = "88px";
@@ -19,12 +20,12 @@ export function infoRow(
   key: string,
   label: string,
   value: ReactElement | string | null,
-  valueColor = "#c7cdd3",
+  valueColor: string = core.steel,
 ): ReactElement | null {
   if (value == null || value === "") return null;
   return (
     <div key={key} style={{ display: "flex", alignItems: "flex-start", fontSize: "11px", marginTop: "2px" }}>
-      <span style={{ color: "#697075", width: LABEL_WIDTH, flexShrink: 0 }}>{label}</span>
+      <span style={{ color: core.hint, width: LABEL_WIDTH, flexShrink: 0 }}>{label}</span>
       <div style={{ color: valueColor, flex: 1, minWidth: 0 }}>{value}</div>
     </div>
   );
@@ -69,7 +70,7 @@ export function renderSaveFileRow(
   const headerMeta: (ReactElement | null)[] = [];
   if (f.local_size != null) {
     headerMeta.push(
-      <span key="size" style={{ fontSize: "11px", color: "#8f98a0" }}>
+      <span key="size" style={{ fontSize: "11px", color: core.hint }}>
         {formatBytes(f.local_size)}
       </span>,
     );
@@ -89,7 +90,7 @@ export function renderSaveFileRow(
     const headerParts: string[] = [`#${f.server_save_id}`];
     if (f.server_emulator) headerParts.push(f.server_emulator);
     serverValueLines.push(
-      <div key="srv-head" style={{ color: "#c7cdd3" }}>
+      <div key="srv-head" style={{ color: core.steel }}>
         {headerParts.join(" · ")}
       </div>,
     );
@@ -97,7 +98,7 @@ export function renderSaveFileRow(
       serverValueLines.push(
         <div
           key="srv-fn"
-          style={{ color: "#8f98a0", fontFamily: "monospace", wordBreak: "break-all" as const, marginTop: "1px" }}
+          style={{ color: core.hint, fontFamily: "monospace", wordBreak: "break-all" as const, marginTop: "1px" }}
         >
           {f.server_file_name}
         </div>,
@@ -133,7 +134,7 @@ export function renderSaveFileRow(
         <div
           style={{
             fontSize: "13px",
-            color: "#dcdedf",
+            color: core.text,
             fontWeight: 600,
             overflow: "hidden",
             textOverflow: "ellipsis",
@@ -149,19 +150,21 @@ export function renderSaveFileRow(
 
       {/* Conflict banner (prominent) */}
       {conflictActive ? (
-        <div style={{ fontSize: "11px", color: "#d94126", fontWeight: 600, marginTop: "2px", marginBottom: "2px" }}>
+        <div
+          style={{ fontSize: "11px", color: core.crimsonText, fontWeight: 600, marginTop: "2px", marginBottom: "2px" }}
+        >
           Conflict detected — resolve from the sync action
         </div>
       ) : null}
 
       {/* Info rows */}
       {infoRow("last-synced", "Last synced:", lastSyncedValue)}
-      {checkedHint ? infoRow("checked", "Checked:", checkedHint, "#8f98a0") : null}
+      {checkedHint ? infoRow("checked", "Checked:", checkedHint, core.hint) : null}
       {infoRow(
         "last-updated",
         "Last updated:",
         f.server_updated_at ? formatTimestamp(f.server_updated_at) : null,
-        "#8f98a0",
+        core.hint,
       )}
       {serverValueLines.length > 0 ? infoRow("server", "Server save:", <div>{serverValueLines}</div>) : null}
       {f.local_path
@@ -169,7 +172,7 @@ export function renderSaveFileRow(
             "path",
             "Local path:",
             <span style={{ fontFamily: "monospace", wordBreak: "break-all" as const }}>{f.local_path}</span>,
-            "#5a6066",
+            core.hint,
           )
         : null}
     </DialogButton>

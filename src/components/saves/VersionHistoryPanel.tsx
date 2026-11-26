@@ -15,6 +15,7 @@ import { formatBytes, formatTimestamp } from "../../utils/formatters";
 import { formatAttributionSegment, formatRelativeTime, pickLastSyncer } from "./helpers";
 import { renderCopyToSlotButton, type CopyToSlotHandler } from "./CopyToSlotButton";
 import { detach } from "../../utils/detach";
+import { core } from "../../theme/coreTokens";
 
 interface VersionHistoryPanelProps {
   romId: number;
@@ -188,29 +189,29 @@ export const VersionHistoryPanel: FC<VersionHistoryPanelProps> = ({
           alignItems: "flex-start",
           gap: "8px",
           padding: "6px 0",
-          borderBottom: "1px solid rgba(255,255,255,0.06)",
+          borderBottom: `1px solid ${core.gunmetalRaised}`,
         }}
       >
         {/* Info column (grows) */}
         <div style={{ flex: 1, minWidth: 0 }}>
           {/* Line 1: #id · emulator · size */}
-          <div style={{ fontSize: "12px", color: "#c7cdd3", fontWeight: 600 }}>{headerParts.join(" · ")}</div>
+          <div style={{ fontSize: "12px", color: core.steel, fontWeight: 600 }}>{headerParts.join(" · ")}</div>
           {/* Line 2: last updated + device */}
           <div
             style={{
               fontSize: "11px",
-              color: "#8f98a0",
+              color: core.hint,
               marginTop: "2px",
             }}
           >
-            <span style={{ color: "#697075" }}>Last updated: </span>
+            <span style={{ color: core.hint }}>Last updated: </span>
             {lastUpdatedParts.join(" · ")}
           </div>
           {/* Line 3: server filename (technical, bottom) */}
           <div
             style={{
               fontSize: "11px",
-              color: "#8f98a0",
+              color: core.hint,
               fontFamily: "monospace",
               wordBreak: "break-all" as const,
               marginTop: "2px",
@@ -250,13 +251,13 @@ export const VersionHistoryPanel: FC<VersionHistoryPanelProps> = ({
   const renderBody = (): ReactElement | ReactElement[] => {
     if (isOffline) {
       return (
-        <div style={{ fontSize: "11px", color: "#8f98a0", fontStyle: "italic" as const }}>
+        <div style={{ fontSize: "11px", color: core.hint, fontStyle: "italic" as const }}>
           Offline — versions unavailable
         </div>
       );
     }
     if (loading) {
-      return <div style={{ fontSize: "11px", color: "#8f98a0" }}>Loading...</div>;
+      return <div style={{ fontSize: "11px", color: core.hint }}>Loading...</div>;
     }
     if (loadError !== null) {
       // Distinct from the empty-list case: surface a retry affordance so
@@ -264,7 +265,7 @@ export const VersionHistoryPanel: FC<VersionHistoryPanelProps> = ({
       // the server was actually unreachable.
       return (
         <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-          <span style={{ fontSize: "11px", color: "#c46161", fontStyle: "italic" as const }}>{loadError}</span>
+          <span style={{ fontSize: "11px", color: core.crimsonText, fontStyle: "italic" as const }}>{loadError}</span>
           <DialogButton
             style={{ padding: "2px 8px", minWidth: "auto", fontSize: "11px", width: "auto", flexShrink: 0 }}
             noFocusRing={false}
@@ -280,7 +281,7 @@ export const VersionHistoryPanel: FC<VersionHistoryPanelProps> = ({
     }
     if (versionCount === 0) {
       return (
-        <div style={{ fontSize: "11px", color: "#8f98a0", fontStyle: "italic" as const }}>
+        <div style={{ fontSize: "11px", color: core.hint, fontStyle: "italic" as const }}>
           No older versions available
         </div>
       );
@@ -303,7 +304,7 @@ export const VersionHistoryPanel: FC<VersionHistoryPanelProps> = ({
           alignItems: "center",
           gap: "4px",
           fontSize: "11px",
-          color: "#8f98a0",
+          color: core.hint,
         }}
         noFocusRing={false}
         onFocus={scrollFocusedToCenter}

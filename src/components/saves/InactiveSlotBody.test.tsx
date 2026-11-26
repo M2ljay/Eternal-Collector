@@ -3,6 +3,7 @@ import { render, fireEvent } from "@testing-library/react";
 import { createElement } from "react";
 import { InactiveSlotBody, type InactiveSlotBodyProps } from "./InactiveSlotBody";
 import type { SlotSaveFile } from "../../types";
+import { core } from "../../theme/coreTokens";
 
 // Override the global @decky/ui DialogButton stub so it forwards `disabled` —
 // the global passthrough <button> only wires `onClick` and silently drops
@@ -161,7 +162,7 @@ describe("InactiveSlotBody", () => {
     // No error text — just controls
     const errorEls = container.querySelectorAll("div");
     const errorTextNodes = Array.from(errorEls).filter(
-      (el) => el.style.color === "rgb(217, 65, 38)" || el.style.color === "#d94126",
+      (el) => el.style.color === "rgb(234, 90, 104)" || el.style.color === core.crimsonText,
     );
     expect(errorTextNodes.length).toBe(0);
   });

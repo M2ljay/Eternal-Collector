@@ -17,6 +17,7 @@
 import { FC } from "react";
 import { ModalRoot, DialogButton, showModal } from "@decky/ui";
 import type { CandidateVanishedResult } from "../types";
+import { core } from "../theme/coreTokens";
 
 export type VanishedChoice = "download" | "cancel";
 
@@ -26,7 +27,7 @@ interface AdoptVanishedModalProps {
   onChoice: (choice: VanishedChoice) => void;
 }
 
-const LABEL_STYLE = { fontSize: "12px", color: "rgba(255,255,255,0.55)" };
+const LABEL_STYLE = { fontSize: "12px", color: core.hint };
 
 export const AdoptVanishedModal: FC<AdoptVanishedModalProps> = ({ vanished, closeModal, onChoice }) => {
   const choose = (choice: VanishedChoice) => {
@@ -37,10 +38,10 @@ export const AdoptVanishedModal: FC<AdoptVanishedModalProps> = ({ vanished, clos
   return (
     <ModalRoot closeModal={closeModal}>
       <div style={{ padding: "16px", minWidth: "420px" }}>
-        <div style={{ fontSize: "16px", fontWeight: "bold", color: "#fff", marginBottom: "4px" }}>
+        <div style={{ fontSize: "16px", fontWeight: "bold", color: core.white, marginBottom: "4px" }}>
           The Copy on This Device Cannot Be Found
         </div>
-        <div style={{ fontSize: "13px", color: "rgba(255,255,255,0.7)", marginBottom: "12px" }}>
+        <div style={{ fontSize: "13px", color: core.steel, marginBottom: "12px" }}>
           This game&apos;s page found a copy on this device, and looking again now turns up nothing that matches.
           Nothing has been changed on your device.
         </div>

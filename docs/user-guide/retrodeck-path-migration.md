@@ -31,7 +31,7 @@ files from whichever home each one actually lives under and brings them all to t
 
 ## Warning Banners
 
-Until the migration is completed, a yellow warning banner appears in two places:
+Until the migration is completed, an amber warning banner appears in two places:
 
 - **QAM main page** — at the top, alerting you that a path change was detected
 - **Game detail pages** — on every RomM game, reminding you that file paths may be out of date

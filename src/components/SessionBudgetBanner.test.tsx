@@ -11,6 +11,7 @@ import { render, fireEvent } from "@testing-library/react";
 import { toaster } from "@decky/api";
 import { SessionBudgetBanner, formatGb, formatSignedGb, memoryLevelColor, HIGH_HEAP_KB } from "./SessionBudgetBanner";
 import type { SyncButton } from "./SessionBudgetBanner";
+import { core } from "../theme/coreTokens";
 
 /** The two sync buttons the panel can be offering. The banner is told which one it
  *  is pointing at; it may never work that out for itself, so every render below
@@ -43,14 +44,14 @@ describe("formatSignedGb", () => {
 describe("memoryLevelColor", () => {
   const WARN = 1_800_000;
   const CEIL = 2_200_000;
-  it("greens up to the warn floor, yellows strictly above it, reds at/above the ceiling", () => {
-    expect(memoryLevelColor(440_000, WARN, CEIL)).toBe("#59bf40");
-    expect(memoryLevelColor(WARN - 1, WARN, CEIL)).toBe("#59bf40");
-    expect(memoryLevelColor(WARN, WARN, CEIL)).toBe("#59bf40"); // at the floor → still green (strict, like the banner)
-    expect(memoryLevelColor(WARN + 1, WARN, CEIL)).toBe("#d4a72c");
-    expect(memoryLevelColor(CEIL - 1, WARN, CEIL)).toBe("#d4a72c");
-    expect(memoryLevelColor(CEIL, WARN, CEIL)).toBe("#d4343c"); // at the ceiling → red
-    expect(memoryLevelColor(2_500_000, WARN, CEIL)).toBe("#d4343c");
+  it("green up to the warn floor, amber strictly above it, crimson at/above the ceiling", () => {
+    expect(memoryLevelColor(440_000, WARN, CEIL)).toBe(core.success);
+    expect(memoryLevelColor(WARN - 1, WARN, CEIL)).toBe(core.success);
+    expect(memoryLevelColor(WARN, WARN, CEIL)).toBe(core.success); // at the floor → still green (strict, like the banner)
+    expect(memoryLevelColor(WARN + 1, WARN, CEIL)).toBe(core.warning);
+    expect(memoryLevelColor(CEIL - 1, WARN, CEIL)).toBe(core.warning);
+    expect(memoryLevelColor(CEIL, WARN, CEIL)).toBe(core.crimson); // at the ceiling → crimson
+    expect(memoryLevelColor(2_500_000, WARN, CEIL)).toBe(core.crimson);
   });
 });
 

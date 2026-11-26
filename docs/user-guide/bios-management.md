@@ -52,7 +52,7 @@ unreachable server leaves the requirement unknown.
 
 Tap the BIOS status indicator to see a detailed list of individual files and which ones are present or missing. Each
 file lists the cores that use it (e.g. _Beetle PSX HW (required)_, _SwanStation (optional)_); the **active core**'s line
-is highlighted in amber so you can spot at a glance which core's requirements the file applies to.
+is highlighted in crimson so you can spot at a glance which core's requirements the file applies to.
 
 <!-- Screenshot: Game detail page showing orange BIOS status with "2/5 required files ready" -->
 
@@ -108,7 +108,7 @@ your RomM library.
 The plugin recognises BIOS files through a built-in registry, which covers the common systems above but not every
 platform. When a platform has firmware on your RomM server but none of those files match a registry entry, the plugin
 has no way to tell which files are required — so it makes no readiness claim. Instead of a green all-clear, that
-platform shows a neutral grey status and the text **"Not managed by the plugin"**, along with a note listing how many
+platform shows a neutral status and the text **"Not managed by the plugin"**, along with a note listing how many
 files are on the server that the plugin doesn't recognise.
 
 This is informational, not an error: your files may be perfectly fine, the plugin simply can't verify them. You can
@@ -312,8 +312,8 @@ upgrading from an older build or who edits ES-DE directly:
 
 The CPU button changes color to indicate the active core status:
 
-- **Gray** — the default core is active (no overrides)
-- **Yellow** — a non-default core is active (per-game or per-platform override)
+- **Steel** — the default core is active (no overrides)
+- **Crimson** — a non-default core is active (per-game or per-platform override)
 
 The game detail info panel shows the active core in a dedicated "Emulator" column alongside the BIOS status, using a
 two-column layout.

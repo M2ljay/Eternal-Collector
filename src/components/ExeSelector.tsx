@@ -5,7 +5,7 @@
  * play-section row. For an installed native-Windows ROM whose install
  * enumerates at least one launchable target — a `.exe` (Proton-launched) or a
  * bundled `.sh` script (launched natively, no Proton) — it renders a compact,
- * icon-only trigger — neutral grey for the default pick (the first enumerated
+ * icon-only trigger — neutral for the default pick (the first enumerated
  * target), accent-tinted when a specific one is pinned. Clicking it opens an
  * anchored `showContextMenu` list of the enumerated targets, rendered
  * identically regardless of kind — this component never reads which kind a
@@ -39,6 +39,7 @@ import {
   releasePruneLeasesByOwner,
   withPruneLease,
 } from "../utils/pruneLease";
+import { core } from "../theme/coreTokens";
 
 interface ExeSelectorProps {
   appId: number;
@@ -48,10 +49,10 @@ interface ExeSelectorProps {
 type ExeOptionData = string | null;
 
 // Same palette as DiscSelector/VersionPicker — accent when pinned away from
-// the default, neutral grey otherwise — so the game-detail pickers read as
+// the default, neutral otherwise — so the game-detail pickers read as
 // one system.
-const EXE_GREY = "#dcdedf";
-const EXE_ACCENT = "#59b6ff";
+const EXE_GREY = core.text;
+const EXE_ACCENT = core.crimsonText;
 
 export const ExeSelector: FC<ExeSelectorProps> = ({ appId }) => {
   const leaseOwner = `exe-selector:${appId}`;
@@ -198,7 +199,7 @@ export const ExeSelector: FC<ExeSelectorProps> = ({ appId }) => {
   return (
     <DialogButton className="romm-disc-btn" onClick={openMenu} aria-label="Executable" title="Executable">
       <FaWindows size={22} color={isPinned ? EXE_ACCENT : EXE_GREY} />
-      <FaChevronDown size={10} color="#cfd3d8" />
+      <FaChevronDown size={10} color={core.steel} />
     </DialogButton>
   );
 };

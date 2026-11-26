@@ -24,6 +24,7 @@ import { ConnectingIndicator } from "./saves/ConnectingIndicator";
 import { renderSaveFileRow } from "./saves/SaveFileRow";
 import { useCopyToSlot } from "./saves/useCopyToSlot";
 import { detach } from "../utils/detach";
+import { core, tint } from "../theme/coreTokens";
 
 interface SavesTabProps {
   /** The group's sticky Steam appId — drives the stranded-version drift check. */
@@ -149,12 +150,12 @@ export const SavesTab: FC<SavesTabProps> = ({
       key="offline-banner"
       style={{
         padding: "8px",
-        background: "rgba(217, 65, 38, 0.15)",
+        background: tint(core.crimson, 0.15),
         borderRadius: "4px",
-        border: "1px solid rgba(217, 65, 38, 0.4)",
+        border: `1px solid ${tint(core.crimson, 0.4)}`,
         marginBottom: "12px",
         fontSize: "12px",
-        color: "#d94126",
+        color: core.crimsonText,
       }}
     >
       {"RomM is offline — slot switching is disabled until the server is reachable. This prevents save sync conflicts."}
@@ -167,12 +168,12 @@ export const SavesTab: FC<SavesTabProps> = ({
       key="stranded-banner"
       style={{
         padding: "8px",
-        background: "rgba(255, 136, 0, 0.15)",
+        background: tint(core.warning, 0.15),
         borderRadius: "4px",
-        border: "1px solid rgba(255, 136, 0, 0.3)",
+        border: `1px solid ${tint(core.warning, 0.3)}`,
         marginBottom: "12px",
         fontSize: "12px",
-        color: "#ff8800",
+        color: core.warning,
       }}
     >
       {`Version "${strandedVersion}" has saves that were never uploaded — switch back to sync them.`}
@@ -186,12 +187,12 @@ export const SavesTab: FC<SavesTabProps> = ({
         key="legacy-warning"
         style={{
           padding: "8px",
-          background: "rgba(255, 136, 0, 0.15)",
+          background: tint(core.warning, 0.15),
           borderRadius: "4px",
-          border: "1px solid rgba(255, 136, 0, 0.3)",
+          border: `1px solid ${tint(core.warning, 0.3)}`,
           marginBottom: "12px",
           fontSize: "12px",
-          color: "#ff8800",
+          color: core.warning,
         }}
       >
         This game uses legacy mode (no slot). Only one save version per game is supported.
@@ -363,7 +364,7 @@ export const SavesTab: FC<SavesTabProps> = ({
           + New Slot
         </DialogButton>
         {newSlotError ? (
-          <div key="new-slot-error" style={{ fontSize: "11px", color: "#d94126", marginTop: "4px" }}>
+          <div key="new-slot-error" style={{ fontSize: "11px", color: core.crimsonText, marginTop: "4px" }}>
             {newSlotError}
           </div>
         ) : null}

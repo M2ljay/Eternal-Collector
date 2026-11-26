@@ -262,7 +262,7 @@ it says so — "Another save sync was still running — saves will sync next tim
 picked up by the next launch or by a manual **Sync All Saves Now**; nothing about your server is wrong.
 
 After a failed sync the game-detail save panel reflects the honest state right away: a file whose upload failed shows a
-yellow **Local changes** badge (not a green "synced"), and its "Last synced" line keeps the time of the last
+amber **Local changes** badge (not a green "synced"), and its "Last synced" line keeps the time of the last
 _successful_ sync — a green checkmark appears only once a sync actually succeeds. A separate "Checked" line shows when
 the plugin last attempted a sync, so a recent failed attempt and the last good sync are both visible.
 

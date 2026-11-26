@@ -1,5 +1,6 @@
 import { FC } from "react";
 import { FaExclamationTriangle } from "react-icons/fa";
+import { core, tint } from "../theme/coreTokens";
 
 interface WarningCardProps {
   title: string;
@@ -20,18 +21,18 @@ export const WarningCard: FC<WarningCardProps> = ({ title, message, compact = fa
         padding: compact ? "24px 16px" : "40px 32px",
         gap: "14px",
         textAlign: "center",
-        background: "rgba(14, 20, 27, 0.55)",
-        border: "1px solid rgba(255, 170, 0, 0.35)",
+        background: tint(core.gunmetal, 0.75),
+        border: `1px solid ${tint(core.warning, 0.35)}`,
         borderRadius: "6px",
         margin: compact ? "8px 4px" : "24px 2.8vw",
       }}
     >
-      <FaExclamationTriangle style={{ color: "#ffaa00", fontSize: compact ? "28px" : "42px" }} />
+      <FaExclamationTriangle style={{ color: core.warning, fontSize: compact ? "28px" : "42px" }} />
       <div
         style={{
           fontSize: compact ? "15px" : "19px",
           fontWeight: 600,
-          color: "rgba(255, 255, 255, 0.95)",
+          color: core.text,
         }}
       >
         {title}
@@ -39,7 +40,7 @@ export const WarningCard: FC<WarningCardProps> = ({ title, message, compact = fa
       <div
         style={{
           fontSize: compact ? "12px" : "14px",
-          color: "rgba(255, 255, 255, 0.75)",
+          color: core.text,
           maxWidth: compact ? "100%" : "680px",
           lineHeight: 1.5,
         }}

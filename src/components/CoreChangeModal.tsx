@@ -1,5 +1,6 @@
 import { FC } from "react";
 import { ModalRoot, DialogButton, showModal } from "@decky/ui";
+import { core, tint } from "../theme/coreTokens";
 
 interface CoreChangeModalProps {
   oldLabel: string;
@@ -27,7 +28,7 @@ const CoreChangeModalContent: FC<CoreChangeModalProps> = ({ oldLabel, newLabel, 
             fontSize: "16px",
             fontWeight: "bold",
             marginBottom: "4px",
-            color: "#fff",
+            color: core.white,
           }}
         >
           Emulator Core Changed
@@ -35,7 +36,7 @@ const CoreChangeModalContent: FC<CoreChangeModalProps> = ({ oldLabel, newLabel, 
         <div
           style={{
             fontSize: "13px",
-            color: "rgba(255, 255, 255, 0.6)",
+            color: core.steel,
             marginBottom: "16px",
           }}
         >
@@ -45,16 +46,16 @@ const CoreChangeModalContent: FC<CoreChangeModalProps> = ({ oldLabel, newLabel, 
         <div
           style={{
             padding: "10px",
-            background: "rgba(255, 152, 0, 0.15)",
+            background: tint(core.warning, 0.15),
             borderRadius: "4px",
-            border: "1px solid rgba(255, 152, 0, 0.3)",
+            border: `1px solid ${tint(core.warning, 0.3)}`,
             marginBottom: "12px",
           }}
         >
-          <div style={{ fontSize: "12px", color: "#ffb74d", marginBottom: "6px", fontWeight: "bold" }}>
+          <div style={{ fontSize: "12px", color: core.warning, marginBottom: "6px", fontWeight: "bold" }}>
             Save Compatibility Warning
           </div>
-          <div style={{ fontSize: "12px", color: "rgba(255, 255, 255, 0.7)", lineHeight: "1.4" }}>
+          <div style={{ fontSize: "12px", color: core.steel, lineHeight: "1.4" }}>
             Some emulator cores use incompatible save formats. Continuing may overwrite your existing saves with data
             the previous core can&apos;t read.
           </div>

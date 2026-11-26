@@ -126,6 +126,7 @@ import { showAdoptVanishedModal } from "../components/AdoptVanishedModal";
 import { mountPruneLeasePlugin, releaseAllPruneLeases } from "../utils/pruneLease";
 import { resetBoundVanished, setBoundVanished } from "../utils/vanishedBinding";
 import type { SyncConflict, SaveStatus } from "../types";
+import { core, tint } from "../theme/coreTokens";
 
 function mockCachedDetail(overrides: Partial<CachedGameDetail> = {}): void {
   vi.mocked(getCachedGameDetail).mockResolvedValue({
@@ -3422,7 +3423,7 @@ describe("CustomPlayButton — version switch (#1298)", () => {
 // active button never does. The green fill and amber pulse ARE observable (a plain
 // div and the Focusable's forwarded style) and are pinned alongside.
 // ---------------------------------------------------------------------------
-describe("CustomPlayButton — active-download button never takes the idle blue focus highlight", () => {
+describe("CustomPlayButton — active-download button never takes the idle crimson focus highlight", () => {
   beforeEach(() => {
     vi.mocked(getCachedGameDetail).mockReset();
     vi.mocked(backend.startDownload).mockResolvedValue({ success: true, message: "" });
@@ -3454,42 +3455,41 @@ describe("CustomPlayButton — active-download button never takes the idle blue 
     return utils;
   }
 
-  it("the idle Download button carries romm-btn-download-idle so it keeps the blue hover/focus highlight", async () => {
+  it("the idle Download button carries romm-btn-download-idle so it keeps the crimson hover/focus highlight", async () => {
     mockCachedDetail({ rom_id: 42, installed: false });
     const { findByText, container } = render(<CustomPlayButton appId={100} />);
     await findByText("Download");
 
-    // The idle button is the only intended target of the bright-blue focus/hover
-    // rule (its baseBg is already blue). This assertion is what flips red→green
+    // The idle button is the only intended target of the crimson focus/hover
+    // rule (its baseBg is already crimson). This assertion is what flips red→green
     // with the fix: the idle-only marker class did not exist before.
     const btn = container.querySelector(".romm-btn-download");
     expect(btn).not.toBeNull();
     expect(btn).toHaveClass("romm-btn-download-idle");
   });
 
-  it("a rehydrated paused download keeps the dark-remainder shape with a green fill and amber pulse", async () => {
+  it("a rehydrated paused download keeps the dark-remainder shape with a crimson fill and amber pulse", async () => {
     const { container } = await renderRehydrated("paused");
 
-    // Active button: structural class only, never the idle blue-focus target — so
-    // a focus/hover cannot repaint its dark remainder bright blue (the device bug).
+    // Active button: structural class only, never the idle crimson-focus target — so
+    // a focus/hover cannot repaint its dark remainder crimson (the device bug).
     const btn = container.querySelector(".romm-btn-download")!;
     expect(btn).toHaveClass("romm-btn-download");
     expect(btn).not.toHaveClass("romm-btn-download-idle");
 
-    // Green progress fill at the frozen width (300/1000 = 30%), never the idle blue.
+    // Crimson progress fill at the frozen width (300/1000 = 30%).
     const fill = container.querySelector(".romm-dl-fill") as HTMLElement;
     expect(fill.style.width).toBe("30%");
-    expect(fill.getAttribute("style")).toContain("linear-gradient");
-    expect(fill.getAttribute("style")).not.toContain("1a9fff");
+    expect(fill.style.background).toBe(core.crimson);
 
     // Amber paused pulse on the active-group container (unaffected by the bug/fix).
     // The Focusable mock forwards `style` but drops `className`, so the container is
     // located by its data-testid rather than the romm-dl-active-group class.
     const group = container.querySelector('[data-testid="focusable"]') as HTMLElement;
-    expect(group.style.getPropertyValue("--romm-pulse-color")).toContain("212,167,44");
+    expect(group.style.getPropertyValue("--romm-pulse-color")).toBe(tint(core.warning, 0.7));
   });
 
-  it("a rehydrated running download keeps the dark-remainder shape with a green fill", async () => {
+  it("a rehydrated running download keeps the dark-remainder shape with a crimson fill", async () => {
     const { container } = await renderRehydrated("downloading");
 
     const btn = container.querySelector(".romm-btn-download")!;
@@ -3498,8 +3498,7 @@ describe("CustomPlayButton — active-download button never takes the idle blue 
 
     const fill = container.querySelector(".romm-dl-fill") as HTMLElement;
     expect(fill.style.width).toBe("30%");
-    expect(fill.getAttribute("style")).toContain("linear-gradient");
-    expect(fill.getAttribute("style")).not.toContain("1a9fff");
+    expect(fill.style.background).toBe(core.crimson);
   });
 
   it("the live paused button renders the identical class/fill/pulse shape as the rehydrated one", async () => {
@@ -3533,7 +3532,7 @@ describe("CustomPlayButton — active-download button never takes the idle blue 
     const fill = utils.container.querySelector(".romm-dl-fill") as HTMLElement;
     expect(fill.style.width).toBe("30%");
     const group = utils.container.querySelector('[data-testid="focusable"]') as HTMLElement;
-    expect(group.style.getPropertyValue("--romm-pulse-color")).toContain("212,167,44");
+    expect(group.style.getPropertyValue("--romm-pulse-color")).toBe(tint(core.warning, 0.7));
   });
 });
 
