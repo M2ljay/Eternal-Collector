@@ -6,30 +6,30 @@ there, and installs, removes and switches on what the emulator needs. User-facin
 
 ## Layers
 
-| Layer   | Module                                              | Owns                                                                                                   |
-| ------- | --------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
-| Domain  | `domain/game_mods.py`                               | Emulator identification, portable-layout rules, mod targets, ini switch read/edit, install planning    |
-| Domain  | `domain/mod_targets.py`                             | Cheat-file, built-in-toggle and graphic-pack targets; Cemu's home; what other emulators do not offer   |
-| Domain  | `domain/mod_toggles.py`                             | Reading and switching Dolphin codes, PCSX2 patches and cheats, Azahar cheats                           |
-| Domain  | `domain/disc_ids.py`                                | Game identifiers, the 3DS title ID, and the PS2 boot ELF path and PCSX2 CRC                            |
-| Domain  | `domain/console_ids.py`                             | PS3/PS4 `PARAM.SFO`, the Xbox 360 XDVDFS walk and XEX title ID, the Wii U title ID in `meta.xml`       |
-| Domain  | `domain/game_content.py`                            | Updates and DLC targets: Azahar CIA install, shadPS4 overlays, RPCS3 and Xenia installed content       |
-| Domain  | `domain/rpcs3_patches.py`, `xenia_patches.py`       | Reading and switching RPCS3 patches (YAML tree) and Xenia patches (`*.patch.toml`)                     |
-| Domain  | `domain/cemu_packs.py`                              | Which graphic packs name a Wii U title, and switching them in Cemu's `settings.xml`                    |
-| Domain  | `domain/mod_files.py`                               | The install data shapes (`SourceEntry`, `PlannedWrite`, `InstallOutcome`), re-exported by `game_mods`  |
-| Adapter | `adapters/game_mod_files.py` (`GameModStore`)       | Listing, Downloads, zip/folder reading, the install itself, moves to backup, the ini rewrite, Explorer |
-| Adapter | `adapters/disc_code_reader.py` (`DiscCodeReader`)   | Reading the identifier and the PS2 boot ELF (`Ps2ElfCrcReader`) out of the game file                   |
-| Adapter | `adapters/game_process_windows.py`                  | `running_executable_names()` for the "emulator is running" refusal                                     |
-| Adapter | `adapters/yaml_codec.py` (`YamlCodec`)              | YAML text to plain maps and back, over the vendored pure-Python PyYAML (`_vendor/yaml`)                |
-| Service | `services/game_mods/service.py` (`GameModsService`) | The nine callables; resolution on every call; the write lock; the installer run                        |
-| Service | `services/game_mods/targets.py`                     | Resolving the emulator, its folders and the game's identifier into targets                             |
-| Service | `services/game_mods/toggles.py`                     | Reading a toggle target's file(s) and producing the switched text, for all seven formats               |
-| UI      | `src/components/ModsButton.tsx`, `ModsModal.tsx`    | The button (native look + installed only) and the panel                                                |
-| UI      | `src/components/ModBuiltinsSection.tsx`             | A built-in-toggle target's entries with On/Off switches, in the panel                                  |
-| UI      | `src/components/GameContentSection.tsx`             | GAME INFO's **Updates & DLC** row: installed content, and the panel opened on update and DLC targets   |
-| UI      | `src/utils/gamePageExtensions.ts`                   | The game page registry (Forge bridge, below)                                                           |
-| UI      | `src/utils/collectorModsBridge.ts`                  | The mods bridge (Forge bridge, below)                                                                  |
-| UI      | `src/components/GamePageExtensions.tsx`             | Rendering registered tabs and cards, each in its own error boundary                                    |
+| Layer   | Module                                              | Owns                                                                                                    |
+| ------- | --------------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| Domain  | `domain/game_mods.py`                               | Emulator identification, portable-layout rules, mod targets, ini switch read/edit, install planning     |
+| Domain  | `domain/mod_targets.py`                             | Cheat-file, built-in-toggle and graphic-pack targets; Cemu's home; what other emulators do not offer    |
+| Domain  | `domain/mod_toggles.py`                             | Reading and switching Dolphin codes, PCSX2 patches and cheats, Azahar cheats                            |
+| Domain  | `domain/disc_ids.py`                                | Game identifiers, the 3DS title ID, and the PS2 boot ELF path and PCSX2 CRC                             |
+| Domain  | `domain/console_ids.py`                             | PS3/PS4 `PARAM.SFO`, the Xbox 360 XDVDFS walk and XEX title ID, the Wii U title ID in `meta.xml`        |
+| Domain  | `domain/game_content.py`                            | Updates and DLC targets: Azahar CIA install, shadPS4 overlays, RPCS3 and Xenia installed content        |
+| Domain  | `domain/rpcs3_patches.py`, `xenia_patches.py`       | Reading and switching RPCS3 patches (YAML tree) and Xenia patches (`*.patch.toml`)                      |
+| Domain  | `domain/cemu_packs.py`                              | Which graphic packs name a Wii U title, and switching them in Cemu's `settings.xml`                     |
+| Domain  | `domain/mod_files.py`                               | The install data shapes (`SourceEntry`, `PlannedWrite`, `InstallOutcome`), re-exported by `game_mods`   |
+| Adapter | `adapters/game_mod_files.py` (`GameModStore`)       | Listing, Downloads, zip/folder reading, the install itself, moves to backup, the ini rewrite, Explorer  |
+| Adapter | `adapters/disc_code_reader.py` (`DiscCodeReader`)   | Reading the identifier and the PS2 boot ELF (`Ps2ElfCrcReader`) out of the game file                    |
+| Adapter | `adapters/game_process_windows.py`                  | `running_executable_names()` for the "emulator is running" refusal                                      |
+| Adapter | `adapters/yaml_codec.py` (`YamlCodec`)              | YAML text to plain maps and back, over the vendored pure-Python PyYAML (`_vendor/yaml`)                 |
+| Service | `services/game_mods/service.py` (`GameModsService`) | The nine callables; resolution on every call; the write lock; the installer run                         |
+| Service | `services/game_mods/targets.py`                     | Resolving the emulator, its folders and the game's identifier into targets                              |
+| Service | `services/game_mods/toggles.py`                     | Reading a toggle target's file(s) and producing the switched text, for all seven formats                |
+| UI      | `src/components/ModsButton.tsx`, `ModsModal.tsx`    | The button (native look + installed only) and the panel                                                 |
+| UI      | `src/components/ModBuiltinsSection.tsx`             | A built-in-toggle target's entries with On/Off switches, in the panel                                   |
+| UI      | `src/components/GameContentSection.tsx`             | The Overview's **Updates & DLC** row: installed content, and the panel opened on update and DLC targets |
+| UI      | `src/utils/gamePageExtensions.ts`                   | The game page registry (Forge bridge, below)                                                            |
+| UI      | `src/utils/collectorModsBridge.ts`                  | The mods bridge (Forge bridge, below)                                                                   |
+| UI      | `src/components/GamePageExtensions.tsx`             | Rendering registered tabs and cards, each in its own error boundary                                     |
 
 `GameModStore` is wired only on Windows (`bootstrap/adapters.py`); with no store, or with a launcher backend other than
 EmuDeck, every callable answers `{success: false, reason: "unsupported"}`.
@@ -155,9 +155,9 @@ still holds what was read (`changed` otherwise), and copies the existing file to
 ## Updates and DLC
 
 Game content — a title update or DLC for a game the user already has — is offered per emulator as `update` and `dlc`
-targets (`domain/game_content.py`), on the Mods panel and from GAME INFO's **Updates & DLC** row (`GameContentSection`,
-controller-only, installed games only), which opens the panel filtered to those kinds. A base game is never touched, and
-anything an install replaces is backed up first.
+targets (`domain/game_content.py`), on the Mods panel and from the Overview's **Updates & DLC** row
+(`GameContentSection`, controller-only, installed games only), which opens the panel filtered to those kinds. A base
+game is never touched, and anything an install replaces is backed up first.
 
 | Emulator     | What is offered                                                                                                                                                                                                   |
 | ------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -279,11 +279,13 @@ type RomPageContext = {
   through `useSyncExternalStore` and re-renders on every change. Registering an id again replaces the earlier
   registration; an unregister removes only its own. An invalid extension is refused with a warning. `subscribe` lets an
   extension ask for a re-render (an update count changed); `isAvailable` and `label` are asked on every render.
-- **Tabs.** GAME INFO (the page's Overview) is always first; The Collector's own tabs have orders 20 (Achievements), 30
-  (Saves) and 40 (BIOS), and an extension tab without `order` gets 100. Ties keep the built-in tab first, then
-  registration order. Labels are shown upper-cased like the built-in tabs. An extension tab that unregisters or stops
-  being available while open leaves the page on GAME INFO.
-- **Overview cards** render at the top of GAME INFO, in `order`, and only there. A card's own control can call
+- **Tabs.** Overview is always first; The Collector's own tabs have orders 20 (Achievements), 30 (Saves), 34 (Media), 37
+  (Details) and 40 (BIOS), and an extension tab without `order` gets 100. Ties keep the built-in tab first, then
+  registration order. Labels are shown as the extension gives them (Title Case, like the built-in tabs); a tab between
+  Achievements and Saves, where the Core board puts Mods, takes an order from 21 to 29. An extension tab that
+  unregisters or stops being available while open leaves the page on the Overview.
+- **Overview cards** render on the Overview only, in one grid after The Collector's own RetroAchievements and Save sync
+  cards, in `order`. Each sits in a gunmetal tile with the float radius; a card's own control can call
   `ctx.openTab("forge.mods")` to open its tab.
 - **Isolation.** Every extension renders inside its own error boundary, keyed by extension, registration and ROM: a
   throw from `render` (or from a component it returns) hides that extension and is written to the plugin log, and the

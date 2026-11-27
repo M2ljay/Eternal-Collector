@@ -8,6 +8,9 @@ Loader for Windows (Playhub), launching games through EmuDeck for Windows instea
 - **Launcher.** Shortcuts run `bin\rom-launcher.exe`. It starts the emulator EmuDeck uses for the system directly (not
   through EmuDeck's PowerShell launcher scripts, which run a `git pull` and EmuDeck Cloud Sync on every launch), and
   brings Big Picture back to the front when the emulator exits. Each launch is logged to `bin\rom-launcher.log`.
+- **Game page.** A ROM's page is drawn in the Core design, like a Steam game page under Core: hero art fading to black,
+  the name and chips over it, a translucent play bar with a crimson Play, and Overview cards in a grid. See
+  [The Core design](managing-games.md#the-core-design-windows).
 - **Quitting a game.** Quit with Steam's **Exit Game**. The launcher is the process Steam starts and watches, and it
   stays up exactly as long as the emulator does — including anything the emulator starts on its own — so Steam shows the
   game as running for its whole life. When Exit Game reaches it as a close request, the launcher asks the emulator to
@@ -170,8 +173,8 @@ panel says **No known mod folder for this emulator** and why, rather than guessi
   kept as a folder; `.wua`, `.wud` and `.wux` images are encrypted, so they get no pack switches (use right-click the
   game in Cemu > _Edit graphic packs_).
 - **Not offered.** shadPS4 cheats and patches (use its Cheats/Patches window), xemu (no mods), downloading PS3 updates
-  and installing Xbox 360 content (see [Updates and DLC](#updates-and-dlc)). Dolphin's _Enable Graphics Mods_ and Azahar's
-  _Use Custom Textures_ settings are not checked.
+  and installing Xbox 360 content (see [Updates and DLC](#updates-and-dlc)). Dolphin's _Enable Graphics Mods_ and
+  Azahar's _Use Custom Textures_ settings are not checked.
 - **Soft patches.** RetroArch applies the patch in memory each launch; the ROM file is never changed. It only works for
   a single cartridge file loaded into memory, so zipped ROMs, disc images and cores that read the game from disk (their
   core info says `needs_fullpath`) get no soft-patch option. Which patch formats EmuDeck's RetroArch build tries is
@@ -215,7 +218,7 @@ Cheats_ setting, which the panel offers to turn on.
 
 ### Updates and DLC
 
-An installed game's GAME INFO tab has an **Updates & DLC** section listing each update and DLC entry with what is
+An installed game's Overview tab has an **Updates & DLC** section listing each update and DLC entry with what is
 installed; **Manage** (or **Details**, for an entry that is only listed) opens the Mods panel on just the update and DLC
 entries. The base game is never changed, and anything an install replaces goes to the backup folder first.
 
@@ -252,11 +255,11 @@ is not offered — change the setting in the emulator instead.
 
 ### With Forge
 
-When the Forge plugin is installed, a ROM's game page gets a **MODS** tab beside GAME INFO, ACHIEVEMENTS, SAVES and
-BIOS, and a Mods card at the top of GAME INFO (how many mods are active, any updates waiting, and a way into the tab).
-Forge finds and downloads mods; The Collector still does every install, into the folders in the table above, with the
-same preview, backups and **Turn On** setting, and every switch of a code, cheat or patch. The puzzle-piece Mods button
-is hidden while Forge's tab is there; remove or disable Forge and the button comes back.
+When the Forge plugin is installed, a ROM's game page gets a **Mods** tab beside Overview, Achievements, Saves, Media,
+Details and BIOS, and a Mods card among the Overview's cards (how many mods are active, any updates waiting, and a way
+into the tab). Forge finds and downloads mods; The Collector still does every install, into the folders in the table
+above, with the same preview, backups and **Turn On** setting, and every switch of a code, cheat or patch. The
+puzzle-piece Mods button is hidden while Forge's tab is there; remove or disable Forge and the button comes back.
 
 Forge saves what it downloads into `%USERPROFILE%\Downloads`, the same folder **Install from Downloads** lists, so a mod
 Forge fetched can also be installed from the panel and the other way round. If Forge's tab or card ever fails to draw,

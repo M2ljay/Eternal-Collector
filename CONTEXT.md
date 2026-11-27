@@ -411,6 +411,13 @@ installer, Azahar's `-i` for a `.cia`), **game** (a folder put in place, shadPS4
 (listed, never written: RPCS3 and Xenia). Game content never changes the base game, and what an install replaces is a
 mod backup first.
 
+### Core page
+
+The **Core page** is a ROM's game page drawn in the Core design on Windows (`.romm-core-page`,
+`utils/corePageStyles.ts`): hero art fading to black, a header with the name and a platform chip in its **family tone**
+(the console family's colour: PlayStation, Nintendo, Sega, Xbox, or retro for the rest), a glass play bar, and the
+Overview's cards. Its stars are Core UI's: shown only while Core UI is on.
+
 ### Game page extension / mods bridge
 
 A **game page extension** is a tab or an Overview card another Decky plugin registers on the ROM game page through the

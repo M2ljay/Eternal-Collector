@@ -22,6 +22,45 @@ shows:
 
 ![Game detail page showing The Collector's panel for an installed game](../assets/screenshot-game-detail.jpg)
 
+The screenshots on this page show the Steam Deck layout. On Windows the same page is drawn in the Core design (below).
+
+### Tabs
+
+Below the play bar the page has these tabs. Move between them with the D-pad or the shoulder buttons; the open tab is
+underlined.
+
+| Tab          | What it shows                                                                                                                                                                         |
+| ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Overview     | Cards for RetroAchievements (earned / total) and Save sync (its state), cards other plugins add, then the game's description; on Windows also **Updates & DLC** for an installed game |
+| Achievements | The RetroAchievements list, when RomM knows the game                                                                                                                                  |
+| Saves        | Slots, versions and conflicts, when save sync is on                                                                                                                                   |
+| Media        | The cover The Collector holds for the game, and **Choose artwork…**                                                                                                                   |
+| Details      | Name, region and languages, platform, developer, genres, release date, modes, players, rating, and the ROM file                                                                       |
+| BIOS         | The BIOS files the emulator needs, when it needs any                                                                                                                                  |
+
+A plugin such as Forge can add its own tab (Mods) and Overview cards. Pressing a card opens its tab.
+
+### The options button
+
+The cog in the play bar opens **Options**: Refresh Artwork, Refresh Metadata, Sync Save Files, Download BIOS, Choose
+artwork…, Steam properties…, Delete Local Saves and Uninstall. The chip button next to it (only when the system has more
+than one emulator) picks the emulator or core.
+
+### The Core design (Windows)
+
+On Windows the page looks like a Steam game page under Core:
+
+- The game's hero art at the top fades into black, and the page below it is black.
+- Over the bottom of the art: the game's name, a platform chip in its console family's colour (PlayStation blue,
+  Nintendo rose, Sega teal, Xbox green, everything else violet), a **The Collector** chip, and the last-played and
+  playtime line.
+- A translucent play bar: a crimson **Play** (white ring when selected), the emulator and core with Installed or Not
+  installed, then the options, emulator and Mods buttons.
+- The Overview's cards sit in a grid with rounded corners; selected cards, tabs and buttons are gunmetal with a crimson
+  edge.
+- When Core UI is on, stars show behind the black page. With Core UI off, or without Core, the page is plain black and
+  everything works the same.
+
 ## Versions
 
 Many games exist in a RomM library as several **versions** — different dumps of the same title: a `(USA)` release and a
@@ -586,17 +625,17 @@ the RomM cover back. The hero banner, logo, wide grid and icon are never replace
 
 ### Choosing a game's cover
 
-**Choose artwork…** in the RomM Actions menu lists every portrait picture SteamGridDB has for the game, best case cover
-first, each shown in the 2:3 frame it will have in your library. Authors known for case templates are marked "case
-template", and the picture in use is marked "in use". Move with the D-pad and press **A** to use one; it is fitted to
-Steam's cover shape with black bars, never stretched. Your choice is kept: syncs and the automatic case cover leave it
-alone, and **Refresh Artwork** downloads the same picture again. If the list says no SteamGridDB game is known yet, tap
-**Refresh Artwork** first so the plugin can find the game.
+**Choose artwork…** (in the Options menu, or on the **Media** tab) lists every portrait picture SteamGridDB has for the
+game, best case cover first, each shown in the 2:3 frame it will have in your library. Authors known for case templates
+are marked "case template", and the picture in use is marked "in use". Move with the D-pad and press **A** to use one;
+it is fitted to Steam's cover shape with black bars, never stretched. Your choice is kept: syncs and the automatic case
+cover leave it alone, and **Refresh Artwork** downloads the same picture again. If the list says no SteamGridDB game is
+known yet, tap **Refresh Artwork** first so the plugin can find the game.
 
 The full set of per-game actions — refresh artwork, choose artwork, refresh metadata, sync save files, download BIOS,
-and uninstall — is available from the RomM Actions menu in the game detail panel.
+and uninstall — is available from the Options menu (the cog in the play bar).
 
-![RomM Actions context menu with Refresh Artwork, Sync Save Files, Download BIOS, and Uninstall entries](../assets/screenshot-actions.jpg)
+![Options context menu with Refresh Artwork, Sync Save Files, Download BIOS, and Uninstall entries](../assets/screenshot-actions.jpg)
 
 ## Download Queue
 
