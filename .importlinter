@@ -120,6 +120,7 @@ modules =
     services.artwork
     services.connection
     services.console_shelf
+    services.case_art
     services.cores
     services.disc
     services.disc_launch_resolver

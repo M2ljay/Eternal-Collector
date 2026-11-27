@@ -25,6 +25,24 @@ def test_discovers_and_removes_only_named_rom_cache_files(tmp_path):
     assert unrelated.exists()
 
 
+def test_removes_the_roms_case_art_with_its_other_cache_files(tmp_path):
+    artwork = tmp_path / "artwork"
+    artwork.mkdir()
+    (tmp_path / "covers").mkdir()
+    case_files = [artwork / "7_case.png", artwork / "7_case.json", artwork / "7_case_source.img"]
+    for path in case_files:
+        path.write_bytes(b"x")
+    keep = artwork / "8_case.png"
+    keep.write_bytes(b"keep")
+    adapter = PruneArtifactAdapter(runtime_dir=str(tmp_path))
+
+    sources = {Path(item["source_path"]) for item in adapter.recovery_artifacts([7])}
+    assert set(case_files) <= sources
+    assert adapter.remove([7])["success"] is True
+    assert all(not path.exists() for path in case_files)
+    assert keep.exists()
+
+
 def test_unsealed_cleanup_does_not_follow_symlinked_cache_directory(tmp_path):
     outside = tmp_path / "outside"
     outside.mkdir()

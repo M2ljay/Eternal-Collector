@@ -1014,6 +1014,12 @@ _MIGRATION_BLOCKED_WHITELIST: set[str] = {
     "get_sgdb_resolution",
     "search_sgdb_games",
     "apply_sgdb_game_id",
+    # Game case cover art and its style setting: the SGDB artwork cache and
+    # settings.json only, Steam-side.
+    "list_case_art",
+    "get_case_art_source",
+    "save_case_art",
+    "set_cover_style",
     # Metadata cache reads.
     "get_rom_metadata",
     "get_metadata_cache_page",
@@ -1157,6 +1163,7 @@ class TestMainStartupOrdering:
             "rom_removal_service": MagicMock(),
             "firmware_service": firmware_service,
             "sgdb_service": sgdb_service,
+            "case_art_service": MagicMock(),
             "metadata_service": MagicMock(),
             "achievements_service": MagicMock(),
             "migration_service": migration_service,

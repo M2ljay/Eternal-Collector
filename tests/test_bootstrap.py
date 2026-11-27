@@ -420,7 +420,7 @@ class TestWireServices:
     def test_returns_expected_services(self, tmp_path):
         deps = self._make_deps(tmp_path)
         result = wire_services(self._make_config(deps))
-        assert len(result) == 34
+        assert len(result) == 35
         assert "now_playing_service" in result
         assert "migration_service" in result
         assert "retroachievements_check_service" in result
@@ -428,6 +428,7 @@ class TestWireServices:
         assert "game_mods_service" in result
         assert "game_detail_service" in result
         assert "console_shelf_service" in result
+        assert "case_art_service" in result
         assert "steam_collection_service" in result
         assert "achievement_journal_service" in result
         assert "rom_removal_service" in result

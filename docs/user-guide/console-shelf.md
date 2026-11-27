@@ -6,16 +6,18 @@ console with its games.
 ## The Home row
 
 The row is titled **The Collector** and holds one tile per console that has games in your Steam library. Each tile is a
-little stack of that console's media — PS2 cases on their spines, GameCube boxes, PS1 jewel cases, SNES and N64
-cartridges, and a plain case for any other console — with the console's name, how many games it has, and when you last
-played it ("Played tonight", "Played last week", …).
+portrait capsule the same size as Steam's own Recent games capsules, lined up with that row. It shows the cover Steam
+shows for that console's most recently played game (or its first game alphabetically when none has been played) and
+nothing else: no game count and no "last played". The console's name appears along the bottom while the capsule is
+selected. A console whose cover game has no artwork in Steam shows a little stack of its media instead — PS2 cases on
+their spines, GameCube boxes, PS1 jewel cases, SNES and N64 cartridges, or a plain case.
 
 The consoles are ordered by how much you play them **lately**: play time counts half as much for every 90 days since you
 last played, so a console you binged years ago drops behind one you picked up this week. Consoles you have never played
 come last.
 
 With a controller: press down from Recent games to reach the row, left and right to move between consoles, and **A** to
-open one. The selected tile lifts slightly with a crimson ring.
+open one. The selected capsule grows slightly with a crimson ring.
 
 The row appears once the plugin has loaded and you have at least one synced game. It never contacts your RomM server
 while Home is on screen; it updates after a sync, after you finish playing, and when a game's save status changes.

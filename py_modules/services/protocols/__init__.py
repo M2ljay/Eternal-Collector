@@ -92,6 +92,7 @@ from services.protocols.files import (
 )
 from services.protocols.infra import (
     ComputeSyncActionFn,
+    CoverChoiceReader,
     DebugLogger,
     DownloadQueueCleanup,
     EventEmitter,
@@ -192,6 +193,7 @@ __all__ = [
     "CoreResolverFn",
     "CoreVersionProviderFn",
     "CoverArtFileStore",
+    "CoverChoiceReader",
     "DebugLogger",
     "DeviceForgetFn",
     "DeviceIdProvider",

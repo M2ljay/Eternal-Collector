@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING
 
 from adapters.descriptor_paths import claim_source, remove_claimed
 from domain.artwork_paths import cache_filename, cover_meta_filename
+from domain.case_art import case_art_filenames
 
 if TYPE_CHECKING:
     from models.prune import MutationOutcome, RecoveryArtifact, SourceClaim
@@ -63,4 +64,5 @@ class PruneArtifactAdapter:
             (os.path.join(covers, cover_meta_filename(rom_id)), "cover_validator"),
         ]
         paths.extend((os.path.join(artwork, f"{rom_id}_{kind}.png"), "sgdb_cache") for kind in _SGDB_TYPES)
+        paths.extend((os.path.join(artwork, name), "sgdb_cache") for name in case_art_filenames(rom_id))
         return paths

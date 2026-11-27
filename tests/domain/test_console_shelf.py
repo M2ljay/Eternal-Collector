@@ -112,6 +112,16 @@ class TestRankConsoles:
     def test_empty(self):
         assert rank_consoles([], {}, NOW.timestamp()) == []
 
+    def test_cover_is_the_most_recently_played_game(self):
+        games = [_game(1, "ps2", 500, _ago(30)), _game(2, "ps2", 10, _ago(1)), _game(3, "ps2")]
+        [entry] = rank_consoles(games, {}, NOW.timestamp())
+        assert entry.cover_app_id == 5002
+
+    def test_cover_falls_back_to_the_first_game_by_name(self):
+        games = [_game(1, "gba", name="Zelda"), _game(2, "gba", name="advance wars"), _game(3, "gba", name="Metroid")]
+        [entry] = rank_consoles(games, {}, NOW.timestamp())
+        assert entry.cover_app_id == 5002
+
 
 class TestContinueAndOrder:
     def test_continue_is_most_recent(self):

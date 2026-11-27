@@ -91,6 +91,7 @@ if TYPE_CHECKING:
 
     from services.protocols import (
         CoverArtFileStore,
+        CoverChoiceReader,
         PendingSyncReader,
         RommRomReader,
         SteamConfigStore,
@@ -105,7 +106,9 @@ class ArtworkServiceConfig:
     Holds the Protocol-typed adapters, runtime infrastructure, the read seam
     ArtworkService uses to consult the in-flight sync's pending cover paths, and
     ``cover_cache_dir`` — the plugin-owned per-ROM cover cache directory (built
-    in bootstrap, never the shared Steam grid dir).
+    in bootstrap, never the shared Steam grid dir). ``cover_choice`` decides
+    which file stands for a ROM on its portrait capsule — the plain cache cover or
+    its Game case image — wherever a cover is published or served.
     """
 
     romm_api: RommRomReader
@@ -116,6 +119,7 @@ class ArtworkServiceConfig:
     logger: logging.Logger
     get_pending_sync: PendingSyncReader
     uow_factory: UnitOfWorkFactory
+    cover_choice: CoverChoiceReader
 
 
 class ArtworkService:
@@ -130,6 +134,7 @@ class ArtworkService:
         self._logger = config.logger
         self._get_pending_sync = config.get_pending_sync
         self._uow_factory = config.uow_factory
+        self._cover_choice = config.cover_choice
 
     def _cache_path(self, rom_id: int | str) -> str:
         """Return the per-ROM cover cache path for *rom_id*."""
@@ -290,7 +295,9 @@ class ArtworkService:
             return None, stored_source
         if self._cover_art_file_store.exists(cache_path):
             return cache_path, stored_source
-        if seedable and app_id is not None:
+        # The grid file holds the case image once case art was published, so it
+        # cannot seed the plain cover cache then.
+        if seedable and app_id is not None and not self._cover_choice.do_has_case_cover(rom_id):
             final = os.path.join(grid, final_filename(app_id))
             if self._cover_art_file_store.exists(final) and self._seed_cache(final, cache_path):
                 return cache_path, stored_source
@@ -366,8 +373,9 @@ class ArtworkService:
         )
         if adoptions:
             await self._loop.run_in_executor(None, self._adopt_cover_sources_io, adoptions)
+        restyled = await self._loop.run_in_executor(None, self._restyle_covers_io, all_roms, registry, changed)
         if not changed:
-            return []
+            return restyled
 
         self._cover_art_file_store.make_dirs(self._cover_cache_dir)
         grid = self._steam_config.grid_dir()
@@ -397,7 +405,38 @@ class ArtworkService:
                 refreshed.append({"rom_id": rom_id, "app_id": app_id})
         if refreshed:
             self._logger.info(f"Cover refresh: {len(refreshed)} of {total} changed cover(s) re-downloaded")
-        return refreshed
+        return refreshed + restyled
+
+    def _restyle_covers_io(
+        self,
+        all_roms: list[dict[str, Any]],
+        registry: dict[str, dict[str, Any]],
+        changed: list[tuple[int, int, str]],
+    ) -> list[dict[str, int]]:
+        """Republish the covers whose Steam tile shows the other cover style.
+
+        After the Game case / Plain cover setting changes, every bound ROM of the
+        unit that has case art gets its chosen cover copied onto the grid again and
+        returned as ``{rom_id, app_id}`` so the frontend re-applies the tile. ROMs
+        in *changed* are skipped: their refresh republishes them anyway.
+        """
+        skip = {rom_id for rom_id, _, _ in changed}
+        bound = {
+            int(rom["id"]): int(entry["app_id"])
+            for rom in all_roms
+            if "id" in rom and (entry := registry.get(str(rom["id"]))) and entry.get("app_id")
+        }
+        candidates = self._cover_choice.do_restyle_candidates([r for r in bound if r not in skip])
+        grid = self._steam_config.grid_dir()
+        restyled: list[dict[str, int]] = []
+        for rom_id in candidates:
+            if grid:
+                self.finalize_cover_path(grid, self._cache_path(rom_id), bound[rom_id], str(rom_id))
+            self._cover_choice.do_mark_published(rom_id)
+            restyled.append({"rom_id": rom_id, "app_id": bound[rom_id]})
+        if restyled:
+            self._logger.info(f"Cover style: {len(restyled)} cover(s) re-applied after the style changed")
+        return restyled
 
     def _scan_cover_refresh_candidates(
         self, all_roms: list[dict[str, Any]], registry: dict[str, dict[str, Any]]
@@ -631,7 +670,10 @@ class ArtworkService:
     # ── Artwork finalisation ───────────────────────────────────────────────
 
     def finalize_cover_path(self, grid: str | None, cover_path: str, app_id: int, rom_id_str: str) -> str:
-        """Publish the per-ROM cache cover onto the grid as ``{app_id}p.png``.
+        """Publish the ROM's chosen cover onto the grid as ``{app_id}p.png``.
+
+        The chosen cover is the Game case image when ``cover_choice`` says so,
+        else the per-ROM cache cover.
 
         Copies (never renames) the cache cover so the per-ROM cache file
         survives — the group's siblings each keep their own cover even though
@@ -645,9 +687,10 @@ class ArtworkService:
         final_path = os.path.join(grid, final_filename(app_id))
         if not self._cover_art_file_store.exists(cover_path):
             return final_path if self._cover_art_file_store.exists(final_path) else cover_path
-        if cover_path != final_path:
+        source = self._cover_choice.do_choose_cover_path(rom_id_str, cover_path)
+        if source != final_path:
             try:
-                self._copy_atomic(cover_path, final_path)
+                self._copy_atomic(source, final_path)
             except OSError as e:
                 self._logger.warning(f"Failed to copy artwork for rom {rom_id_str}: {e}")
         return cover_path
@@ -712,7 +755,8 @@ class ArtworkService:
         Resolution order: the in-flight sync's pending cover path → the ROM
         row's persisted ``cover_path`` (a cache path, or a legacy grid path —
         read as-is) → the per-ROM cache file → a legacy staging file → the grid
-        ``{app_id}p.png`` fallback.
+        ``{app_id}p.png`` fallback. Whatever is found, ``cover_choice`` may put
+        the ROM's Game case image in its place.
         """
         # 1. Pending sync data (in-flight sync's staged cache path)
         pending = self._get_pending_sync().get(rom_id, {})
@@ -741,6 +785,7 @@ class ArtworkService:
             if fallback:
                 cover_path = fallback
 
+        cover_path = self._cover_choice.do_choose_cover_path(rom_id, cover_path)
         if cover_path and self._cover_art_file_store.exists(cover_path):
             b64 = await self._read_base64(cover_path)
             if b64 is not None:

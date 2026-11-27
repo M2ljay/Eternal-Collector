@@ -17,6 +17,7 @@ import pytest
 # conftest.py patches decky before this import; use _make_testable_plugin for test-only attrs
 from _factories import _make_testable_plugin
 from fakes.fake_core_info_provider import FakeCoreInfoProvider
+from fakes.fake_cover_choice import FakeCoverChoice
 from fakes.fake_disc_resolver import FakeDiscResolver
 from fakes.fake_launch_command_renderer import FakeLaunchCommandRenderer
 from fakes.fake_platform_core_reader import FakePlatformCoreReader
@@ -88,6 +89,7 @@ def plugin(tmp_path):
             logger=decky.logger,
             get_pending_sync=dict,
             uow_factory=FakeUnitOfWorkFactory(uow=uow),
+            cover_choice=FakeCoverChoice(),
         ),
     )
     p._artwork_service = artwork_service

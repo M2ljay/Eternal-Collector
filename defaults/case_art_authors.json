@@ -1,0 +1,23 @@
+{
+  "_comment": "SteamGridDB authors whose grids are made as retail game cases, per RomM platform slug. Grids by these authors rank first when the cover style is Game case. Match is by author steam64 when given, else by author name (case-insensitive). The slug \"*\" applies to every platform. Edit by hand and rebuild; see defaults/README.md for sources. Platforms with no verified entry stay empty.",
+  "platforms": {
+    "ngc": [{ "name": "Castcoder", "steam64": null }],
+    "gamecube": [{ "name": "Castcoder", "steam64": null }],
+    "psp": [{ "name": "Castcoder", "steam64": null }],
+    "ps2": [],
+    "psx": [],
+    "wii": [],
+    "nds": [],
+    "3ds": [],
+    "n3ds": [],
+    "switch": [],
+    "xbox": [],
+    "ps3": [],
+    "dc": [],
+    "saturn": [],
+    "n64": [],
+    "snes": [],
+    "nes": [],
+    "gba": []
+  }
+}

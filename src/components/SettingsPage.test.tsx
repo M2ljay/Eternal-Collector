@@ -1813,6 +1813,37 @@ describe("SettingsPage", () => {
       expect(capturedLibrary[capturedLibrary.length - 1]?.namingMode).toBe("merge");
     });
 
+    it("hydrates coverStyle from getSettings and defaults it to case", async () => {
+      render(<SettingsPage onBack={vi.fn()} />);
+      await flushAsync();
+      expect(capturedSgdb[capturedSgdb.length - 1]?.coverStyle).toBe("case");
+      vi.mocked(backend.getSettings).mockResolvedValue({ ...defaultSettings(), cover_style: "plain" });
+      render(<SettingsPage onBack={vi.fn()} />);
+      await flushAsync();
+      expect(capturedSgdb[capturedSgdb.length - 1]?.coverStyle).toBe("plain");
+    });
+
+    it("onCoverStyleChange persists via setCoverStyle, and reverts when refused", async () => {
+      vi.mocked(backend.setCoverStyle).mockResolvedValueOnce({ success: true });
+      render(<SettingsPage onBack={vi.fn()} />);
+      await flushAsync();
+      await act(async () => {
+        capturedSgdb[capturedSgdb.length - 1]?.onCoverStyleChange("plain");
+        await Promise.resolve();
+      });
+      expect(vi.mocked(backend.setCoverStyle)).toHaveBeenCalledWith("plain");
+      expect(capturedSgdb[capturedSgdb.length - 1]?.coverStyle).toBe("plain");
+
+      vi.mocked(backend.setCoverStyle).mockRejectedValueOnce(new Error("boom"));
+      await act(async () => {
+        capturedSgdb[capturedSgdb.length - 1]?.onCoverStyleChange("case");
+        await Promise.resolve();
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+      expect(capturedSgdb[capturedSgdb.length - 1]?.coverStyle).toBe("plain");
+    });
+
     it("hydrates nameStyle from getSettings and defaults it to classic", async () => {
       vi.mocked(backend.getSettings).mockResolvedValue({ ...defaultSettings(), collection_name_style: "clean" });
       render(<SettingsPage onBack={vi.fn()} />);

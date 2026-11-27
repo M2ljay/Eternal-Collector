@@ -1,8 +1,9 @@
-import { FC, useState } from "react";
+import { FC } from "react";
 import { Focusable, Navigation } from "@decky/ui";
 import type { ConsoleGame } from "../../types";
 import type { MediaKind } from "../../utils/consoleMedia";
 import { relativePlayed } from "../../utils/relativePlayed";
+import { CapsuleArt } from "./CapsuleArt";
 
 export interface Chip {
   text: string;
@@ -42,22 +43,6 @@ function scrollIntoPage(target: EventTarget | null): void {
   if (target instanceof HTMLElement) target.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "nearest" });
 }
 
-/** Steam's own cover for a shortcut, filled by the plugin's artwork; the title stands in when it is missing. */
-const CoverArt: FC<{ appId: number; name: string }> = ({ appId, name }) => {
-  const sources = [`/customimages/${appId}p.png`, `/customimages/${appId}p.jpg`];
-  const [attempt, setAttempt] = useState(0);
-  if (attempt >= sources.length) return <div className="tc-case__fallback">{name}</div>;
-  return (
-    <img
-      className="tc-case__art"
-      src={sources[attempt]}
-      alt=""
-      loading="lazy"
-      onError={() => setAttempt((n) => n + 1)}
-    />
-  );
-};
-
 /** One game drawn in its console's media; A opens the game page the plugin already owns. */
 export const GameCase: FC<{
   game: ConsoleGame;
@@ -81,7 +66,12 @@ export const GameCase: FC<{
       onGamepadFocus={(e) => scrollIntoPage(e.currentTarget)}
     >
       <div className="tc-case__shell">
-        <CoverArt appId={game.app_id} name={game.name} />
+        <CapsuleArt
+          key={game.app_id}
+          appId={game.app_id}
+          className="tc-case__art"
+          fallback={<div className="tc-case__fallback">{game.name}</div>}
+        />
       </div>
       <div className="tc-case__name">{game.name}</div>
       <div className="tc-case__meta">

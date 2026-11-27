@@ -29,6 +29,7 @@ import {
   saveInstalledRomsCollection,
   setCollectionNamingMode,
   setCollectionNameStyle,
+  setCoverStyle as saveCoverStyle,
   getOwnedSteamCollections,
   getKnownRegions,
   fixRetroarchInputDriver,
@@ -61,6 +62,7 @@ import { pendingEdits } from "./settings/TextInputModal";
 import { SaveSortMigrationSection } from "./settings/SaveSortMigrationSection";
 import { ConnectionSection } from "./settings/ConnectionSection";
 import { SteamGridDBSection } from "./settings/SteamGridDBSection";
+import type { CoverStyle } from "../utils/caseArt";
 import { SaveSyncSection } from "./settings/SaveSyncSection";
 import { RegisteredDevicesSection } from "./settings/RegisteredDevicesSection";
 import { ControllerSection } from "./settings/ControllerSection";
@@ -133,6 +135,7 @@ export const SettingsPage: FC<SettingsPageProps> = ({ onBack }) => {
   // Steam-collection naming mode (#1539): "merge" (default) or "by_label".
   const [namingMode, setNamingMode] = useState<CollectionNamingMode>("merge");
   const [nameStyle, setNameStyle] = useState<CollectionNameStyle>("classic");
+  const [coverStyle, setCoverStyle] = useState<CoverStyle>("case");
   const [yieldedCollections, setYieldedCollections] = useState<OwnedSteamCollection[]>([]);
 
   useEffect(() => {
@@ -154,6 +157,7 @@ export const SettingsPage: FC<SettingsPageProps> = ({ onBack }) => {
         setRaWebConfigured(!!s.ra_web_api_key_masked);
         setNamingMode(s.collection_naming_mode ?? "merge");
         setNameStyle(s.collection_name_style ?? "classic");
+        setCoverStyle(s.cover_style ?? "case");
         if (s.retroarch_input_check) {
           setRetroarchWarning(s.retroarch_input_check);
         }
@@ -613,6 +617,21 @@ export const SettingsPage: FC<SettingsPageProps> = ({ onBack }) => {
     );
   };
 
+  const handleCoverStyleChange = (style: CoverStyle) => {
+    const previous = coverStyle;
+    setCoverStyle(style);
+    detach(
+      (async () => {
+        try {
+          const result = await saveCoverStyle(style);
+          if (!result.success) setCoverStyle(previous);
+        } catch {
+          setCoverStyle(previous);
+        }
+      })(),
+    );
+  };
+
   // --- Save sort migration handlers ---
   const handleMigrateSaveSort = async () => {
     setSaveSortMigrating(true);
@@ -681,7 +700,13 @@ export const SettingsPage: FC<SettingsPageProps> = ({ onBack }) => {
           detach(handleSignOut());
         }}
       />
-      <SteamGridDBSection sgdbApiKey={sgdbApiKey} onVerifyKey={verifySgdbApiKey} onSaveKey={handleSaveSgdbKey} />
+      <SteamGridDBSection
+        sgdbApiKey={sgdbApiKey}
+        onVerifyKey={verifySgdbApiKey}
+        onSaveKey={handleSaveSgdbKey}
+        coverStyle={coverStyle}
+        onCoverStyleChange={handleCoverStyleChange}
+      />
       <SaveSyncSection
         saveSyncSettings={saveSyncSettings}
         saveSyncToggleKey={saveSyncToggleKey}

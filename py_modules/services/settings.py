@@ -16,6 +16,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, ClassVar
 
+from domain.case_art import COVER_STYLE_SETTING, COVER_STYLES, cover_style
 from domain.sibling_resolution import AUTO_REGION
 from lib.list_result import ErrorCode
 from lib.url_host import is_valid_server_url
@@ -113,6 +114,7 @@ class SettingsService:
             "preferred_region": self._settings.get("preferred_region", AUTO_REGION),
             "retroachievements_warning": self._settings.get("retroachievements_warning", True),
             "collector_home_shelf": self._settings.get("collector_home_shelf", True),
+            "cover_style": cover_style(self._settings),
             "ra_web_username": self._settings.get("ra_web_username", ""),
             "ra_web_api_key_masked": _MASK_PLACEHOLDER if self._settings.get("ra_web_api_key") else "",
         }
@@ -318,6 +320,21 @@ class SettingsService:
         if style not in ("classic", "clean"):
             return {"success": False, "reason": "invalid_style", "message": f"Invalid collection name style: {style}"}
         self._settings["collection_name_style"] = style
+        self._settings_persister.save_settings()
+        return {"success": True}
+
+    def set_cover_style(self, style: object) -> dict[str, Any]:
+        """Validate and persist the portrait cover style (``"case"`` / ``"plain"``).
+
+        ``"case"`` (the default) puts a SteamGridDB game-case grid on each ROM's
+        portrait capsule where one is found; ``"plain"`` keeps the RomM cover.
+        Covers already on Steam change on the next artwork refresh or sync. An
+        unrecognised value from the untrusted frontend wire is rejected with the
+        canonical failure shape.
+        """
+        if style not in COVER_STYLES:
+            return {"success": False, "reason": "invalid_style", "message": f"Invalid cover style: {style}"}
+        self._settings[COVER_STYLE_SETTING] = style
         self._settings_persister.save_settings()
         return {"success": True}
 

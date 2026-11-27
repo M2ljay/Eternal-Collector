@@ -97,13 +97,21 @@ class TestGetConsoleShelf:
         )
         result = service.get_console_shelf()
         assert result["consoles"] == [
-            {"platform_slug": "ngc", "name": "GameCube", "game_count": 1, "last_played": _ago(1), "play_seconds": 3600},
+            {
+                "platform_slug": "ngc",
+                "name": "GameCube",
+                "game_count": 1,
+                "last_played": _ago(1),
+                "play_seconds": 3600,
+                "cover_app_id": 5003,
+            },
             {
                 "platform_slug": "ps2",
                 "name": "PlayStation 2",
                 "game_count": 2,
                 "last_played": _ago(700),
                 "play_seconds": 360000,
+                "cover_app_id": 5001,
             },
         ]
         assert logs == ["Console shelf: 2 consoles from 3 games"]

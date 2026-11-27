@@ -500,6 +500,54 @@ export const getSgdbArtworkBase64 = callable<
   { base64: string | null; no_api_key?: boolean; prune_lease_token?: string }
 >("get_sgdb_artwork_base64");
 
+/** One SteamGridDB grid the user may choose as a ROM's case cover, best first. */
+export interface CaseArtGrid {
+  id: number;
+  thumb: string;
+  width: number;
+  height: number;
+  author: string;
+  score: number;
+  /** By an author in the curated case-template list for this platform. */
+  curated: boolean;
+}
+
+export type CaseArtList =
+  | { success: true; grids: CaseArtGrid[]; selected_grid_id: number | null }
+  | { success: false; reason: string; message: string };
+
+/** What get_case_art_source tells the frontend to do with the portrait capsule. */
+export type CaseArtSource =
+  | { success: true; state: "plain" }
+  | { success: true; state: "none"; reason?: string }
+  | { success: true; state: "current"; grid_id: number }
+  | { success: true; state: "cached"; grid_id: number; base64: string; prune_lease_token?: string }
+  | {
+      success: true;
+      state: "fetched";
+      grid_id: number;
+      width: number;
+      height: number;
+      manual: boolean;
+      base64: string;
+      prune_lease_token?: string;
+    }
+  | { success: false; reason: string; message: string };
+
+export const listCaseArt = callable<[number], CaseArtList>("list_case_art");
+// Args: rom_id, a chosen grid id (null for the automatic pick), refresh.
+export const getCaseArtSource = callable<[number, number | null, boolean], CaseArtSource>("get_case_art_source");
+// Args: rom_id, grid id, the letterboxed 600x900 PNG as base64, whether the user chose it.
+export const saveCaseArt = callable<
+  [number, number, string, boolean],
+  { success: boolean; reason?: string; message?: string }
+>("save_case_art");
+// "case" (default) or "plain". Read via getSettings().cover_style; covers on Steam
+// change on the next artwork refresh or sync.
+export const setCoverStyle = callable<["case" | "plain"], { success: boolean; reason?: string; message?: string }>(
+  "set_cover_style",
+);
+
 /** A single SGDB game candidate for the manual picker. */
 export interface SgdbCandidate {
   id: number;

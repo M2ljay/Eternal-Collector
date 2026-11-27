@@ -287,6 +287,8 @@ async def test_action_report_rejects_stale_token_with_canonical_shape(harness):
         ("fetch_cover_base64", (41,)),
         ("get_sgdb_artwork_base64", (41, 0)),
         ("apply_sgdb_game_id", (41, 7)),
+        ("get_case_art_source", (41, None, False)),
+        ("save_case_art", (41, 7, "", False)),
         ("save_shortcut_icon", (0x80000001, "")),
         ("clear_sync_cache", ()),
         ("apply_steam_input_setting", ()),

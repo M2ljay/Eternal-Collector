@@ -11,6 +11,7 @@ from unittest.mock import AsyncMock, MagicMock
 import decky
 import pytest
 from fakes.fake_cover_art_file_store import FakeCoverArtFileStore
+from fakes.fake_cover_choice import FakeCoverChoice
 from fakes.fake_unit_of_work import FakeUnitOfWork, FakeUnitOfWorkFactory
 from models.cover import CoverRevalidation
 
@@ -175,6 +176,7 @@ def artwork_service(steam_config, file_store, romm_api, pending_sync_data, uow, 
             logger=decky.logger,
             get_pending_sync=lambda: pending_sync_data,
             uow_factory=FakeUnitOfWorkFactory(uow=uow),
+            cover_choice=FakeCoverChoice(),
         ),
     )
 
@@ -2316,3 +2318,109 @@ class TestAtomicWrites:
         assert file_store.files[cache] == b"cover data"  # cache survives
         assert file_store.files[final] == b"cover data"  # grid published
         assert _tmp(final) not in file_store.files  # no sidecar left behind
+
+
+# ── TestCoverChoice (Game case cover style) ───────────────────────────────────
+
+
+class TestCoverChoice:
+    """ArtworkService publishes and serves whatever ``cover_choice`` picks."""
+
+    _CASE = "/runtime/artwork/42_case.png"
+    _SRC = "/cover/big.png?ts=2026-01-01 00:00:00"
+
+    def _choose_case(self, artwork_service, restyle=None):
+        choice = FakeCoverChoice(case_paths={42: self._CASE}, restyle=restyle)
+        artwork_service._cover_choice = choice
+        return choice
+
+    def test_finalize_publishes_the_case_image_and_still_returns_the_cache_path(
+        self, artwork_service, file_store, cover_cache_dir, tmp_path
+    ):
+        self._choose_case(artwork_service)
+        cache = _cache(cover_cache_dir, 42)
+        file_store.files[cache] = b"plain"
+        file_store.files[self._CASE] = b"case"
+        grid = str(tmp_path / "grid")
+
+        assert artwork_service.finalize_cover_path(grid, cache, 99999, "42") == cache
+        assert file_store.files[os.path.join(grid, "99999p.png")] == b"case"
+        assert file_store.files[cache] == b"plain"
+
+    def test_finalize_without_case_art_publishes_the_plain_cover(
+        self, artwork_service, file_store, cover_cache_dir, tmp_path
+    ):
+        cache = _cache(cover_cache_dir, 42)
+        file_store.files[cache] = b"plain"
+        grid = str(tmp_path / "grid")
+        artwork_service.finalize_cover_path(grid, cache, 99999, "42")
+        assert file_store.files[os.path.join(grid, "99999p.png")] == b"plain"
+
+    @pytest.mark.asyncio
+    async def test_artwork_base64_serves_the_case_image(self, artwork_service, file_store, cover_cache_dir, uow):
+        import base64
+
+        self._choose_case(artwork_service)
+        cache = _cache(cover_cache_dir, 42)
+        file_store.files[cache] = b"plain"
+        file_store.files[self._CASE] = b"case"
+        _seed_rom(uow, 42, app_id=99999)
+        with uow:
+            rom = uow.roms.get(42)
+            rom.update_cover_path(cache)
+            uow.roms.save(rom)
+
+        result = await artwork_service.get_artwork_base64(42)
+        assert base64.b64decode(result["base64"]) == b"case"
+
+    def test_grid_holding_case_art_never_seeds_the_plain_cache(
+        self, artwork_service, file_store, cover_cache_dir, uow, tmp_path
+    ):
+        self._choose_case(artwork_service)
+        grid = str(tmp_path / "grid")
+        file_store.files[os.path.join(grid, "99999p.png")] = b"case on the grid"
+        _seed_rom(uow, 42, app_id=99999)
+        cache = _cache(cover_cache_dir, 42)
+
+        reuse, _ = artwork_service._resolve_cached_cover(42, cache, grid, self._SRC)
+        assert reuse is None
+        assert cache not in file_store.files
+
+    @pytest.mark.asyncio
+    async def test_a_style_switch_republishes_and_returns_the_tiles_to_reapply(
+        self, artwork_service, uow, steam_config, file_store, romm_api, cover_cache_dir, tmp_path
+    ):
+        grid = str(tmp_path / "grid")
+        steam_config.grid_dir.return_value = grid
+        choice = self._choose_case(artwork_service, restyle=[42])
+        file_store.files[_cache(cover_cache_dir, 42)] = b"plain"
+        file_store.files[self._CASE] = b"case"
+        _seed_rom(uow, 42, app_id=99999, cover_source=self._SRC)
+        _seed_rom(uow, 43, app_id=88888, cover_source=self._SRC)
+
+        refreshed = await artwork_service.refresh_changed_covers(
+            [
+                {"id": 42, "name": "Game", "path_cover_large": self._SRC},
+                {"id": 43, "name": "Other", "path_cover_large": self._SRC},
+            ],
+            _registry(uow),
+            emit_progress=_noop_emit_progress,
+            is_cancelling=_not_cancelling,
+        )
+
+        assert refreshed == [{"rom_id": 42, "app_id": 99999}]
+        assert file_store.files[os.path.join(grid, "99999p.png")] == b"case"
+        assert choice.published == [42]
+        romm_api.download_cover.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_no_style_switch_changes_nothing(self, artwork_service, uow, steam_config, file_store, tmp_path):
+        steam_config.grid_dir.return_value = str(tmp_path / "grid")
+        _seed_rom(uow, 42, app_id=99999, cover_source=self._SRC)
+        refreshed = await artwork_service.refresh_changed_covers(
+            [{"id": 42, "name": "Game", "path_cover_large": self._SRC}],
+            _registry(uow),
+            emit_progress=_noop_emit_progress,
+            is_cancelling=_not_cancelling,
+        )
+        assert refreshed == []

@@ -7,6 +7,7 @@ from unittest.mock import MagicMock
 # conftest.py patches decky before this import
 import decky
 import pytest
+from fakes.fake_cover_choice import FakeCoverChoice
 from fakes.fake_unit_of_work import FakeUnitOfWork, FakeUnitOfWorkFactory
 
 from adapters.steam_config import SteamConfigAdapter
@@ -440,6 +441,7 @@ def _artwork_integration_service(uow, steam_config, tmp_path) -> ShortcutRemoval
             logger=decky.logger,
             get_pending_sync=dict,
             uow_factory=FakeUnitOfWorkFactory(uow),
+            cover_choice=FakeCoverChoice(),
         ),
     )
     svc = ShortcutRemovalService(

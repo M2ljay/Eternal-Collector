@@ -242,6 +242,7 @@ class Plugin:
         self._rom_removal_service = services["rom_removal_service"]
         self._firmware_service = services["firmware_service"]
         self._sgdb_service = services["sgdb_service"]
+        self._case_art_service = services["case_art_service"]
         self._metadata_service = services["metadata_service"]
         self._achievements_service = services["achievements_service"]
         self._migration_service = services["migration_service"]
@@ -686,6 +687,9 @@ class Plugin:
 
     async def set_collection_name_style(self, style):
         return self._settings_service.set_collection_name_style(style)
+
+    async def set_cover_style(self, style):
+        return self._settings_service.set_cover_style(style)
 
     # ── The plugin's own Steam collections (ownership record) ──
 
@@ -1163,6 +1167,22 @@ class Plugin:
     @prune_active_blocked
     async def apply_sgdb_game_id(self, rom_id, sgdb_id):
         return await self._sgdb_service.apply_sgdb_game_id(rom_id, sgdb_id)
+
+    # ── Game case cover art (CaseArtService) ──────────────────
+
+    async def list_case_art(self, rom_id):
+        return await self._case_art_service.list_case_art(rom_id)
+
+    @prune_active_blocked
+    async def get_case_art_source(self, rom_id, grid_id=None, refresh=False):
+        result = await self._case_art_service.get_case_art_source(rom_id, grid_id, refresh)
+        if result.get("base64") is not None:
+            result["prune_lease_token"] = await acquire_prune_conflict_lease(self, "case_art")
+        return result
+
+    @prune_active_blocked
+    async def save_case_art(self, rom_id, grid_id, png_base64, manual=False):
+        return await self._case_art_service.save_case_art(rom_id, grid_id, png_base64, manual)
 
     # ── Metadata delegation to MetadataService ────────────────
 

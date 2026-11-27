@@ -902,6 +902,28 @@ describe("RomMPlaySection", () => {
       );
     });
 
+    it("decision=resolved re-downloads the case cover and says so when one is applied", async () => {
+      const items = await setupForArtworkAction();
+      vi.mocked(backend.getSgdbResolution).mockResolvedValue({ decision: "resolved", sgdb_id: 42 });
+      vi.mocked(backend.getSgdbArtworkBase64).mockResolvedValue({ base64: "AA==", no_api_key: false });
+      vi.mocked(backend.saveShortcutIcon).mockResolvedValue({ success: true, icon_path: "/grid/icon.png" });
+      vi.mocked(backend.getCaseArtSource).mockResolvedValue({
+        success: true,
+        state: "cached",
+        grid_id: 9,
+        base64: "Q0FTRQ==",
+      });
+      vi.mocked(toaster.toast).mockClear();
+      await act(async () => {
+        await items[0]!.props.onClick?.();
+      });
+      expect(vi.mocked(backend.getCaseArtSource)).toHaveBeenCalledWith(77, null, true);
+      expect(vi.mocked(SteamClient.Apps.SetCustomArtworkForApp)).toHaveBeenCalledWith(testAppId, "Q0FTRQ==", "png", 0);
+      expect(vi.mocked(toaster.toast)).toHaveBeenCalledWith(
+        expect.objectContaining({ body: "Artwork refreshed with a game case cover (4/4 other images applied)" }),
+      );
+    });
+
     it("decision=resolved with all-null artwork → toasts 'No artwork available for this game'", async () => {
       const items = await setupForArtworkAction();
       vi.mocked(backend.getSgdbResolution).mockResolvedValue({ decision: "resolved", sgdb_id: 42 });
@@ -3654,7 +3676,7 @@ describe("RomMPlaySection", () => {
   // ------------------------------------------------------------------
 
   describe("context menus", () => {
-    it("showRomMMenu yields 6 MenuItems + 1 separator (Refresh artwork/metadata/saves/bios + delete-saves + uninstall)", async () => {
+    it("showRomMMenu yields 7 MenuItems + 1 separator (Refresh artwork/metadata/saves/bios + Choose artwork + delete-saves + uninstall)", async () => {
       vi.mocked(cachedStore.getCachedGameDetail).mockResolvedValue({
         found: true,
         rom_id: 42,
@@ -3662,10 +3684,25 @@ describe("RomMPlaySection", () => {
       render(<RomMPlaySection appId={testAppId} />);
       await flushAsync();
       const items = await openRomMMenuAndGetItems(testAppId);
-      expect(items).toHaveLength(6);
+      expect(items).toHaveLength(7);
+      expect(items[4]!.key).toBe("choose-artwork");
       // tone="destructive" on the delete-saves + uninstall ones.
       const destructive = items.filter((i) => i.props.tone === "destructive");
       expect(destructive).toHaveLength(2);
+    });
+
+    it("Choose artwork… opens the case art picker for this ROM", async () => {
+      vi.mocked(cachedStore.getCachedGameDetail).mockResolvedValue({ found: true, rom_id: 42 });
+      render(<RomMPlaySection appId={testAppId} />);
+      await flushAsync();
+      const items = await openRomMMenuAndGetItems(testAppId);
+      vi.mocked(showModal).mockClear();
+      act(() => {
+        items.find((i) => i.key === "choose-artwork")!.props.onClick?.();
+      });
+      const modal = vi.mocked(showModal).mock.calls[0]?.[0] as ReactElement<{ romId: number; appId: number }>;
+      expect(modal.props.romId).toBe(42);
+      expect(modal.props.appId).toBe(testAppId);
     });
 
     async function setupCoreMenuStructure(extractCore: ReturnType<typeof playSectionUtils.extractCoreInfo>) {

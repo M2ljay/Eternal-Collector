@@ -155,11 +155,11 @@ named `<game>_<date>_<id>`, and its `README.txt` lists every game the bundle cov
 copied file with the exact path to put it back, the playtime in hours and minutes, and the steps to restore by hand
 starting with `sha256sum -c checksums.sha256`. The recovery folder itself carries a `README.txt` explaining what it is.
 
-A synced vanished row carries a crimson trash icon at its right edge in the version picker, and activating that row opens
-the same confirmation scoped to that one version. A synced singleton vanished binding shows the same trash action as a
-single button, without opening an otherwise empty picker. The vanished version itself remains non-switchable either way
-— selecting it can only ever start the cleanup, never rebind the shortcut to it. A vanished version with no local data
-to remove stays listed and disabled, with no trash icon.
+A synced vanished row carries a crimson trash icon at its right edge in the version picker, and activating that row
+opens the same confirmation scoped to that one version. A synced singleton vanished binding shows the same trash action
+as a single button, without opening an otherwise empty picker. The vanished version itself remains non-switchable either
+way — selecting it can only ever start the cleanup, never rebind the shortcut to it. A vanished version with no local
+data to remove stays listed and disabled, with no trash icon.
 
 While a cleanup runs, the Danger Zone shows a progress bar under the entry point — the game being worked on, the phase
 in words (checking with RomM, backing up, backup complete, updating or removing the Steam shortcut, removing local data,
@@ -498,8 +498,7 @@ uninstaller, per-DLC executables, or a bundled Linux launcher/patcher script (a 
 [Bundled Linux launcher scripts](#bundled-linux-launcher-scripts) below). When an installed native-Windows game has more
 than one, a small **picker icon** (a Windows logo) appears on its detail page, right next to the Play button — in the
 same spot the disc and version pickers occupy for other games. Its color shows whether you've made a pick: neutral means
-the plugin is using its default (the first one it finds, alphabetically), crimson means you've pinned a specific
-one.
+the plugin is using its default (the first one it finds, alphabetically), crimson means you've pinned a specific one.
 
 To change it:
 
@@ -581,8 +580,21 @@ once your RomM server has a SteamGridDB id for that game, that id takes over. Be
 resolved id, you can change it any time: just tap **Refresh Artwork** again and the picker reopens. To pin a specific
 match for good, set the SteamGridDB id on the game in RomM.
 
-The full set of per-game actions — refresh artwork, refresh metadata, sync save files, download BIOS, and uninstall — is
-available from the RomM Actions menu in the game detail panel.
+With **Cover style** set to **Game case** (the default, see [Cover style](configuration.md#cover-style)), **Refresh
+Artwork** also downloads the game's case cover again and puts it on the portrait cover. With **Plain cover**, it puts
+the RomM cover back. The hero banner, logo, wide grid and icon are never replaced by case art.
+
+### Choosing a game's cover
+
+**Choose artwork…** in the RomM Actions menu lists every portrait picture SteamGridDB has for the game, best case cover
+first, each shown in the 2:3 frame it will have in your library. Authors known for case templates are marked "case
+template", and the picture in use is marked "in use". Move with the D-pad and press **A** to use one; it is fitted to
+Steam's cover shape with black bars, never stretched. Your choice is kept: syncs and the automatic case cover leave it
+alone, and **Refresh Artwork** downloads the same picture again. If the list says no SteamGridDB game is known yet, tap
+**Refresh Artwork** first so the plugin can find the game.
+
+The full set of per-game actions — refresh artwork, choose artwork, refresh metadata, sync save files, download BIOS,
+and uninstall — is available from the RomM Actions menu in the game detail panel.
 
 ![RomM Actions context menu with Refresh Artwork, Sync Save Files, Download BIOS, and Uninstall entries](../assets/screenshot-actions.jpg)
 

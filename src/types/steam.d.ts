@@ -127,6 +127,10 @@ declare var collectionStore: {
 declare var appStore: {
   GetAppOverviewByAppID(appId: number): SteamAppOverview | null;
   allApps: SteamAppOverview[];
+  // The URLs Steam's own library capsules load (typed in @decky/ui's globals).
+  // Optional: a Steam build may rename them, so every caller checks first.
+  GetCustomVerticalCapsuleURLs?(overview: SteamAppOverview): string[];
+  GetVerticalCapsuleURLForApp?(overview: SteamAppOverview): string;
 };
 
 // `SteamUIStore` — a Steam SP global, genuinely absent (hence `undefined`) or

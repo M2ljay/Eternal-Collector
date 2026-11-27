@@ -7,12 +7,16 @@ Steam's tree, and what keeps a failure from ever breaking Home. The user-facing 
 
 ## What is drawn
 
-- **Home row** — "The Collector": one tile per console that has games in Steam, drawn as a CSS stack of its media (DVD
-  keep cases spine-out for PS2, GameCube boxes, jewel cases for CD consoles, SNES and N64 cartridges, small carts for
-  handhelds, a generic keep case for anything else; `src/utils/consoleMedia.ts`). Each tile shows the console name, the
-  game count and when it was last played. No logos, no artwork, no individual games. The focused tile is gunmetal
-  with a crimson ring, lifted 6 px. Colours come from the Core palette in `src/theme/coreTokens.ts` (black, gunmetal,
-  crimson, steel), shared with the QAM panel and the game detail page.
+- **Home row** — "The Collector": one portrait capsule per console that has games in Steam, on the lines of Steam's own
+  Recent games row (see [Lining up with Recent games](#lining-up-with-recent-games)). A capsule shows the Steam capsule
+  art of the console's **cover game** — its "Continue" game, else its first game by name (`cover_app_id`) — over a CSS
+  stack of the console's media (DVD keep cases spine-out for PS2, GameCube boxes, jewel cases for CD consoles, SNES and
+  N64 cartridges, small carts for handhelds, a generic keep case for anything else; `src/utils/consoleMedia.ts`), which
+  is what remains visible when the game has no art. A capsule carries no text of its own: the console's name fades in
+  along the bottom only while the capsule has focus, and Home shows **no game count and no "last played" time or date**
+  anywhere (the console page, a separate route, still shows them per game). The focused capsule scales up 5 % with a
+  crimson ring. Colours come from the Core palette in `src/theme/coreTokens.ts` (black, gunmetal, crimson, steel),
+  shared with the QAM panel and the game detail page.
 - **Console page** — route `/the-collector/console/:slug`. The console's games in its media style, "Continue" (the most
   recently played game of that console) first, then every other game by name in rows of six, paged 100 at a time with a
   "Show more" button. Each game shows when it was last played, whether it is downloaded, its save-sync chip and its
@@ -35,14 +39,32 @@ Steam.
 
 Everything the Home row and the console page show is read from this device's own records:
 
-| Shown                 | Source                                                                                                                                        |
-| --------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
-| Consoles, game counts | bound ROMs (`roms.shortcut_app_id IS NOT NULL`) grouped by `platform_slug`; names from the `platform_names` cache                             |
-| Last played, ranking  | `rom_playtime`                                                                                                                                |
-| Save-sync chip        | `rom_save_sync_states` through `compute_save_sync_display`, the same cached display the game page shows before its live check                 |
-| Downloaded            | `rom_installs`                                                                                                                                |
-| Achievements chip     | the achievement snapshot (`rom_achievement_progress`), see below                                                                              |
-| Cover art             | Steam's own `/customimages/<appId>p.png` (then `.jpg`), which the plugin's artwork fills; the title is printed on the case when neither loads |
+| Shown                 | Source                                                                                                                              |
+| --------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| Consoles, game counts | bound ROMs (`roms.shortcut_app_id IS NOT NULL`) grouped by `platform_slug`; names from the `platform_names` cache                   |
+| Last played, ranking  | `rom_playtime`                                                                                                                      |
+| Save-sync chip        | `rom_save_sync_states` through `compute_save_sync_display`, the same cached display the game page shows before its live check       |
+| Downloaded            | `rom_installs`                                                                                                                      |
+| Achievements chip     | the achievement snapshot (`rom_achievement_progress`), see below                                                                    |
+| Home capsule game     | `cover_app_id`: the shortcut of the console's first game in console-page order                                                      |
+| Cover art             | Steam's own capsule URLs for the shortcut (`src/utils/steamCapsuleArt.ts`, below); the title is printed on the case when none loads |
+
+### Cover art
+
+The Home capsules and the console page's cases load exactly what Steam's library shows for the shortcut, from Steam's
+`appStore`, tried in order (`capsuleArtSources`):
+
+1. `appStore.GetCustomVerticalCapsuleURLs(overview)` — the custom grid art with the `?v=<rt_custom_image_mtime>`
+   cache-buster Steam's own capsules carry. The plugin's cover lands there through `SetCustomArtworkForApp`.
+2. `/customimages/<appId>p.png`, then `.jpg`, with the same cache-buster — the grid files themselves. The backend writes
+   the cached RomM cover to `<appId>p.png` as well, so this is the plugin's already-cached cover, reached without a
+   backend call.
+3. `appStore.GetVerticalCapsuleURLForApp(overview)` — anything else Steam would draw.
+
+Under the Game case cover style this is the ROM's case art, which the plugin puts on the same portrait capsule
+([Game case covers](steam-non-steam-shortcuts.md#game-case-covers)); the shelf itself never fetches or chooses art. Each
+source that fails to load moves to the next. The lookup is synchronous and local, so it is safe on the Home render path;
+nothing fetches a cover from RomM there.
 
 `ConsoleShelfService` (`services/console_shelf.py`) builds both payloads in one short read unit of work each and is
 declared read-only in `scripts/check_read_only_module.py`. The callables `get_console_shelf` and
@@ -94,6 +116,33 @@ The shelf is a real child of Steam's Home tree, so Steam's gamepad focus reaches
 Recent games, left and right along the tiles, down to the next row. The tiles sit in a `Focusable` with
 `flow-children="row"`, and a focused tile scrolls itself into view.
 
+### Lining up with Recent games
+
+The row takes its geometry from Steam's own Recent games row as Steam rendered it (`src/utils/steamRowGeometry.ts`).
+Because the patch inserts the shelf as that row's next sibling, the row's element is the shelf's
+`previousElementSibling`. After mount, on window resize, when the row resizes and twice more while Steam's capsules
+load, the shelf measures it:
+
+- **left inset** — the left edge of the row's first image, from the row's own left edge;
+- **capsule height and gap** — the median height of the row's portrait images (ratio 1.2 to 1.8) and the smallest gap
+  between them; the shelf's capsules take that height at a 2:3 ratio;
+- **vertical rhythm** — the space above the row's title (or its capsules), between title and capsules, and under the
+  capsules;
+- **title type** — font family, size, weight, line height, letter spacing and case of the row's title, which is the
+  first short text before its first image; when Recent games has no title, the same is read from the next rows on Home.
+
+The numbers go into CSS variables on the shelf's own section (`--tc-inset`, `--tc-capsule-h`, …). Measuring reads
+bounding boxes and computed styles only and writes nothing to Steam's elements. When nothing can be measured (no
+portrait image found, or an exception) the shelf uses its own fallback geometry, a 240 px 2:3 capsule with a 24 px
+inset, and `data-geometry="fallback"` on the section says so. Copying Steam's classes was not taken: they are hashed per
+build, and Steam's carousel sizes its tiles in JavaScript, so a class carries neither a stable name nor the size. The
+shelf no longer relies on a CSS Loader theme for its spacing.
+
+Focus follows Steam's: the capsules sit in a `Focusable` with `flow-children="row"`, so the D-pad moves down from Recent
+games into the row and on to the next row. A focused capsule scrolls to the nearest edge, kept clear of the inset by
+`scroll-padding-inline`, and the scrolling row carries 16 px of padding (given back by a negative margin) so the focus
+ring and scale are not clipped.
+
 ### Roads not taken
 
 - **A DOM mount with its own React root or a portal, and patching `FocusNavController`** (Deck Shelves' main shelves).
@@ -120,7 +169,7 @@ Recent games, left and right along the tiles, down to the next row. The tiles si
 6. `onDismount` removes the route patch, the console page route and the store's listeners; a plugin reload or uninstall
    restores Steam's Home.
 7. No Steam class names are used: the stylesheet is the plugin's own, `tc-` prefixed, rendered by the row and the page
-   themselves.
+   themselves. Steam's row geometry is read from its rendered boxes, never by writing to them.
 
 ### Diagnostics
 
@@ -141,4 +190,6 @@ matchers and the descent depth are adjusted from.
 | `py_modules/services/achievements.py`           | Writes the achievement snapshot                                |
 | `src/patches/homeShelfPatch.tsx`                | The Home route patch, matchers, watchdog, diagnostics          |
 | `src/utils/consoleShelfStore.ts`                | The Home row's store and its refresh triggers                  |
+| `src/utils/steamCapsuleArt.ts`                  | The capsule art URLs Steam's library uses for a shortcut       |
+| `src/utils/steamRowGeometry.ts`                 | Measures Steam's Recent games row for the shelf's geometry     |
 | `src/components/collector/`                     | Row, tile, media stacks, console page, game cases, stylesheet  |

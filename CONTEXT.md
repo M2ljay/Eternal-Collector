@@ -386,26 +386,25 @@ answer. A ROM with a set but no row has "no progress yet". It is only as fresh a
 The **achievement journal** is the user's own layer per RetroAchievements game (the `RaGameJournal` aggregate, keyed by
 `roms.ra_id`, not by a ROM): free-text **notes** and **goals**. A **goal** is an achievement the user pinned; it is
 **unlocked** (ticked off) once an unlock is seen in RomM's progress data or RetroAchievements' Web API, and an unlock
-only moves forward (softcore may become hardcore, never back). The **unlock timeline** is the user's unlocks across games
-read from RetroAchievements' Web API, which needs the **RetroAchievements Web API key** the user stores in The
+only moves forward (softcore may become hardcore, never back). The **unlock timeline** is the user's unlocks across
+games read from RetroAchievements' Web API, which needs the **RetroAchievements Web API key** the user stores in The
 Collector's settings — never an emulator's RetroAchievements login.
 
 ### Mod target / mod backup
 
-A **mod target** is one place a game's mods go under the emulator it launches with (`domain/game_mods.py`
-`ModTarget`): a **game** folder named by the game's own identifier (`Load\Textures\GALE01`), a **shared** folder every
-game of the emulator reads (`Load\GraphicMods`), or a **soft patch** beside the ROM (`<ROM stem>.ips`). A target exists
-only when the emulator's folder and the game's identifier were both read exactly; otherwise the game has "no known mod
-folder". A **mod backup** is where the Mods panel moves what an install replaces or a removal takes away, and the ini
-before a setting edit: `romm-mod-backups\<stamp>\<target>` inside the emulator's own data folder. Nothing in the
-feature deletes.
+A **mod target** is one place a game's mods go under the emulator it launches with (`domain/game_mods.py` `ModTarget`):
+a **game** folder named by the game's own identifier (`Load\Textures\GALE01`), a **shared** folder every game of the
+emulator reads (`Load\GraphicMods`), or a **soft patch** beside the ROM (`<ROM stem>.ips`). A target exists only when
+the emulator's folder and the game's identifier were both read exactly; otherwise the game has "no known mod folder". A
+**mod backup** is where the Mods panel moves what an install replaces or a removal takes away, and the ini before a
+setting edit: `romm-mod-backups\<stamp>\<target>` inside the emulator's own data folder. Nothing in the feature deletes.
 
 ### Fork build / release channel / kept build
 
 A **fork build** is a Windows build of this fork, versioned `X.Y.Z-win.N`; `N` counts fork builds of one upstream
 version and compares as a number. The **release channel** is the fork's `release` branch (`romm-dock.zip` +
-`update.json`) that a fork build updates itself from (`domain/plugin_release.py`). The **kept build** is the snapshot
-of the installed plugin folder taken before an update, which **Roll Back** reinstalls. Only a fork build on Windows uses
+`update.json`) that a fork build updates itself from (`domain/plugin_release.py`). The **kept build** is the snapshot of
+the installed plugin folder taken before an update, which **Roll Back** reinstalls. Only a fork build on Windows uses
 the channel; every other build is left to the Decky store.
 
 ### Install manifest / half-copied install / rescue mode
@@ -526,8 +525,15 @@ Applies on the next sync by renaming owned collections.
 A Steam collection the plugin made on this device, proven only by the **ownership record** — the `OwnedSteamCollection`
 aggregate (`owned_steam_collections`), keyed by Steam's collection id, one per source (`family` `platform` / `romm` /
 `installed` + case-folded source name; `installed` is the single **installed collection** of the shortcuts whose ROM is
-on this device). Never inferred from a name: a collection without a record is the **user's**, and the plugin
-never renames, refills or deletes it. When a source's wanted name is held by a user's collection, the plugin's
-collection takes a suffixed name (`<name> (RomM)`) and the record keeps the user's name in `yielded_to`. Pre-record
-collections are brought under the record once (**adoption**), by name plus proof (the `RomM:` prefix, or RomM-only
-contents).
+on this device). Never inferred from a name: a collection without a record is the **user's**, and the plugin never
+renames, refills or deletes it. When a source's wanted name is held by a user's collection, the plugin's collection
+takes a suffixed name (`<name> (RomM)`) and the record keeps the user's name in `yielded_to`. Pre-record collections are
+brought under the record once (**adoption**), by name plus proof (the `RomM:` prefix, or RomM-only contents).
+
+### Cover style / case art
+
+The **cover style** is what stands on a shortcut's portrait capsule: **Game case** (the default) or **Plain cover** (the
+RomM cover). **Case art** is a SteamGridDB grid drawn as the console's retail case, chosen per ROM by author, case shape
+and score, and letterboxed to Steam's 2:3 capsule. A ROM with no suitable grid shows its plain cover under either style.
+A **manual pick** is case art the user chose with Choose artwork…; automatic passes keep it. Hero, logo, wide grid and
+icon are never case art ([Game case covers](docs/architecture/steam-non-steam-shortcuts.md#game-case-covers)).

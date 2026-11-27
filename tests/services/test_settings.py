@@ -662,3 +662,25 @@ class TestSetCollectionNameStyle:
         assert "Invalid collection name style" in result["message"]
         assert "collection_name_style" not in settings
         settings_persister.save_settings.assert_not_called()
+
+
+class TestSetCoverStyle:
+    @pytest.mark.parametrize("style", ["case", "plain"])
+    def test_valid_styles_persist(self, service, settings, settings_persister, style):
+        assert service.set_cover_style(style) == {"success": True}
+        assert settings["cover_style"] == style
+        settings_persister.save_settings.assert_called_once_with()
+
+    @pytest.mark.parametrize("bad", ["glossy", "", None, 1])
+    def test_invalid_style_rejected_with_canonical_failure(self, service, settings, settings_persister, bad):
+        result = service.set_cover_style(bad)
+        assert result["success"] is False
+        assert result["reason"] == "invalid_style"
+        assert "Invalid cover style" in result["message"]
+        assert "cover_style" not in settings
+        settings_persister.save_settings.assert_not_called()
+
+    def test_get_settings_reports_game_case_by_default_and_the_stored_style(self, service, settings):
+        assert service.get_settings()["cover_style"] == "case"
+        settings["cover_style"] = "plain"
+        assert service.get_settings()["cover_style"] == "plain"

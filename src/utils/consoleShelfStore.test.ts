@@ -23,6 +23,7 @@ const ps2: ShelfConsole = {
   game_count: 14,
   last_played: "2026-11-26T20:00:00Z",
   play_seconds: 3600,
+  cover_app_id: 5001,
 };
 
 function answer(consoles: ShelfConsole[], enabled = true): ConsoleShelfAnswer {

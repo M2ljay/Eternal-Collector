@@ -24,6 +24,8 @@ import { VersionPicker } from "./VersionPicker";
 import { WarningCard } from "./WarningCard";
 import { SgdbGamePickerModalContent } from "./SgdbGamePickerModal";
 import { applyArtwork, cancelArtworkApply } from "../utils/artwork";
+import { applyCaseArt } from "../utils/caseArt";
+import { CaseArtPickerModalContent } from "./CaseArtPickerModal";
 import { hasAnySaveConflict } from "../utils/saveStatus";
 import { saveSyncToastBody } from "../utils/saveSyncToast";
 import { scrollToTop } from "../utils/scrollHelpers";
@@ -220,6 +222,7 @@ export const RomMPlaySection: FC<RomMPlaySectionProps> = ({ appId }) => { // NOS
     const romId = detail.romId;
     if (!romId || artworkApplied.get(appId) === romId) return;
     applyArtwork(romId, appId)
+      .then(() => applyCaseArt(romId, appId))
       .then(() => {
         artworkApplied.set(appId, romId);
       })
@@ -533,8 +536,11 @@ export const RomMPlaySection: FC<RomMPlaySectionProps> = ({ appId }) => { // NOS
           break;
         case "resolved": {
           const applied = await applyArtwork(romId, appId);
+          const caseArt = applied === -1 ? "no_api_key" : await applyCaseArt(romId, appId, { refresh: true });
           if (applied === -1) {
             showToast("Set a SteamGridDB API key in settings first");
+          } else if (caseArt === "applied") {
+            showToast(`Artwork refreshed with a game case cover (${applied}/4 other images applied)`);
           } else if (applied > 0) {
             showToast(`Artwork refreshed (${applied}/4 images applied)`);
           } else {
@@ -862,6 +868,18 @@ export const RomMPlaySection: FC<RomMPlaySectionProps> = ({ appId }) => { // NOS
           }}
         >
           Download BIOS
+        </MenuItem>
+        <MenuItem
+          key="choose-artwork"
+          onClick={() => {
+            if (!detail.romId) {
+              showToast("ROM info not loaded yet");
+              return;
+            }
+            showModal(<CaseArtPickerModalContent romId={detail.romId} appId={appId} romName={detail.romName} />);
+          }}
+        >
+          Choose artwork…
         </MenuItem>
         <MenuSeparator key="sep" />
         <MenuItem key="delete-saves" tone="destructive" onClick={handleDeleteSaves}>

@@ -136,6 +136,23 @@ To set this up:
 Without an API key, games will still have cover art from RomM but the hero banner, logo overlay, and wide grid image
 will be missing.
 
+### Cover style
+
+**Cover style** sits under the API key and decides what stands on each game's portrait cover in your library and on the
+Home shelf:
+
+- **Game case (preferred)** — the default. The plugin looks on SteamGridDB for artwork drawn as the console's retail
+  case (a GameCube box, a PSP UMD case with its banner, a DS case, …) and uses it where it finds one. Grids by authors
+  known for consistent case templates come first, then the grid whose shape is closest to that console's real case, then
+  the best-rated one. Adult-content artwork is never used. Art that is not exactly Steam's 2:3 shape is shown whole with
+  black bars, never stretched. A game with no suitable grid keeps its RomM cover.
+- **Plain cover** — the RomM cover only, as before.
+
+Case covers need the API key above. A game gets its case cover the first time you open its page, or when you tap
+**Refresh Artwork**; the next sync then keeps it, without downloading it again. After you switch the style, covers
+already in Steam change on the next sync or **Refresh Artwork**. To use a different picture for one game, see
+[Choosing a game's cover](managing-games.md#choosing-a-games-cover).
+
 ## Steam Input Mode
 
 Controls how Steam handles controller input for ROM shortcuts. Found under the **Controller** section in Connection

@@ -91,6 +91,9 @@ export interface PluginSettings {
   // How the plugin's own Steam collections are named. Optional: older payloads
   // may omit it, treated as "classic". Mirrors CollectionNameStyle in sync.ts.
   collection_name_style?: "classic" | "clean";
+  // Portrait cover style: "case" (default) prefers a SteamGridDB game-case grid,
+  // letterboxed to 2:3; "plain" keeps the RomM cover. Mirrors CoverStyle in caseArt.ts.
+  cover_style?: "case" | "plain";
   // Keep a Steam collection of the ROMs installed on this device. Optional:
   // older payloads may omit it, treated as on.
   installed_roms_collection?: boolean;

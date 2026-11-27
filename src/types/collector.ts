@@ -15,6 +15,8 @@ export interface ShelfConsole {
   /** ISO-8601, the newest last-played instant of any of its games; null when none was played. */
   last_played: string | null;
   play_seconds: number;
+  /** The shortcut whose Steam capsule art stands for the console: its "Continue" game, else its first by name. */
+  cover_app_id: number;
 }
 
 export interface ConsoleShelfAnswer {

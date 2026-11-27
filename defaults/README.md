@@ -69,3 +69,24 @@ be identified by its content.
 Update by hand-editing this file directly (it is not a snapshot of anything upstream) when a new Xbox BIOS/MCPX
 variant's hash needs adding, then re-run the firmware tests (`tests/services/test_firmware.py`,
 `tests/domain/test_bios.py`).
+
+## `case_art_authors.json` — in-tree default
+
+The curated list of SteamGridDB authors whose grids are drawn as retail game cases, per RomM platform slug. When the
+cover style is **Game case**, `CaseArtService` ranks grids by these authors first (`domain/case_art.py`,
+`rank_case_grids`). SteamGridDB has no "case" style or tag to filter on, so authorship is the strongest signal there is.
+Maintained in this repo, not vendored and not checksum-gated; there is no settings UI for it.
+
+Shape: `{"platforms": {"<slug>": [{"name": "<author>", "steam64": "<id>" | null}]}}`. An author matches by `steam64`
+when it is given, otherwise by name (case-insensitive; a renamed SteamGridDB account stops matching until the entry is
+updated). The slug `"*"` applies to every platform; keys starting with `_` are comments. A malformed file or entry is
+skipped, so a bad edit only loses the preference, never the case art.
+
+Add an author only with a public source showing they publish consistent case-template grids for that platform:
+
+| Platform slugs    | Author    | Source                                                                                                                                                     |
+| ----------------- | --------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `ngc`, `gamecube` | Castcoder | Steam Community profile `steamcommunity.com/id/Castcoder`: comments thanking him for SteamGridDB grids and a GameCube collection on Deck "nicer than ever" |
+| `psp`             | Castcoder | Same profile: his reply that his PSP template "unified only the top banner to the final PSP logo banner design"                                            |
+
+No `steam64` is listed: none was verified from a public page. Every other platform is left empty on purpose.

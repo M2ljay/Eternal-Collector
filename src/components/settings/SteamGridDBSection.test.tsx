@@ -22,6 +22,23 @@ vi.mock("@decky/ui", () => ({
     ),
   DialogButton: ({ children, onClick, disabled }: AnyProps & { onClick?: () => void; disabled?: boolean }) =>
     createElement("button", { onClick, disabled }, children as never),
+  DropdownItem: (
+    p: AnyProps & {
+      label?: string;
+      selectedOption?: string;
+      rgOptions?: { data: string; label: string }[];
+      onChange?: (o: { data: string }) => void;
+    },
+  ) =>
+    createElement(
+      "select",
+      {
+        "aria-label": p.label,
+        value: p.selectedOption,
+        onChange: (e: { target: { value: string } }) => p.onChange?.({ data: e.target.value }),
+      },
+      (p.rgOptions ?? []).map((o) => createElement("option", { key: o.data, value: o.data }, o.label)),
+    ),
   showModal: vi.fn(),
 }));
 
@@ -44,6 +61,8 @@ function defaultProps(overrides: Partial<React.ComponentProps<typeof SteamGridDB
     sgdbApiKey: "",
     onVerifyKey: vi.fn(async () => ({ success: true, message: "" })),
     onSaveKey: vi.fn(async () => {}),
+    coverStyle: "case" as const,
+    onCoverStyleChange: vi.fn(),
     ...overrides,
   };
 }
@@ -100,6 +119,22 @@ describe("SteamGridDBSection", () => {
       const { getAllByTestId } = render(<SteamGridDBSection {...defaultProps({ sgdbApiKey: "stored" })} />);
       const labels = getAllByTestId("field-label").map((el) => el.textContent);
       expect(labels).toEqual(["API Key"]);
+    });
+  });
+
+  describe("cover style", () => {
+    it("offers Game case (preferred) and Plain cover, showing the current style", () => {
+      const { getByLabelText } = render(<SteamGridDBSection {...defaultProps({ coverStyle: "plain" })} />);
+      const select = getByLabelText("Cover style") as HTMLSelectElement;
+      expect([...select.options].map((o) => o.textContent)).toEqual(["Game case (preferred)", "Plain cover"]);
+      expect(select.value).toBe("plain");
+    });
+
+    it("reports a switch to the parent", () => {
+      const onCoverStyleChange = vi.fn();
+      const { getByLabelText } = render(<SteamGridDBSection {...defaultProps({ onCoverStyleChange })} />);
+      fireEvent.change(getByLabelText("Cover style"), { target: { value: "plain" } });
+      expect(onCoverStyleChange).toHaveBeenCalledWith("plain");
     });
   });
 });

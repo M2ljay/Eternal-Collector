@@ -221,6 +221,32 @@ class PendingSyncReader(Protocol):
     def __call__(self) -> dict[int, dict[str, Any]]: ...
 
 
+class CoverChoiceReader(Protocol):
+    """Which cover file stands for a ROM on its Steam portrait capsule.
+
+    Consumed by ``ArtworkService`` wherever it publishes or serves a cover, so
+    the Game case cover style (``CaseArtService``) can stand in for the plain
+    RomM cover without the artwork pipeline knowing about SteamGridDB. Methods
+    are synchronous file checks, safe inside an executor.
+    """
+
+    def do_choose_cover_path(self, rom_id: int | str, plain_path: str) -> str:
+        """Return the cover to publish for *rom_id*: its case image, or *plain_path*."""
+        ...
+
+    def do_has_case_cover(self, rom_id: int | str) -> bool:
+        """Return whether a case image is cached for *rom_id*."""
+        ...
+
+    def do_restyle_candidates(self, rom_ids: list[int]) -> list[int]:
+        """Return the ROMs among *rom_ids* whose Steam tile shows the other cover style."""
+        ...
+
+    def do_mark_published(self, rom_id: int) -> None:
+        """Record that *rom_id*'s Steam tile now shows the configured cover style."""
+        ...
+
+
 class DownloadQueueCleanup(Protocol):
     """Eviction seam for the in-memory ROM download queue.
 

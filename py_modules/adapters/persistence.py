@@ -94,6 +94,9 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     "retroachievements_warning": True,
     # The Collector's console shelf on Steam's Home, under Recent games.
     "collector_home_shelf": True,
+    # Portrait cover style: ``"case"`` (default — a SteamGridDB game-case grid,
+    # letterboxed to 2:3, where one is found) or ``"plain"`` (the RomM cover).
+    "cover_style": "case",
     "steam_input_mode": "default",
     "steamgriddb_api_key": "",
     # RetroAchievements Web API, for the unlock timeline and cross-game goal refresh.

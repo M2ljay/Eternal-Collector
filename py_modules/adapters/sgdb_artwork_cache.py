@@ -51,3 +51,14 @@ class SgdbArtworkCacheAdapter:
     def read_bytes(self, path: str) -> bytes:
         """Return the contents of *path* as raw bytes."""
         return pathlib.Path(path).read_bytes()
+
+    def write_bytes_atomic(self, path: str, data: bytes) -> None:
+        """Write *data* to ``path.tmp`` and rename it over *path*; the temp file is removed on failure."""
+        tmp = path + ".tmp"
+        try:
+            pathlib.Path(tmp).write_bytes(data)
+            os.replace(tmp, path)
+        except OSError:
+            with contextlib.suppress(OSError):
+                os.remove(tmp)
+            raise

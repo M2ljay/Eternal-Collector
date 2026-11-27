@@ -41,7 +41,14 @@ async def test_shelf_shape_over_real_sqlite(harness):
         "success": True,
         "enabled": True,
         "consoles": [
-            {"platform_slug": "ps2", "name": "ps2", "game_count": 2, "last_played": None, "play_seconds": 0},
+            {
+                "platform_slug": "ps2",
+                "name": "ps2",
+                "game_count": 2,
+                "last_played": None,
+                "play_seconds": 0,
+                "cover_app_id": 1,
+            },
         ],
     }
 

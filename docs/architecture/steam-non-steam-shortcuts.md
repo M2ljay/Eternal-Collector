@@ -601,6 +601,60 @@ The backend also writes each `{app_id}p.png` grid file at commit (`SyncReporter.
 file even if a per-item API call failed, so a residual gray tile resolves the next time the game's page is opened or on
 the next client restart.
 
+### Game case covers
+
+The **Cover style** setting (`cover_style`, `"case"` by default, else `"plain"`) decides which image stands on the
+portrait capsule. With Game case, a SteamGridDB grid drawn as the console's retail case replaces the plain RomM cover
+wherever one is found; hero, logo, wide grid and icon are untouched. `CaseArtService` (`services/case_art.py`) owns it,
+with the pure rules in `domain/case_art.py`.
+
+**Choosing a grid.** SteamGridDB has no "case" style or tag a query could filter on, so a case grid is recognised by its
+author and its shape. The service asks
+`/grids/game/{id}?dimensions=600x900,342x482,660x930,512x512,1024x1024&types=static&nsfw=false&humor=false` (portrait
+and square sizes; the wide sizes are the wide capsule, fetched separately) and `rank_case_grids` orders the answer:
+
+1. grids by an author in the curated list for the ROM's platform (`defaults/case_art_authors.json`, matched by
+   `steam64`, else by name; documented in `defaults/README.md`);
+2. then the shape closest to the platform's real case front (`CASE_ASPECT`: DVD keep case about 0.71, GameCube 0.72, PSP
+   0.58, DS 0.91, jewel case 1.0; an unlisted platform is ranked against Steam's 2:3);
+3. then the higher SteamGridDB score, with the grid id as the stable tie-break.
+
+A grid flagged NSFW (or carrying no NSFW flag at all), humor, or an animated MIME type is never chosen, whatever its
+score. No grid left means no case art: the plain cover stays.
+
+**Letterboxing.** Steam's portrait capsule is 600x900. A grid of another shape (a square DS grid, a 660x930 one) is
+drawn whole and centred on black, never stretched (`letterbox_rect` in Python and `letterboxRect` in
+`src/utils/caseArt.ts` follow one rule). Decky's frozen Python has no image decoder, so the frontend letterboxes:
+`get_case_art_source` hands it the raw grid, `src/utils/caseArt.ts` draws it on a canvas one image at a time, and
+`save_case_art` stores the PNG, which must be exactly 600x900 or is refused.
+
+**Cache.** The SteamGridDB artwork cache holds, per ROM, `{rom_id}_case.png` (the letterboxed image),
+`{rom_id}_case.json` (the grid id, whether the user chose it, and the style last put on the Steam tile) and, only
+between download and save, `{rom_id}_case_source.img`. The `{rom_id}_` prefix puts them under the existing orphan sweep
+(`prune_orphaned_artwork_cache`); removed-game cleanup lists them as SteamGridDB cache artifacts; picking another
+SteamGridDB game drops them with the other cached art.
+
+**When it is applied.** `get_case_art_source` answers `plain`, `current` (already on the tile), `cached` (stored but not
+on the tile), `fetched` or `none`:
+
+- the game page's first visit per session (after the hero/logo/wide/icon apply) applies it, downloading only when
+  nothing is cached;
+- **Refresh Artwork** re-downloads it (a grid the user chose stays the chosen one); with Plain cover it puts the plain
+  cover back on the tile;
+- **Choose artwork…** (`CaseArtPickerModal`) lists `list_case_art`'s ranked grids and applies the one picked, recorded
+  as manual so automatic passes keep it;
+- a sync never downloads case art. `ArtworkService` asks its `CoverChoiceReader` seam (implemented by `CaseArtService`)
+  which file stands for a ROM, so the commit-time `{app_id}p.png` publish, the `get_artwork_base64` read behind every
+  created shortcut's cover, and the #1386 refresh republish all use the cached case image under Game case and the plain
+  cache cover under Plain. When the setting has changed, the refresh pass also republishes every bound ROM with case art
+  whose sidecar records the other style and adds it to the unit's `cover_refreshes`, so the frontend re-applies those
+  tiles (within the same session-budget clip as any cover refresh).
+
+The plain cover cache and its `cover_source` fingerprint are unchanged by any of this, and a grid file holding case art
+is never used to seed the plain cache (`_resolve_cached_cover` checks `do_has_case_cover` first). Writes of case art
+onto a Steam tile hold a prune lease (`get_case_art_source` returns one with any image bytes), and `get_case_art_source`
+and `save_case_art` are refused while a removed-game cleanup runs.
+
 ## Pre-launch launch-options confirmation
 
 Both launch funnels (the game-detail Play button and Steam's direct-launch watcher) re-fetch the selected ROM's resolved
@@ -624,6 +678,10 @@ immediate remount cannot let the old chain write launch options or invoke `RunGa
 | `py_modules/adapters/steam_config.py`     | `SteamConfigAdapter` — VDF read/write, grid dir, shortcut icon write, Steam Input config                                                                                                                                                                                                                                                       |
 | `py_modules/services/library/`            | LibraryService — builds shortcut data, drives per-unit sync apply                                                                                                                                                                                                                                                                              |
 | `py_modules/domain/sgdb_artwork.py`       | `to_signed_app_id`, SGDB asset-type/endpoint maps                                                                                                                                                                                                                                                                                              |
+| `py_modules/domain/case_art.py`           | Game case cover rules: grid query, ranking, letterbox geometry, author list and sidecar parsing                                                                                                                                                                                                                                                |
+| `py_modules/services/case_art.py`         | `CaseArtService` — case grid pick, download, letterboxed cache, and the `CoverChoiceReader` seam                                                                                                                                                                                                                                               |
+| `src/utils/caseArt.ts`                    | Letterboxes a grid on a canvas and applies the case cover to the portrait capsule                                                                                                                                                                                                                                                              |
+| `src/components/CaseArtPickerModal.tsx`   | "Choose artwork…": the per-game grid picker                                                                                                                                                                                                                                                                                                    |
 | `bin/rom-launcher`                        | Pure `exec "$@"` wrapper invoked by Steam — runs the full launch command baked into the shortcut's launch options; owns no state, no path resolution, no emulator knowledge                                                                                                                                                                    |
 
 ## Common Pitfalls

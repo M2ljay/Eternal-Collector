@@ -462,6 +462,15 @@ record** — test + prompt-only —
   toggle); a new call or a new element on that path is prompt-only. The rule spans the patch, the row component and the
   store, and a fetch dropped into the row "just to be fresh" would run on every Home re-render
   ([Never breaking Home](docs/architecture/home-console-shelf.md#never-breaking-home))
+- **A portrait cover is either the plain RomM cover or the ROM's Game case image, and the choice is made in one place:
+  every publish or read of a cover in `services/artwork.py` (`finalize_cover_path`, `get_artwork_base64`, the style
+  re-publish) goes through the `CoverChoiceReader` seam that `services/case_art.py` implements; a grid file holding case
+  art never seeds the plain cover cache; case art is never an NSFW, humor or animated grid, and is stored only as a
+  600x900 PNG letterboxed by `src/utils/caseArt.ts` (the backend refuses any other size), so it is never stretched** —
+  test + prompt-only — `tests/services/test_artwork.py::TestCoverChoice`, `tests/domain/test_case_art.py`
+  (`TestRanking`, `TestLetterbox`), `tests/services/test_case_art.py` (`TestSaveCaseArt`) and
+  `src/utils/caseArt.test.ts`. A new cover read or write in `ArtworkService` that bypasses the seam is prompt-only
+  ([Game case covers](docs/architecture/steam-non-steam-shortcuts.md#game-case-covers))
 - **Every module the plugin imports at module level uses only standard-library modules Decky's frozen Windows Python
   ships, or the plugin's own fallback copy** — test — `tests/runtime/test_frozen_runtime.py` against
   `tests/runtime/decky_frozen_stdlib.txt` (a lazily imported Windows-only module is covered only once it is listed in

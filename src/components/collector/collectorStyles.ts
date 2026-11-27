@@ -6,23 +6,38 @@ import { core } from "../../theme/coreTokens";
  * plugin is unloaded, and every selector is prefixed `tc-` so none can reach
  * Steam's own elements. No Steam class names are used: they are hashed per build.
  *
+ * The Home row's geometry comes from CSS variables the row sets from Steam's own
+ * Recent games row (`utils/steamRowGeometry.ts`); the defaults here are only the
+ * fallback when that row cannot be measured.
+ *
  * Colours come from the Core palette (`theme/coreTokens.ts`). The fixed greys left
  * in the `tc-media` and `tc-case` shapes draw the physical cases and cartridges.
  */
 
+/** Room inside the scrolling row for the focus ring and scale, given back by a negative margin. */
+const FOCUS_ROOM = 16;
+
 export const COLLECTOR_CSS = `
-.tc-shelf{padding:8px 0 24px;color:${core.steel};min-width:0}
-.tc-shelf__title{font-size:20px;line-height:1.3;font-weight:600;margin:0 0 12px;color:${core.white}}
-.tc-shelf__row{display:flex;gap:16px;overflow-x:auto;overflow-y:visible;padding:10px 4px 14px;scrollbar-width:none}
+.tc-shelf{--tc-inset:24px;--tc-capsule-h:240px;--tc-gap:12px;--tc-pad-top:12px;--tc-title-gap:12px;--tc-pad-bottom:24px;
+  box-sizing:border-box;padding:var(--tc-pad-top) 0 var(--tc-pad-bottom);color:${core.steel};min-width:0}
+.tc-shelf__title{margin:0 var(--tc-inset) var(--tc-title-gap);color:${core.white};font-family:var(--tc-title-font,inherit);
+  font-size:var(--tc-title-size,20px);font-weight:var(--tc-title-weight,600);line-height:var(--tc-title-lh,1.3);
+  letter-spacing:var(--tc-title-ls,normal);text-transform:var(--tc-title-tt,none)}
+.tc-shelf__row{display:flex;gap:var(--tc-gap);overflow-x:auto;overflow-y:hidden;box-sizing:border-box;
+  padding:${FOCUS_ROOM}px var(--tc-inset);margin:-${FOCUS_ROOM}px 0;scroll-padding-inline:var(--tc-inset);scrollbar-width:none}
 .tc-shelf__row::-webkit-scrollbar{display:none}
 
-.tc-tile{flex:0 0 auto;width:248px;box-sizing:border-box;padding:12px 12px 14px;border-radius:6px;background:${core.black};
-  color:${core.steel};transition:transform .14s ease-out,box-shadow .14s ease-out,background-color .14s ease-out;cursor:pointer}
-.tc-tile.tc-focus,.tc-tile.gpfocus,.tc-tile:focus-visible{background:${core.gunmetal};box-shadow:0 0 0 3px ${core.crimson};
-  transform:translateY(-6px);outline:none}
-.tc-tile__media{height:136px;display:flex;align-items:flex-end;justify-content:center;margin-bottom:12px}
-.tc-tile__name{font-size:17px;font-weight:600;color:${core.white};white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.tc-tile__meta{font-size:13px;color:${core.steel};opacity:.85;margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tc-tile{flex:0 0 auto;height:var(--tc-capsule-h);aspect-ratio:2/3;cursor:pointer;outline:none}
+.tc-tile__capsule{position:relative;width:100%;height:100%;overflow:hidden;border-radius:4px;background:${core.gunmetal};
+  box-shadow:0 4px 10px rgba(0,0,0,.5);transition:transform .14s ease-out,box-shadow .14s ease-out}
+.tc-tile.tc-focus .tc-tile__capsule,.tc-tile.gpfocus .tc-tile__capsule,.tc-tile:focus-visible .tc-tile__capsule{
+  transform:scale(1.05);box-shadow:0 0 0 3px ${core.crimson},0 8px 18px rgba(0,0,0,.6)}
+.tc-tile__media{position:absolute;inset:12px 8px 56px;display:flex;align-items:flex-end;justify-content:center;overflow:hidden}
+.tc-tile__art{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.tc-tile__label{position:absolute;left:0;right:0;bottom:0;padding:28px 10px 9px;opacity:0;transition:opacity .14s ease-out;
+  background:linear-gradient(180deg,rgba(0,0,0,0),rgba(0,0,0,.85) 55%)}
+.tc-tile.tc-focus .tc-tile__label,.tc-tile.gpfocus .tc-tile__label,.tc-tile:focus-visible .tc-tile__label{opacity:1}
+.tc-tile__name{font-size:15px;font-weight:600;color:${core.white};white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 
 .tc-media{display:flex;align-items:flex-end;justify-content:center;gap:3px;height:100%}
 .tc-media__item{box-sizing:border-box;flex:0 0 auto;position:relative;border:1px solid ${core.gunmetalRaised}}

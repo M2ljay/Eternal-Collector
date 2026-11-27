@@ -16,6 +16,7 @@ import os
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
+from domain.case_art import case_art_filenames
 from domain.sgdb_artwork import (
     asset_type_endpoint,
     asset_type_name,
@@ -318,10 +319,15 @@ class SteamGridService:
         return {"success": True}
 
     def _clear_cached_artwork(self, rom_id):
-        """Remove the four cached artwork PNGs for *rom_id* (sync)."""
+        """Remove the four cached artwork PNGs and the case art for *rom_id* (sync).
+
+        The case art came from the previously picked game, so a re-pick drops it
+        too; the next case-art pass fetches the new game's.
+        """
         art_dir = self._sgdb_artwork_cache.cache_dir()
-        for asset_type in ("hero", "logo", "grid", "icon"):
-            path = os.path.join(art_dir, f"{rom_id}_{asset_type}.png")
+        names = [f"{rom_id}_{asset_type}.png" for asset_type in ("hero", "logo", "grid", "icon")]
+        for name in names + list(case_art_filenames(rom_id)):
+            path = os.path.join(art_dir, name)
             if self._sgdb_artwork_cache.exists(path):
                 try:
                     self._sgdb_artwork_cache.remove_file(path)

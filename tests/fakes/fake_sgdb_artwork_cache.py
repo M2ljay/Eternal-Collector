@@ -55,3 +55,6 @@ class FakeSgdbArtworkCache:
         if path not in self.files:
             raise FileNotFoundError(path)
         return self.files[path]
+
+    def write_bytes_atomic(self, path: str, data: bytes) -> None:
+        self.files[path] = bytes(data)

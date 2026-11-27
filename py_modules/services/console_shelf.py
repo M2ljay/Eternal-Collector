@@ -116,7 +116,8 @@ class ConsoleShelfService:
         """Return every console with games in Steam, most played first.
 
         ``{success, enabled, consoles: [{platform_slug, name, game_count, last_played,
-        play_seconds}]}``. Synchronous: one short read UoW, run off the loop by the caller.
+        play_seconds, cover_app_id}]}``; ``cover_app_id`` is the shortcut whose Steam
+        capsule art the Home tile shows. Synchronous: one short read UoW, run off the loop by the caller.
         """
         with self._uow_factory() as uow:
             games = _bound_games(uow)
@@ -133,6 +134,7 @@ class ConsoleShelfService:
                     "game_count": e.game_count,
                     "last_played": e.last_played,
                     "play_seconds": e.play_seconds,
+                    "cover_app_id": e.cover_app_id,
                 }
                 for e in entries
             ],

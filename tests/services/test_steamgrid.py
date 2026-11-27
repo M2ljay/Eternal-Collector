@@ -602,6 +602,20 @@ class TestApplySgdbGameId:
             assert sgdb_artwork_cache.files[path] == f"{asset_type} bytes".encode()
 
     @pytest.mark.asyncio
+    async def test_re_pick_drops_the_previous_games_case_art(self, plugin, sgdb_artwork_cache, fake_steamgrid_db_api):
+        plugin.settings["steamgriddb_api_key"] = "some-key"
+        plugin._sgdb_service._loop = asyncio.get_event_loop()
+        art = sgdb_artwork_cache.cache_dir()
+        case_files = [os.path.join(art, n) for n in ("42_case.png", "42_case.json", "42_case_source.img")]
+        for path in case_files:
+            sgdb_artwork_cache.files[path] = b"old"
+        _seed_all_artwork(fake_steamgrid_db_api, 8888)
+
+        await plugin.apply_sgdb_game_id(42, 8888)
+
+        assert all(path not in sgdb_artwork_cache.files for path in case_files)
+
+    @pytest.mark.asyncio
     async def test_persists_nothing(self, plugin, uow, sgdb_artwork_cache, fake_steamgrid_db_api):
         """A manual pick never writes the ROM row's sgdb_id."""
         plugin.settings["steamgriddb_api_key"] = "some-key"

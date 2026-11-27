@@ -49,6 +49,9 @@ class ConsoleShelfEntry:
     last_played: str | None
     play_seconds: int
     score: float
+    # The Steam shortcut whose capsule art stands for the console on the Home row:
+    # the first game of the console page's order ("Continue", else the first by name).
+    cover_app_id: int
 
 
 @dataclass(frozen=True, slots=True)
@@ -111,6 +114,7 @@ def rank_consoles(
             last_played=newest_instant(g.last_played for g in members),
             play_seconds=sum(g.play_seconds for g in members),
             score=sum(g.play_seconds * recency_weight(g.last_played, now_epoch) for g in members),
+            cover_app_id=order_console_games(members)[0].app_id,
         )
         for slug, members in grouped.items()
     ]

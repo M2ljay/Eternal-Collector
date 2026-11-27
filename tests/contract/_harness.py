@@ -75,6 +75,7 @@ _BOUND_SERVICE_ATTRS = {
     "_rom_removal_service": "rom_removal_service",
     "_firmware_service": "firmware_service",
     "_sgdb_service": "sgdb_service",
+    "_case_art_service": "case_art_service",
     "_metadata_service": "metadata_service",
     "_achievements_service": "achievements_service",
     "_migration_service": "migration_service",

@@ -21,6 +21,7 @@ from services.achievement_journal import AchievementJournalService, AchievementJ
 from services.achievements import AchievementsService, AchievementsServiceConfig
 from services.active_core_resolver import ActiveCoreResolver, ActiveCoreResolverConfig
 from services.artwork import ArtworkService, ArtworkServiceConfig
+from services.case_art import CaseArtService, CaseArtServiceConfig
 from services.connection import ConnectionService, ConnectionServiceConfig
 from services.console_shelf import ConsoleShelfService, ConsoleShelfServiceConfig
 from services.cores import CoreService, CoreServiceConfig
@@ -302,6 +303,20 @@ def wire_services(cfg: WiringConfig) -> dict[str, Any]:
         ),
     )
 
+    case_art_service = CaseArtService(
+        config=CaseArtServiceConfig(
+            sgdb_api=cfg.adapters.sgdb_adapter,
+            sgdb_artwork_cache=cfg.adapters.sgdb_artwork_cache,
+            settings=cfg.stores.settings,
+            plugin_dir=cfg.runtime.plugin_dir,
+            loop=cfg.runtime.loop,
+            logger=cfg.runtime.logger,
+            log_debug=cfg.callbacks.log_debug,
+            get_pending_sync=pending_sync_binding.get,
+            uow_factory=cfg.callbacks.uow_factory,
+        ),
+    )
+
     artwork_service = ArtworkService(
         config=ArtworkServiceConfig(
             romm_api=cfg.adapters.romm_api,
@@ -312,6 +327,7 @@ def wire_services(cfg: WiringConfig) -> dict[str, Any]:
             logger=cfg.runtime.logger,
             get_pending_sync=pending_sync_binding.get,
             uow_factory=cfg.callbacks.uow_factory,
+            cover_choice=case_art_service,
         ),
     )
 
@@ -748,6 +764,7 @@ def wire_services(cfg: WiringConfig) -> dict[str, Any]:
         "prune_service": prune_service,
         "firmware_service": firmware_service,
         "sgdb_service": sgdb_service,
+        "case_art_service": case_art_service,
         "metadata_service": metadata_service,
         "achievements_service": achievements_service,
         "migration_service": migration_service,

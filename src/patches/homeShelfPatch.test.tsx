@@ -102,6 +102,13 @@ describe("Home shelf route patch", () => {
     expect(getHomeShelfDiagnostics().matchedBy).toBe("recents-section");
   });
 
+  it("the shelf's DOM lands as the Recent games row's next sibling, where the row measures Steam's geometry", () => {
+    renderHome();
+    const shelf = screen.getByTestId("shelf");
+    expect(shelf.previousElementSibling).toBe(screen.getByTestId("recents"));
+    expect(shelf.nextElementSibling).toBe(screen.getByTestId("next-row"));
+  });
+
   it("falls back to the tile-list contract when the section wrapper is not in the output", () => {
     renderHome("carousel");
     const wrapper = document.querySelector(".wrapper")!;

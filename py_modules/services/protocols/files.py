@@ -910,6 +910,10 @@ class SgdbArtworkCache(Protocol):
         """Return the contents of *path* as raw bytes."""
         ...
 
+    def write_bytes_atomic(self, path: str, data: bytes) -> None:
+        """Write *data* to ``path.tmp`` and rename it over *path*; no partial file is ever visible."""
+        ...
+
 
 class RecoveryBundleStore(Protocol):
     """Build and seal verified recovery bundles under the plugin recovery root."""
