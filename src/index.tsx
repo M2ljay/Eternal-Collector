@@ -57,6 +57,7 @@ import { resetSyncDelta, recordSyncRemoved, getSyncDelta } from "./utils/syncDel
 import { setSaveSortMigrationStatus } from "./utils/saveSortMigrationStore";
 import { setVersionError, setServerRetryProgress } from "./utils/connectionState";
 import { initSessionManager, destroySessionManager } from "./utils/sessionManager";
+import { startNowPlayingPublisher } from "./utils/nowPlayingPublisher";
 import { findOutermostScrollParent } from "./utils/scrollHelpers";
 import { detach } from "./utils/detach";
 import type {
@@ -429,6 +430,9 @@ export default definePlugin(() => {
       }
     })(),
   );
+
+  // Before the session manager starts: its reload adoption re-announces running games.
+  const stopNowPlayingPublisher = startNowPlayingPublisher();
 
   // Register device and initialize session manager for save sync (if enabled)
   detach(
@@ -959,6 +963,7 @@ export default definePlugin(() => {
     onDismount() {
       stopPluginUpdateWatch();
       syncContinuationController.abort();
+      stopNowPlayingPublisher();
       destroySessionManager();
       unregisterLaunchInterceptor();
       unregisterGameDetailPatch();

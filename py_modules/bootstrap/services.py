@@ -35,6 +35,7 @@ from services.launcher_backend import LauncherBackendRegistry, LauncherBackendSe
 from services.library import LibraryService, LibraryServiceConfig
 from services.metadata import MetadataService, MetadataServiceConfig
 from services.migration import MigrationService, MigrationServiceConfig
+from services.now_playing import NowPlayingService, NowPlayingServiceConfig
 from services.playtime import PlaytimeService, PlaytimeServiceConfig
 from services.prune import PruneService, PruneServiceConfig
 from services.relaunch_options_resolver import RelaunchOptionsResolver, RelaunchOptionsResolverConfig
@@ -712,6 +713,17 @@ def wire_services(cfg: WiringConfig) -> dict[str, Any]:
         )
     )
 
+    now_playing_service = NowPlayingService(
+        config=NowPlayingServiceConfig(
+            loop=cfg.runtime.loop,
+            uow_factory=cfg.callbacks.uow_factory,
+            romm_api=cfg.adapters.romm_api,
+            store=cfg.adapters.now_playing_store,
+            logger=cfg.runtime.logger,
+            log_debug=cfg.callbacks.log_debug,
+        )
+    )
+
     return {
         "save_sync_service": save_sync_service,
         "playtime_service": playtime_service,
@@ -745,4 +757,5 @@ def wire_services(cfg: WiringConfig) -> dict[str, Any]:
         "relaunch_options_resolver": relaunch_options_resolver,
         "launcher_backend_service": launcher_backend_service,
         "retroachievements_check_service": retroachievements_check_service,
+        "now_playing_service": now_playing_service,
     }

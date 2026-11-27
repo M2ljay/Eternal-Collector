@@ -87,6 +87,7 @@ nav:
       - Plugin Self-Update (Windows): architecture/plugin-self-update.md
       - Steam Non-Steam Shortcuts: architecture/steam-non-steam-shortcuts.md
       - Home Console Shelf: architecture/home-console-shelf.md
+      - Now Playing (Discord Rich Presence): architecture/now-playing-presence.md
       - Steam Remote Play & Cross-Device: architecture/steam-remote-play.md
   - Contributing:
       - Development: contributing/development.md

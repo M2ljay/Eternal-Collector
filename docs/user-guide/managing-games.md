@@ -642,6 +642,18 @@ Because of that, the menu item greys out and reads **Stopping…** while it work
 happening are normal — the emulator is writing your save. Pressing Stop again would be the very thing that discards it,
 so the plugin ignores a second press until the first one finishes.
 
+## Discord shows the game you are playing
+
+With the Discord plugin (Assemble) installed and its "Show current game on Discord" setting on, Discord shows the RomM
+game you are playing instead of its Steam shortcut or the emulator: the game's title, its console on the line below, and
+the time played. When Discord knows the game, its cover is shown too. Nothing to set up here: The Collector publishes
+the running game while it plays and withdraws it when the game ends. To stop it, turn off "Show retro games from The
+Collector" in the Discord plugin's Discord status settings.
+
+The Collector never sends your RomM server's address or anything that gives access to it. A cover is only ever the
+public image of the metadata provider (IGDB, SteamGridDB and similar), never a cover served by your RomM server. How
+this works: [Now playing](../architecture/now-playing-presence.md).
+
 ---
 
 **Previous:** [Syncing Your Library](syncing-your-library.md) | **Next:** [BIOS Management](bios-management.md)

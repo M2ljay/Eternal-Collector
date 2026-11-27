@@ -983,6 +983,10 @@ _MIGRATION_BLOCKED_WHITELIST: set[str] = {
     # RetroAchievements notice: reads emulator settings only, never ROM files.
     "check_retroachievements_start",
     "check_retroachievements_end",
+    # Now playing for other plugins: reads the ROM row, writes only the shared file.
+    "publish_now_playing",
+    "resolve_now_playing_cover",
+    "clear_now_playing",
     # SteamGridDB / Steam shortcut artwork (Steam-side, not retrodeck).
     "get_sgdb_artwork_base64",
     "verify_sgdb_api_key",
@@ -1158,6 +1162,7 @@ class TestMainStartupOrdering:
             "relaunch_options_resolver": MagicMock(),
             "launcher_backend_service": MagicMock(),
             "retroachievements_check_service": MagicMock(),
+            "now_playing_service": MagicMock(),
         }
 
         bootstrap_result = BootstrapResult(
@@ -1188,6 +1193,7 @@ class TestMainStartupOrdering:
                 retrodeck_launcher_backend_factory=FakeLauncherBackendFactory("retrodeck"),
                 emudeck_launcher_backend_factory=FakeLauncherBackendFactory("emudeck", installations=[]),
                 retroachievements_config=MagicMock(),
+                now_playing_store=MagicMock(),
             ),
             stores=StateBundle(
                 settings={},

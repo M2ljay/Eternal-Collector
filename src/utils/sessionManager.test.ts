@@ -925,8 +925,8 @@ describe("sessionManager reload adoption", () => {
         { appId: OTHER_APP_ID, romId: OTHER_ROM_ID, startMs: 7_000 },
       ]);
       expect(sessionEvents).toEqual([
-        { running: true, appId: APP_ID, romId: ROM_ID },
-        { running: true, appId: OTHER_APP_ID, romId: OTHER_ROM_ID },
+        { running: true, appId: APP_ID, romId: ROM_ID, startMs: 5_000 },
+        { running: true, appId: OTHER_APP_ID, romId: OTHER_ROM_ID, startMs: 7_000 },
       ]);
 
       // Each adopted session finalizes on its own app's exit.
@@ -1277,12 +1277,12 @@ describe("sessionManager session-changed dispatch (#1313)", () => {
     const lifetime = captureLifetimeCb();
 
     await startGame(lifetime);
-    expect(sessionEvents).toContainEqual({ running: true, appId: APP_ID, romId: ROM_ID });
+    expect(sessionEvents).toContainEqual({ running: true, appId: APP_ID, romId: ROM_ID, startMs: expect.any(Number) });
 
     sessionEvents.length = 0;
     vi.setSystemTime(60_000);
     await stopGame(lifetime);
-    expect(sessionEvents).toContainEqual({ running: false, appId: APP_ID, romId: ROM_ID });
+    expect(sessionEvents).toContainEqual({ running: false, appId: APP_ID, romId: ROM_ID, startMs: expect.any(Number) });
   });
 
   it("dispatches running:true when adopting a running session via a matching breadcrumb", async () => {
@@ -1295,7 +1295,7 @@ describe("sessionManager session-changed dispatch (#1313)", () => {
 
     await initSessionManager();
 
-    expect(sessionEvents).toContainEqual({ running: true, appId: APP_ID, romId: ROM_ID });
+    expect(sessionEvents).toContainEqual({ running: true, appId: APP_ID, romId: ROM_ID, startMs: 5_000 });
   });
 
   it("dispatches running:true when adopting a running session with no breadcrumb", async () => {
@@ -1303,7 +1303,7 @@ describe("sessionManager session-changed dispatch (#1313)", () => {
 
     await initSessionManager();
 
-    expect(sessionEvents).toContainEqual({ running: true, appId: APP_ID, romId: ROM_ID });
+    expect(sessionEvents).toContainEqual({ running: true, appId: APP_ID, romId: ROM_ID, startMs: expect.any(Number) });
   });
 
   it("does not dispatch a session event when nothing is running at init", async () => {
@@ -1536,7 +1536,9 @@ describe("sessionManager stop scoping (#1621)", () => {
     globalThis.addEventListener("romm_session_changed", listener);
     try {
       await startGame(lifetime);
-      expect(sessionEvents).toEqual([{ running: true, appId: APP_ID, romId: ROM_ID }]);
+      expect(sessionEvents).toEqual([
+        { running: true, appId: APP_ID, romId: ROM_ID, startMs: (readSessions()?.[0] as { startMs: number }).startMs },
+      ]);
     } finally {
       globalThis.removeEventListener("romm_session_changed", listener);
     }

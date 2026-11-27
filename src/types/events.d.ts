@@ -9,6 +9,7 @@
  * narrowing in handlers comes for free.
  */
 
+import type { NowPlayingDocument } from "./nowPlaying";
 import type { SaveStatus } from "./saves";
 
 export type RommDataChangedDetail =
@@ -39,6 +40,8 @@ export interface RommSessionChangedDetail {
   running: boolean;
   appId: number;
   romId: number;
+  /** Wall-clock start of the session (ms); set by `sessionManager`. */
+  startMs?: number;
 }
 
 declare global {
@@ -47,5 +50,7 @@ declare global {
     romm_rom_uninstalled: CustomEvent<RommRomUninstalledDetail>;
     romm_tab_switch: CustomEvent<RommTabSwitchDetail>;
     romm_session_changed: CustomEvent<RommSessionChangedDetail>;
+    /** The "now playing" document changed (`nowPlayingPublisher`); read by other plugins. */
+    eternal_now_playing: CustomEvent<NowPlayingDocument>;
   }
 }

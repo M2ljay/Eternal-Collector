@@ -252,6 +252,10 @@ class Plugin:
         self._relaunch_options_resolver = services["relaunch_options_resolver"]
         self._launcher_backend_service = services["launcher_backend_service"]
         self._retroachievements_check_service = services["retroachievements_check_service"]
+        self._now_playing_service = services["now_playing_service"]
+        # Before the first await below: a publish from the reloading frontend
+        # can only arrive once _main yields, and must not be wiped by this.
+        self._now_playing_service.reset()
 
         # ── 4b. Legacy credential migration ─────────────────────────────────
         # Upgrade a stored-password install to a Client API Token. The
@@ -1042,6 +1046,18 @@ class Plugin:
     async def check_retroachievements_end(self, rom_id):
         """Return ``{"warning": str | None}``: one notice when the session's RetroAchievements login failed."""
         return await self._retroachievements_check_service.check_session_end(int(rom_id))
+
+    async def publish_now_playing(self, rom_id, app_id, started_at_ms):
+        """Publish the running ROM for other plugins; ``{success, record}`` (no cover yet)."""
+        return await self._now_playing_service.publish(int(rom_id), int(app_id), int(started_at_ms))
+
+    async def resolve_now_playing_cover(self, rom_id, app_id):
+        """Add the ROM's public cover URL to its record; ``{success, record}``, ``record`` None once ended."""
+        return await self._now_playing_service.resolve_cover(int(rom_id), int(app_id))
+
+    async def clear_now_playing(self, app_id):
+        """Remove the record of a game that ended."""
+        return await self._now_playing_service.clear(int(app_id))
 
     @prune_active_blocked
     async def record_session_start(self, rom_id):

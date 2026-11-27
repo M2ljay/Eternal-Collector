@@ -190,8 +190,8 @@ function persistSessions(): void {
  * flip to/from the state-aware Resume button without polling (#1313). A frontend
  * DOM CustomEvent — `CustomPlayButton` matches it on `romId`.
  */
-function dispatchSessionChanged(running: boolean, appId: number, romId: number): void {
-  globalThis.dispatchEvent(new CustomEvent("romm_session_changed", { detail: { running, appId, romId } }));
+function dispatchSessionChanged(running: boolean, appId: number, romId: number, startMs: number): void {
+  globalThis.dispatchEvent(new CustomEvent("romm_session_changed", { detail: { running, appId, romId, startMs } }));
 }
 
 /**
@@ -213,7 +213,7 @@ async function handleGameStart(appId: number): Promise<void> {
     detach(debugLog(`Session start ignored: appId=${appId} already has an open session (romId=${open.romId})`));
     // Re-announce it — a surface that missed the first event self-heals, and the
     // earlier startMs is kept.
-    dispatchSessionChanged(true, open.appId, open.romId);
+    dispatchSessionChanged(true, open.appId, open.romId, open.startMs);
     return;
   }
 
@@ -221,8 +221,9 @@ async function handleGameStart(appId: number): Promise<void> {
   if (!romId) return; // Not a RomM shortcut
 
   logInfo(`Session start: romId=${romId}, appId=${appId}`);
-  activeSessions.set(appId, { appId, romId, startMs: Date.now() });
-  dispatchSessionChanged(true, appId, romId);
+  const startMs = Date.now();
+  activeSessions.set(appId, { appId, romId, startMs });
+  dispatchSessionChanged(true, appId, romId, startMs);
 
   // Attest the open sessions so a reload mid-game can adopt and finalize them.
   persistSessions();
@@ -274,12 +275,12 @@ async function handleGameStop(stoppedAppId: number): Promise<void> {
     return;
   }
 
-  const { appId, romId } = session;
+  const { appId, romId, startMs } = session;
   logInfo(`Session end: romId=${romId}`);
 
   // Flip any open Resume button back to Play (#1313). The appId comes from the
   // session itself, so this needs no reverse-map lookup.
-  dispatchSessionChanged(false, appId, romId);
+  dispatchSessionChanged(false, appId, romId, startMs);
 
   // Drop this session immediately to avoid double-processing, and rewrite the
   // row before the finalize await — the stop is observed, so there is nothing
@@ -491,7 +492,7 @@ async function adoptOrphanedSessions(): Promise<void> {
   // written by an older schema version into the current one.
   persistSessions();
 
-  for (const session of recovered) dispatchSessionChanged(true, session.appId, session.romId);
+  for (const session of recovered) dispatchSessionChanged(true, session.appId, session.romId, session.startMs);
   for (const s of adopted) logInfo(`Adopted running session from breadcrumb: romId=${s.romId}, appId=${s.appId}`);
   for (const s of orphans) logInfo(`Session orphaned — playtime not recorded (romId=${s.romId})`);
 

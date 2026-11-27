@@ -975,6 +975,26 @@ class PluginUpdateFileStore(Protocol):
         ...
 
 
+class NowPlayingStore(Protocol):
+    """The shared "now playing" file other plugins read while a ROM runs.
+
+    One JSON document at a location fixed by the composition root, outside this
+    plugin's own folders (``docs/architecture/now-playing-presence.md``).
+    """
+
+    def read(self) -> object | None:
+        """The decoded document, or ``None`` when the file is absent or not JSON."""
+        ...
+
+    def write(self, document: dict[str, object]) -> None:
+        """Replace the file with *document* atomically. Raises ``OSError`` on failure."""
+        ...
+
+    def remove(self) -> None:
+        """Delete the file. Idempotent."""
+        ...
+
+
 class InstallFileScanner(Protocol):
     """Reads the installed plugin folder for the install-integrity check.
 

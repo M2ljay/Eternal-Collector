@@ -34,6 +34,7 @@ from adapters.gavel_native import GavelNativeAdapter
 from adapters.hostname import HostnameAdapter
 from adapters.machine_id import MachineIdAdapter
 from adapters.migration_file import MigrationFileAdapter
+from adapters.now_playing_file import NowPlayingFileAdapter
 from adapters.path_probe import PathProbeAdapter
 from adapters.persistence import (
     PersistenceAdapter,
@@ -91,6 +92,7 @@ if TYPE_CHECKING:
         LauncherBackendFactory,
         MachineIdReader,
         MigrationFileStore,
+        NowPlayingStore,
         PathExistsReader,
         PlatformCoreReader,
         PluginFolderHandles,
@@ -126,6 +128,12 @@ if TYPE_CHECKING:
 # migration runner at startup; unused until the service cutover (#784).
 _DB_FILENAME = "romm_sync.db"
 
+# The shared "now playing" file (docs/architecture/now-playing-presence.md):
+# beside the plugins' own data folders, ``<Decky home>/data/``, because each
+# plugin backend is a separate process that can reach only paths, not objects.
+_NOW_PLAYING_DIR = "eternal-now-playing"
+_NOW_PLAYING_FILENAME = "now-playing.json"
+
 
 @dataclass(frozen=True)
 class AdapterBundle:
@@ -157,6 +165,7 @@ class AdapterBundle:
     retrodeck_launcher_backend_factory: LauncherBackendFactory
     emudeck_launcher_backend_factory: LauncherBackendFactory
     retroachievements_config: RetroAchievementsConfigReader
+    now_playing_store: NowPlayingStore
     vita_app_linker: VitaAppLinker | None = None
     game_mods: GameModStore | None = None
 
@@ -463,6 +472,9 @@ def bootstrap(
         retrodeck_launcher_backend_factory=retrodeck_launcher_backend_factory,
         emudeck_launcher_backend_factory=emudeck_launcher_backend_factory,
         retroachievements_config=RetroAchievementsConfigAdapter(logger=logger),
+        now_playing_store=NowPlayingFileAdapter(
+            path=os.path.join(os.path.dirname(os.path.normpath(runtime_dir)), _NOW_PLAYING_DIR, _NOW_PLAYING_FILENAME)
+        ),
         vita_app_linker=Vita3kAppLinker(logger=logger),
         game_mods=game_mods,
     )

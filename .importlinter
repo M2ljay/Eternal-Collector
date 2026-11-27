@@ -133,6 +133,7 @@ modules =
     services.library
     services.metadata
     services.migration
+    services.now_playing
     services.playtime
     services.plugin_update
     services.prune

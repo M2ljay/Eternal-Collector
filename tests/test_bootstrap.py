@@ -330,6 +330,7 @@ class TestWireServices:
                 retrodeck_launcher_backend_factory=deps["retrodeck_launcher_backend_factory"],
                 emudeck_launcher_backend_factory=deps["emudeck_launcher_backend_factory"],
                 retroachievements_config=MagicMock(),
+                now_playing_store=MagicMock(),
             ),
             stores=StateBundle(
                 settings=deps["settings"],
@@ -417,7 +418,8 @@ class TestWireServices:
     def test_returns_expected_services(self, tmp_path):
         deps = self._make_deps(tmp_path)
         result = wire_services(self._make_config(deps))
-        assert len(result) == 32
+        assert len(result) == 33
+        assert "now_playing_service" in result
         assert "migration_service" in result
         assert "retroachievements_check_service" in result
         assert "windows_game_service" in result

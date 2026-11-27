@@ -434,6 +434,15 @@ Format: **invariant** — tier — enforced by.
   results and captured logs never contain the token, the PPSSPP token file is never passed to `open`). A new emulator, a
   new reader method or a log line that formats parsed text is prompt-only: the tests pin today's parsers, not every
   future one
+- **The "now playing" record leaves the plugin (other plugins send it to Discord), so it never carries anything that
+  points at the RomM server: `cover_url` is only a RomM `url_cover` that `domain/now_playing.public_cover_url` accepts
+  (https, a public metadata CDN host, no user info, port, query or fragment) — never a `path_cover_*`/RomM asset URL,
+  the server origin, a token, or a ScreenScraper URL; the frontend publishes only records the backend answered, and
+  publishing never blocks or fails a launch** — test + prompt-only — `tests/domain/test_now_playing.py`
+  (`TestPublicCoverUrl`) and `tests/services/test_now_playing.py`
+  (`test_never_publishes_a_romm_or_credentialed_address`). A new field in the record, or a second writer of
+  `window.__eternalNowPlaying` or the shared file, is prompt-only
+  ([Now playing](docs/architecture/now-playing-presence.md#covers-never-the-romm-server))
 - **Steam's Big Picture Home is never broken by the console shelf: nothing on the Home render path calls the backend
   (the row reads `src/utils/consoleShelfStore.ts` only); the `/library/home` patch copies Steam's elements and never
   mutates them, returns Steam's output unchanged on any exception, an unrecognised tree or the setting off, wraps the

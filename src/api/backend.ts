@@ -21,6 +21,7 @@ import type {
   BiosFileStatus,
   CoreInfo,
   RomMetadata,
+  NowPlayingAnswer,
   SaveSyncSettings,
   SavestateBackupSettings,
   SaveStatus,
@@ -1112,6 +1113,9 @@ export const resolveSyncConflict = callable<
   { success: boolean; message?: string; reason?: "stale_conflict"; action?: "keep_local" | "use_server" }
 >("resolve_sync_conflict");
 export const recordSessionStart = callable<[number], { success: boolean }>("record_session_start");
+export const publishNowPlaying = callable<[number, number, number], NowPlayingAnswer>("publish_now_playing");
+export const resolveNowPlayingCover = callable<[number, number], NowPlayingAnswer>("resolve_now_playing_cover");
+export const clearNowPlaying = callable<[number], { success: boolean }>("clear_now_playing");
 // At most one notice per session: the end check only runs for a session the
 // start check passed (RetroAchievementsCheckService).
 export const checkRetroAchievementsStart = callable<[number], { warning: string | null }>(
