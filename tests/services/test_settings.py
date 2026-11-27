@@ -212,6 +212,16 @@ class TestGetSettings:
         assert result["preferred_region"] == "auto"
         assert result["retroachievements_warning"] is True
         assert result["collector_home_shelf"] is True
+        assert result["ra_web_username"] == ""
+        assert result["ra_web_api_key_masked"] == ""
+
+    def test_ra_web_api_key_is_reported_masked_never_raw(self, service, settings):
+        settings["ra_web_username"] = "Jamiras"
+        settings["ra_web_api_key"] = "AbCdEf0123456789AbCdEf0123456789"
+        result = service.get_settings()
+        assert result["ra_web_username"] == "Jamiras"
+        assert result["ra_web_api_key_masked"] == "••••"
+        assert "AbCdEf0123456789AbCdEf0123456789" not in repr(result)
 
     def test_includes_retroarch_input_check_payload(self, service, steam_config):
         steam_config.check_retroarch_input_driver.return_value = {

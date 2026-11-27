@@ -83,13 +83,14 @@ def _set_user_version(db_path: str, version: int) -> None:
 # + 021_add_rom_fs_size + 022_rename_collection_kind_user_to_standard
 # + 023_add_rom_install_launchable + 024_emulator_override_per_backend
 # + 025_add_selected_exe + 026_add_rom_savestate_sync_states
-# + 027_add_rom_achievement_progress + 028_add_owned_steam_collections).
-_SHIPPED_VERSION = 28
+# + 027_add_rom_achievement_progress + 028_add_owned_steam_collections
+# + 029_add_ra_game_journals).
+_SHIPPED_VERSION = 29
 
 # Tables after every shipped migration: the v1 set plus 006's play-session outbox,
 # 012's per-platform completion stamp, 019's per-collection completion stamp, and
-# 026's savestate backup records, 027's achievement snapshot and 028's Steam-collection
-# ownership record, with 018 renaming the save-sync scalar table
+# 026's savestate backup records, 027's achievement snapshot, 028's Steam-collection
+# ownership record and 029's achievement goals and notes, with 018 renaming the save-sync scalar table
 # rom_save_states -> rom_save_sync_states.
 _SHIPPED_TABLES = (_V1_TABLES - {"rom_save_states"}) | {
     "rom_save_sync_states",
@@ -99,6 +100,8 @@ _SHIPPED_TABLES = (_V1_TABLES - {"rom_save_states"}) | {
     "rom_savestate_sync_states",
     "rom_achievement_progress",
     "owned_steam_collections",
+    "ra_game_journals",
+    "ra_achievement_goals",
 }
 
 
@@ -1835,6 +1838,102 @@ class Test028AddOwnedSteamCollections:
         try:
             with pytest.raises(sqlite3.IntegrityError):
                 conn.execute(self._INSERT, row)
+        finally:
+            conn.close()
+
+
+class Test029AddRaGameJournals:
+    """029 — adds the user's achievement goals and notes, keyed by RetroAchievements game id."""
+
+    _JOURNAL = "INSERT INTO ra_game_journals (ra_game_id, game_title, notes, notes_updated_at) VALUES (?, ?, ?, ?)"
+    _GOAL = (
+        "INSERT INTO ra_achievement_goals "
+        "(ra_game_id, achievement_id, title, description, points, pinned_at, unlocked_at, unlocked_hardcore) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
+    )
+
+    def test_tables_absent_before_029(self, tmp_path: Path):
+        db_path = str(tmp_path / "romm_sync.db")
+        apply_migrations(db_path, str(_only_migrations_through(tmp_path, 28)))
+
+        assert _user_version(db_path) == 28
+        assert "ra_game_journals" not in _tables(db_path)
+        assert "ra_achievement_goals" not in _tables(db_path)
+
+    def test_existing_rom_survives_and_nothing_is_pinned(self, tmp_path: Path):
+        db_path = str(tmp_path / "romm_sync.db")
+        apply_migrations(db_path, str(_only_migrations_through(tmp_path, 28)))
+        conn = sqlite3.connect(db_path, isolation_level=None)
+        try:
+            _insert_rom(conn, 1, 5000)
+        finally:
+            conn.close()
+
+        assert apply_migrations(db_path) == _SHIPPED_VERSION
+
+        conn = sqlite3.connect(db_path)
+        try:
+            assert conn.execute("SELECT COUNT(*) FROM roms").fetchone()[0] == 1
+            assert conn.execute("SELECT COUNT(*) FROM ra_game_journals").fetchone()[0] == 0
+        finally:
+            conn.close()
+
+    def test_a_journal_outlives_a_purged_rom_and_takes_its_goals_with_it(self, tmp_path: Path):
+        db_path = str(tmp_path / "romm_sync.db")
+        apply_migrations(db_path)
+        conn = sqlite3.connect(db_path, isolation_level=None)
+        try:
+            conn.execute("PRAGMA foreign_keys=ON")
+            _insert_rom(conn, 1, 5000)
+            conn.execute(self._JOURNAL, (77, "Sonic", "notes", "2026-11-26T10:00:00+00:00"))
+            conn.execute(self._GOAL, (77, 1, "Ring", "", 5, "2026-11-26T10:00:00+00:00", None, 0))
+
+            conn.execute("DELETE FROM roms WHERE rom_id = 1")
+            assert conn.execute("SELECT COUNT(*) FROM ra_achievement_goals").fetchone()[0] == 1
+
+            conn.execute("DELETE FROM ra_game_journals WHERE ra_game_id = 77")
+            assert conn.execute("SELECT COUNT(*) FROM ra_achievement_goals").fetchone()[0] == 0
+        finally:
+            conn.close()
+
+    @pytest.mark.parametrize(
+        "row",
+        [
+            (0, "Sonic", "", None),
+            (77, "", "", None),
+            (77, "Sonic", "x" * 4001, None),
+        ],
+    )
+    def test_rejects_an_impossible_journal(self, tmp_path: Path, row: tuple[object, ...]):
+        db_path = str(tmp_path / "romm_sync.db")
+        apply_migrations(db_path)
+        conn = sqlite3.connect(db_path, isolation_level=None)
+        try:
+            with pytest.raises(sqlite3.IntegrityError):
+                conn.execute(self._JOURNAL, row)
+        finally:
+            conn.close()
+
+    @pytest.mark.parametrize(
+        "row",
+        [
+            (77, 0, "Ring", "", 5, "t", None, 0),
+            (77, 1, "", "", 5, "t", None, 0),
+            (77, 1, "Ring", "", -1, "t", None, 0),
+            (77, 1, "Ring", "", 5, "", None, 0),
+            (77, 1, "Ring", "", 5, "t", None, 2),
+            (78, 1, "Ring", "", 5, "t", None, 0),
+        ],
+    )
+    def test_rejects_an_impossible_goal(self, tmp_path: Path, row: tuple[object, ...]):
+        db_path = str(tmp_path / "romm_sync.db")
+        apply_migrations(db_path)
+        conn = sqlite3.connect(db_path, isolation_level=None)
+        try:
+            conn.execute("PRAGMA foreign_keys=ON")
+            conn.execute(self._JOURNAL, (77, "Sonic", "", None))
+            with pytest.raises(sqlite3.IntegrityError):
+                conn.execute(self._GOAL, row)
         finally:
             conn.close()
 

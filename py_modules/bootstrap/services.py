@@ -17,6 +17,7 @@ from typing import TYPE_CHECKING
 
 from domain.shortcut_data import RETRODECK_APP_ID, ROM_LAUNCHER_NAME
 from lib.late_binding import LateBinding
+from services.achievement_journal import AchievementJournalService, AchievementJournalServiceConfig
 from services.achievements import AchievementsService, AchievementsServiceConfig
 from services.active_core_resolver import ActiveCoreResolver, ActiveCoreResolverConfig
 from services.artwork import ArtworkService, ArtworkServiceConfig
@@ -485,6 +486,19 @@ def wire_services(cfg: WiringConfig) -> dict[str, Any]:
         ),
     )
 
+    achievement_journal_service = AchievementJournalService(
+        config=AchievementJournalServiceConfig(
+            uow_factory=cfg.callbacks.uow_factory,
+            ra_web=cfg.adapters.retroachievements_web,
+            settings=cfg.stores.settings,
+            settings_persister=cfg.callbacks.settings_persister,
+            loop=cfg.runtime.loop,
+            logger=cfg.runtime.logger,
+            clock=cfg.runtime.clock,
+            log_debug=cfg.callbacks.log_debug,
+        ),
+    )
+
     steam_collection_service = SteamCollectionOwnershipService(
         config=SteamCollectionOwnershipServiceConfig(
             uow_factory=cfg.callbacks.uow_factory,
@@ -740,6 +754,7 @@ def wire_services(cfg: WiringConfig) -> dict[str, Any]:
         "game_detail_service": game_detail_service,
         "console_shelf_service": console_shelf_service,
         "steam_collection_service": steam_collection_service,
+        "achievement_journal_service": achievement_journal_service,
         "artwork_service": artwork_service,
         "shortcut_removal_service": shortcut_removal_service,
         "settings_service": settings_service,

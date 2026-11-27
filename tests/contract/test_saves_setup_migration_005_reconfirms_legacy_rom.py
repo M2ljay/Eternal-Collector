@@ -40,9 +40,9 @@ def _rewind_to_v4(db_path: str) -> None:
     absent, 021's ``fs_size_bytes`` column absent, 023's ``launchable``
     column absent, 024's ``selected_exe`` column absent, 026's
     ``rom_savestate_sync_states`` table absent, 027's
-    ``rom_achievement_progress`` table absent, and 028's
-    ``owned_steam_collections`` table absent) so the sequential 005→…→028
-    re-run applies cleanly.
+    ``rom_achievement_progress`` table absent, 028's
+    ``owned_steam_collections`` table absent, and 029's journal tables absent)
+    so the sequential 005→…→029 re-run applies cleanly.
     """
     conn = sqlite3.connect(db_path, isolation_level=None)
     try:
@@ -64,6 +64,9 @@ def _rewind_to_v4(db_path: str) -> None:
         conn.execute("DROP TABLE IF EXISTS rom_achievement_progress")
         # Reverse 028 so its CREATE TABLE re-applies instead of erroring.
         conn.execute("DROP TABLE IF EXISTS owned_steam_collections")
+        # Reverse 029 (goals first: they reference the journals) so its CREATE TABLEs re-apply.
+        conn.execute("DROP TABLE IF EXISTS ra_achievement_goals")
+        conn.execute("DROP TABLE IF EXISTS ra_game_journals")
         # Reverse 008 so its ADD COLUMNs re-apply instead of duplicating.
         for column in ("sibling_group_key", "regions", "languages", "revision", "tags", "is_main_sibling"):
             conn.execute(f"ALTER TABLE roms DROP COLUMN {column}")

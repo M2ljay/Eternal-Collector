@@ -1677,6 +1677,55 @@ describe("SettingsPage", () => {
       expect(getConsoleShelfState().enabled).toBe(true);
     });
 
+    it("hydrates the RetroAchievements Web API row from the masked settings", async () => {
+      vi.mocked(backend.getSettings).mockResolvedValue({
+        ...defaultSettings(),
+        ra_web_username: "Jamiras",
+        ra_web_api_key_masked: "••••",
+      });
+      render(<SettingsPage onBack={vi.fn()} />);
+      await flushAsync();
+      const props = capturedCollector[capturedCollector.length - 1]?.raWebApi;
+      expect(props?.username).toBe("Jamiras");
+      expect(props?.configured).toBe(true);
+    });
+
+    it("saving and removing the RetroAchievements Web API key updates the row", async () => {
+      vi.mocked(backend.saveRaWebApi).mockResolvedValue({ success: true });
+      vi.mocked(backend.clearRaWebApi).mockResolvedValue({ success: true });
+      render(<SettingsPage onBack={vi.fn()} />);
+      await flushAsync();
+      await act(async () => {
+        await capturedCollector[capturedCollector.length - 1]?.raWebApi?.onSave("Jamiras", "k");
+      });
+      expect(backend.saveRaWebApi).toHaveBeenCalledWith("Jamiras", "k");
+      expect(capturedCollector[capturedCollector.length - 1]?.raWebApi?.configured).toBe(true);
+      await act(async () => {
+        capturedCollector[capturedCollector.length - 1]?.raWebApi?.onClear();
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+      expect(capturedCollector[capturedCollector.length - 1]?.raWebApi?.configured).toBe(false);
+    });
+
+    it("logs a failed removal of the RetroAchievements Web API key and keeps the row", async () => {
+      vi.mocked(backend.getSettings).mockResolvedValue({
+        ...defaultSettings(),
+        ra_web_username: "Jamiras",
+        ra_web_api_key_masked: "••••",
+      });
+      vi.mocked(backend.clearRaWebApi).mockRejectedValue(new Error("boom"));
+      render(<SettingsPage onBack={vi.fn()} />);
+      await flushAsync();
+      await act(async () => {
+        capturedCollector[capturedCollector.length - 1]?.raWebApi?.onClear();
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+      expect(backend.debugLog).toHaveBeenCalledWith(expect.stringContaining("RetroAchievements Web API key"));
+      expect(capturedCollector[capturedCollector.length - 1]?.raWebApi?.configured).toBe(true);
+    });
+
     it("hydrates namingMode from getSettings", async () => {
       vi.mocked(backend.getSettings).mockResolvedValue({
         ...defaultSettings(),

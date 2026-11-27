@@ -49,6 +49,7 @@ from adapters.renderer_gc import RendererGcAdapter
 from adapters.renderer_rss import RendererRssAdapter
 from adapters.repositories.unit_of_work import SqliteUnitOfWork
 from adapters.retroachievements_config import RetroAchievementsConfigAdapter
+from adapters.retroachievements_web import RetroAchievementsWebAdapter
 from adapters.retroarch_config import RetroArchConfigAdapter
 from adapters.retroarch_core_info import RetroArchCoreInfoAdapter
 from adapters.retrodeck_launcher_backend import RetroDeckLauncherBackendFactory
@@ -104,6 +105,7 @@ if TYPE_CHECKING:
         RendererRssFn,
         ResolveUploadConflictFn,
         RetroAchievementsConfigReader,
+        RetroAchievementsWebApi,
         RetroArchSaveLayoutProvider,
         RetroArchSavestateLayoutProvider,
         RetroDeckPaths,
@@ -165,6 +167,7 @@ class AdapterBundle:
     retrodeck_launcher_backend_factory: LauncherBackendFactory
     emudeck_launcher_backend_factory: LauncherBackendFactory
     retroachievements_config: RetroAchievementsConfigReader
+    retroachievements_web: RetroAchievementsWebApi
     now_playing_store: NowPlayingStore
     vita_app_linker: VitaAppLinker | None = None
     game_mods: GameModStore | None = None
@@ -472,6 +475,7 @@ def bootstrap(
         retrodeck_launcher_backend_factory=retrodeck_launcher_backend_factory,
         emudeck_launcher_backend_factory=emudeck_launcher_backend_factory,
         retroachievements_config=RetroAchievementsConfigAdapter(logger=logger),
+        retroachievements_web=RetroAchievementsWebAdapter(settings=settings, user_agent=user_agent),
         now_playing_store=NowPlayingFileAdapter(
             path=os.path.join(os.path.dirname(os.path.normpath(runtime_dir)), _NOW_PLAYING_DIR, _NOW_PLAYING_FILENAME)
         ),

@@ -114,6 +114,7 @@ forbidden_modules =
 name = Services must not import other services
 type = independence
 modules =
+    services.achievement_journal
     services.achievements
     services.active_core_resolver
     services.artwork

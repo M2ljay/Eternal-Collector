@@ -9,6 +9,10 @@ import {
   connectWithPairingCode,
   signOut,
   saveSgdbApiKey,
+  saveRaWebApi,
+  debugLog,
+  verifyRaWebApi,
+  clearRaWebApi,
   verifySgdbApiKey,
   saveSteamInputSetting,
   applySteamInputSetting,
@@ -121,6 +125,8 @@ export const SettingsPage: FC<SettingsPageProps> = ({ onBack }) => {
   const [platformGroups, setPlatformGroups] = useState(false);
   const [raWarning, setRaWarning] = useState(true);
   const [homeShelf, setHomeShelf] = useState(true);
+  const [raWebUsername, setRaWebUsername] = useState("");
+  const [raWebConfigured, setRaWebConfigured] = useState(false);
   // Steam-collection naming mode (#1539): "merge" (default) or "by_label".
   const [namingMode, setNamingMode] = useState<CollectionNamingMode>("merge");
   const [nameStyle, setNameStyle] = useState<CollectionNameStyle>("classic");
@@ -140,6 +146,8 @@ export const SettingsPage: FC<SettingsPageProps> = ({ onBack }) => {
         setPlatformGroups(!!s.collection_create_platform_groups);
         setRaWarning(s.retroachievements_warning ?? true);
         setHomeShelf(s.collector_home_shelf ?? true);
+        setRaWebUsername(s.ra_web_username ?? "");
+        setRaWebConfigured(!!s.ra_web_api_key_masked);
         setNamingMode(s.collection_naming_mode ?? "merge");
         setNameStyle(s.collection_name_style ?? "classic");
         if (s.retroarch_input_check) {
@@ -526,6 +534,33 @@ export const SettingsPage: FC<SettingsPageProps> = ({ onBack }) => {
     );
   };
 
+  // --- RetroAchievements Web API (unlock timeline, goal checks) ---
+  // RaWebApiModal verifies before it saves; a successful save means a stored key.
+  const handleSaveRaWebApi = async (username: string, key: string) => {
+    const answer = await saveRaWebApi(username, key);
+    if (answer.success) {
+      setRaWebUsername(username);
+      setRaWebConfigured(true);
+    }
+    return answer;
+  };
+
+  const handleClearRaWebApi = () => {
+    detach(
+      (async () => {
+        try {
+          const answer = await clearRaWebApi();
+          if (answer.success) {
+            setRaWebUsername("");
+            setRaWebConfigured(false);
+          }
+        } catch (e) {
+          detach(debugLog(`Failed to remove the RetroAchievements Web API key: ${e}`));
+        }
+      })(),
+    );
+  };
+
   // --- Collection naming-mode handler (#1539) ---
   const handleNamingModeChange = (mode: CollectionNamingMode) => {
     const previous = namingMode;
@@ -683,7 +718,17 @@ export const SettingsPage: FC<SettingsPageProps> = ({ onBack }) => {
         onRaWarningChange={handleRaWarningChange}
       />
 
-      <CollectorSection homeShelf={homeShelf} onHomeShelfChange={handleHomeShelfChange} />
+      <CollectorSection
+        homeShelf={homeShelf}
+        onHomeShelfChange={handleHomeShelfChange}
+        raWebApi={{
+          username: raWebUsername,
+          configured: raWebConfigured,
+          onVerify: verifyRaWebApi,
+          onSave: handleSaveRaWebApi,
+          onClear: handleClearRaWebApi,
+        }}
+      />
 
       <LauncherBackendSection />
 

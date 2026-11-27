@@ -34,6 +34,13 @@ import type {
   AchievementSummary,
   AchievementList,
   AchievementProgress,
+  AchievementJournalAnswer,
+  GameLinksAnswer,
+  GoalsOverviewAnswer,
+  GoalUnlock,
+  PinnedAchievement,
+  TimelineRange,
+  UnlockTimelineAnswer,
   ConsoleShelfAnswer,
   ConsoleGamesAnswer,
   RefreshAchievementsAnswer,
@@ -1316,6 +1323,32 @@ export const copySaveToSlot = callable<[number, number, string], CopySaveToSlotS
 // Achievements callables
 export const getAchievements = callable<[number], AchievementList>("get_achievements");
 export const getAchievementProgress = callable<[number], AchievementProgress>("get_achievement_progress");
+
+// Achievement goals, notes and the unlock timeline (AchievementJournalService).
+// Goals and notes are keyed by the ROM's RetroAchievements game; the timeline,
+// goal refresh and guide links need the RetroAchievements Web API key the user
+// stores in Settings, and answer `no_web_api_key` without it.
+export const getAchievementJournal = callable<[number], AchievementJournalAnswer>("get_achievement_journal");
+export const saveAchievementNotes = callable<[number, string], AchievementJournalAnswer>("save_achievement_notes");
+export const pinAchievementGoal = callable<[number, PinnedAchievement], AchievementJournalAnswer>(
+  "pin_achievement_goal",
+);
+export const unpinAchievementGoal = callable<[number, number], AchievementJournalAnswer>("unpin_achievement_goal");
+export const recordAchievementGoalUnlocks = callable<
+  [number, GoalUnlock[]],
+  { success: true; changed: number } | { success: false; reason: string; message: string }
+>("record_achievement_goal_unlocks");
+export const getAchievementGoals = callable<[], GoalsOverviewAnswer>("get_achievement_goals");
+export const refreshAchievementGoals = callable<[], GoalsOverviewAnswer>("refresh_achievement_goals");
+export const getUnlockTimeline = callable<[TimelineRange, boolean], UnlockTimelineAnswer>("get_unlock_timeline");
+export const getAchievementGameLinks = callable<[number], GameLinksAnswer>("get_achievement_game_links");
+export const verifyRaWebApi = callable<[string, string], { success: boolean; reason?: string; message: string }>(
+  "verify_ra_web_api",
+);
+export const saveRaWebApi = callable<[string, string], { success: boolean; reason?: string; message?: string }>(
+  "save_ra_web_api",
+);
+export const clearRaWebApi = callable<[], { success: boolean }>("clear_ra_web_api");
 
 // Plugin self-update (Windows fork builds; every other build answers supported: false)
 interface PluginUpdateFailure {

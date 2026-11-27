@@ -50,6 +50,7 @@ from core_bootstrap import build_core
 from fakes.fake_game_process_control import FakeGameProcessControlAdapter
 from fakes.fake_renderer_gc import FakeRendererGc
 from fakes.fake_renderer_rss import FakeRendererRss
+from fakes.fake_retroachievements_web import FakeRetroAchievementsWeb
 from fakes.fake_romm_api import FakeRommApi
 from fakes.fake_steamgrid_db_api import FakeSteamGridDbApi
 from fakes.system_time import FakeClock, FakeSleeper, FakeUuidGen
@@ -80,6 +81,7 @@ _BOUND_SERVICE_ATTRS = {
     "_game_detail_service": "game_detail_service",
     "_console_shelf_service": "console_shelf_service",
     "_steam_collection_service": "steam_collection_service",
+    "_achievement_journal_service": "achievement_journal_service",
     "_artwork_service": "artwork_service",
     "_shortcut_removal_service": "shortcut_removal_service",
     "_settings_service": "settings_service",
@@ -132,6 +134,8 @@ class ContractHarness:
     # The in-memory process table behind the stop-game ladder. Tests seed ``pids``
     # (and ``survive_stop`` / ``alive``) to stage what the kill should find.
     game_process: FakeGameProcessControlAdapter
+    # The RetroAchievements Web API edge: canned answers, recorded calls.
+    ra_web: FakeRetroAchievementsWeb
 
 
 def _single_attempt_pass_through(fn: Callable[..., Any], *args: Any, **kwargs: Any) -> Any:
@@ -197,6 +201,7 @@ def build_contract_harness(tmp_path: Any) -> ContractHarness:
     # adapter reads the dev box's flatpak instance registry and would SIGTERM the
     # developer's actually-running game.
     fake_game_process = FakeGameProcessControlAdapter()
+    fake_ra_web = FakeRetroAchievementsWeb()
     patched_adapters = dataclasses.replace(
         result.adapters,
         romm_api=fake_romm,
@@ -204,6 +209,7 @@ def build_contract_harness(tmp_path: Any) -> ContractHarness:
         renderer_rss=FakeRendererRss(),
         renderer_gc=FakeRendererGc(),
         game_process=fake_game_process,
+        retroachievements_web=fake_ra_web,
     )
 
     # Deterministic time/uuid/sleep seams so timestamped responses assert cleanly.
@@ -261,4 +267,5 @@ def build_contract_harness(tmp_path: Any) -> ContractHarness:
         uow_factory=result.callbacks.uow_factory,
         retrodeck_paths=result.callbacks.retrodeck_paths,
         game_process=fake_game_process,
+        ra_web=fake_ra_web,
     )

@@ -330,6 +330,7 @@ class TestWireServices:
                 retrodeck_launcher_backend_factory=deps["retrodeck_launcher_backend_factory"],
                 emudeck_launcher_backend_factory=deps["emudeck_launcher_backend_factory"],
                 retroachievements_config=MagicMock(),
+                retroachievements_web=MagicMock(),
                 now_playing_store=MagicMock(),
             ),
             stores=StateBundle(
@@ -418,7 +419,7 @@ class TestWireServices:
     def test_returns_expected_services(self, tmp_path):
         deps = self._make_deps(tmp_path)
         result = wire_services(self._make_config(deps))
-        assert len(result) == 33
+        assert len(result) == 34
         assert "now_playing_service" in result
         assert "migration_service" in result
         assert "retroachievements_check_service" in result
@@ -427,6 +428,7 @@ class TestWireServices:
         assert "game_detail_service" in result
         assert "console_shelf_service" in result
         assert "steam_collection_service" in result
+        assert "achievement_journal_service" in result
         assert "rom_removal_service" in result
         assert "settings_service" in result
         assert "core_service" in result

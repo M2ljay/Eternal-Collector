@@ -92,6 +92,12 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     "collector_home_shelf": True,
     "steam_input_mode": "default",
     "steamgriddb_api_key": "",
+    # RetroAchievements Web API, for the unlock timeline and cross-game goal refresh.
+    # The key is the one the user copies from their RetroAchievements settings page
+    # into The Collector for this purpose, never an emulator's login. Read only by
+    # adapters/retroachievements_web.py; reported to the frontend masked.
+    "ra_web_username": "",
+    "ra_web_api_key": "",
     "romm_allow_insecure_ssl": False,
     "log_level": "warn",
     "save_sync_enabled": False,

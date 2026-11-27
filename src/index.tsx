@@ -6,6 +6,7 @@ import { MainPage } from "./components/MainPage";
 import { SettingsPage } from "./components/SettingsPage";
 import { LibraryPage } from "./components/LibraryPage";
 import { SystemPage } from "./components/SystemPage";
+import { AchievementsPage } from "./components/AchievementsPage";
 import { DangerZone } from "./components/DangerZone";
 import { DownloadQueue } from "./components/DownloadQueue";
 import { initUnitSyncManager, resetSyncCancel } from "./utils/syncManager";
@@ -145,6 +146,9 @@ const QAMPanel: FC = () => {
       break;
     case "system":
       content = <SystemPage onBack={() => setPage("main")} />;
+      break;
+    case "achievements":
+      content = <AchievementsPage onBack={() => setPage("main")} />;
       break;
     default:
       content = <MainPage onNavigate={(p) => setPage(p)} />;

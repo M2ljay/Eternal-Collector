@@ -66,6 +66,7 @@ nav:
       - Syncing Your Library: user-guide/syncing-your-library.md
       - Managing Games: user-guide/managing-games.md
       - Console Shelf: user-guide/console-shelf.md
+      - Achievements (Goals, Notes, Timeline): user-guide/achievements.md
       - BIOS &amp; Emulator Cores: user-guide/bios-management.md
       - Save Sync: user-guide/save-sync.md
       - Save File Extensions: user-guide/save-file-extensions.md
@@ -87,6 +88,7 @@ nav:
       - Plugin Self-Update (Windows): architecture/plugin-self-update.md
       - Steam Non-Steam Shortcuts: architecture/steam-non-steam-shortcuts.md
       - Home Console Shelf: architecture/home-console-shelf.md
+      - Achievement Journal: architecture/achievement-journal.md
       - Now Playing (Discord Rich Presence): architecture/now-playing-presence.md
       - Steam Remote Play & Cross-Device: architecture/steam-remote-play.md
   - Contributing:

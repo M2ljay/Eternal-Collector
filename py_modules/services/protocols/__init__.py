@@ -141,6 +141,7 @@ from services.protocols.repositories import (
     OwnedSteamCollectionRepository,
     PlatformSyncStateRepository,
     PlaytimeRepository,
+    RaGameJournalRepository,
     RomAchievementProgressRepository,
     RomInstallRepository,
     RomMetadataRepository,
@@ -151,6 +152,7 @@ from services.protocols.repositories import (
 )
 from services.protocols.transport import (
     PluginReleaseSource,
+    RetroAchievementsWebApi,
     RommAchievementsApi,
     RommApi,
     RommConnectionApi,
@@ -234,6 +236,7 @@ __all__ = [
     "ProtonLocator",
     "PruneArtifactStore",
     "PruneSaveCoordinator",
+    "RaGameJournalRepository",
     "ReachabilityProbeFn",
     "RecoveryBundleStore",
     "RelaunchOptionsReader",
@@ -241,6 +244,7 @@ __all__ = [
     "RendererRssFn",
     "ResolveUploadConflictFn",
     "RetroAchievementsConfigReader",
+    "RetroAchievementsWebApi",
     "RetroArchConfigReader",
     "RetroArchCoreInfoReader",
     "RetroArchSaveLayoutProvider",

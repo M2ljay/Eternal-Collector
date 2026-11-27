@@ -1,9 +1,14 @@
 /**
  * AchievementsTab — the RetroAchievements pane of the RomM game detail panel.
  *
- * Owns the whole lane: the lazy list + progress load, its load-once gate, and
- * the rendered badge rows. Nothing about it reaches the panel, which knows only
- * the `ra_id` that decides whether the tab exists at all.
+ * Owns the whole lane: the lazy list + progress load, its load-once gate, the
+ * rendered badge rows, and the game's journal — the goals the user pinned and
+ * their notes (views "Goals" and "Notes"). Nothing about it reaches the panel,
+ * which knows only the `ra_id` that decides whether the tab exists at all.
+ *
+ * The journal is local (SQLite), so it loads even when RomM is offline; the list
+ * and progress come from RomM. Goals RomM shows unlocked are relayed to the
+ * backend once, so the QAM goals list ticks them off too.
  *
  * Stays mounted while another tab is showing (rendering nothing) so a loaded
  * list survives a tab switch instead of re-fetching on every visit.
@@ -12,10 +17,34 @@
  * styleInjector.
  */
 
-import { useState, useEffect, useRef, FC, type ReactElement } from "react";
-import { DialogButton } from "@decky/ui";
-import { getAchievements, getAchievementProgress, debugLog } from "../api/backend";
-import type { Achievement, AchievementProgress, EarnedAchievement } from "../types";
+import { useState, useEffect, useRef, useMemo, FC, type ReactElement } from "react";
+import { DialogButton, showModal } from "@decky/ui";
+import {
+  getAchievements,
+  getAchievementProgress,
+  getAchievementJournal,
+  getAchievementGameLinks,
+  pinAchievementGoal,
+  unpinAchievementGoal,
+  saveAchievementNotes,
+  recordAchievementGoalUnlocks,
+  debugLog,
+} from "../api/backend";
+import type {
+  Achievement,
+  AchievementJournal,
+  AchievementJournalAnswer,
+  AchievementProgress,
+  EarnedAchievement,
+} from "../types";
+import { getEventTarget } from "../utils/events";
+import { unlocksByAchievementId, unlocksToRecord, isGoalDone } from "../utils/achievementJournal";
+import { core } from "../theme/coreTokens";
+import { AchievementViewBar, type AchievementView } from "./achievements/AchievementViewBar";
+import { GoalsView } from "./achievements/GoalsView";
+import { NotesView } from "./achievements/NotesView";
+import { NotesModal } from "./achievements/NotesModal";
+import { showAchievementMenu } from "./achievements/achievementMenus";
 import { scrollFocusedToCenter } from "../utils/scrollHelpers";
 import {
   beginServerLoad,
@@ -54,10 +83,16 @@ function makeHcSparkles(seed: number) {
   }));
 }
 
+/** What a row needs to know about goals: whether it is one, and what A on it does. */
+interface RowGoalActions {
+  goalIds: Set<number>;
+  onActivate: (a: Achievement, target: EventTarget | undefined) => void;
+}
+
 /** Render one achievement row — badge, title/description/rarity, earned dates,
  *  points. Earned state (and with it the hardcore treatment) comes from
- *  `earnedMap`, keyed by badge_id. */
-function renderCheevoRow(a: Achievement, earnedMap: Map<string, EarnedAchievement>) {
+ *  `earnedMap`, keyed by badge_id. A pinned goal carries a crimson "Goal" chip. */
+function renderCheevoRow(a: Achievement, earnedMap: Map<string, EarnedAchievement>, goals: RowGoalActions) {
   const earnedData = earnedMap.get(a.badge_id);
   const isEarned = !!earnedData;
   const isHardcore = !!earnedData?.date_hardcore;
@@ -124,12 +159,13 @@ function renderCheevoRow(a: Achievement, earnedMap: Map<string, EarnedAchievemen
       className={rowClasses}
       noFocusRing={false}
       onFocus={scrollFocusedToCenter}
+      onClick={(e: MouseEvent) => goals.onActivate(a, getEventTarget(e))}
       style={{
         background: "transparent",
         border: "none",
         padding: 0,
         textAlign: "left" as const,
-        cursor: "default",
+        cursor: "pointer",
         display: "flex",
         alignItems: "center",
         gap: "12px",
@@ -137,7 +173,27 @@ function renderCheevoRow(a: Achievement, earnedMap: Map<string, EarnedAchievemen
     >
       {badgeElement}
       <div className="romm-cheevo-details">
-        <div className="romm-cheevo-title">{a.title}</div>
+        <div className="romm-cheevo-title">
+          {a.title}
+          {goals.goalIds.has(a.ra_id) ? (
+            <span
+              data-testid={`goal-chip-${a.ra_id}`}
+              style={{
+                marginLeft: "8px",
+                fontSize: "10px",
+                fontWeight: 700,
+                letterSpacing: "0.04em",
+                color: core.crimsonText,
+                border: `1px solid ${core.crimson}`,
+                borderRadius: "3px",
+                padding: "0 4px",
+                verticalAlign: "middle",
+              }}
+            >
+              GOAL
+            </span>
+          ) : null}
+        </div>
         <div className="romm-cheevo-desc">{a.description}</div>
         {a.num_awarded > 0 ? <div className="romm-cheevo-rarity">{`${a.num_awarded} players earned this`}</div> : null}
       </div>
@@ -149,7 +205,11 @@ function renderCheevoRow(a: Achievement, earnedMap: Map<string, EarnedAchievemen
 
 /** The list body: summary bar, progress bar, then the earned and locked rows —
  *  earned first, each group in display order. */
-function renderCheevoList(achievements: Achievement[], progress: AchievementProgress | null): ReactElement {
+function renderCheevoList(
+  achievements: Achievement[],
+  progress: AchievementProgress | null,
+  goals: RowGoalActions,
+): ReactElement {
   const earned = progress?.earned ?? 0;
   const total = progress?.total ?? achievements.length;
 
@@ -194,14 +254,14 @@ function renderCheevoList(achievements: Achievement[], progress: AchievementProg
     cheevoChildren.push(
       <div key="earned-title" className="romm-cheevo-section-title">{`Earned (${earnedList.length})`}</div>,
     );
-    earnedList.forEach((a) => cheevoChildren.push(renderCheevoRow(a, earnedMap)));
+    earnedList.forEach((a) => cheevoChildren.push(renderCheevoRow(a, earnedMap, goals)));
   }
 
   if (lockedList.length > 0) {
     cheevoChildren.push(
       <div key="locked-title" className="romm-cheevo-section-title">{`Locked (${lockedList.length})`}</div>,
     );
-    lockedList.forEach((a) => cheevoChildren.push(renderCheevoRow(a, earnedMap)));
+    lockedList.forEach((a) => cheevoChildren.push(renderCheevoRow(a, earnedMap, goals)));
   }
 
   // Not wrapped in a section() — that would make the whole list ONE giant
@@ -216,6 +276,13 @@ export const AchievementsTab: FC<AchievementsTabProps> = ({ romId, raId, isActiv
   const [progress, setProgress] = useState<AchievementProgress | null>(null);
   const [loading, setLoading] = useState(false);
   const loadedRef = useRef(false);
+  const [journal, setJournal] = useState<AchievementJournal | null>(null);
+  const [journalError, setJournalError] = useState<string | null>(null);
+  const [view, setView] = useState<AchievementView>("all");
+  const [guideUrl, setGuideUrl] = useState<string | null>(null);
+  const journalLoadedRef = useRef(false);
+  const linksRequestedRef = useRef(false);
+  const relayedRef = useRef<AchievementJournal | null>(null);
 
   // Lazy-load on first activation. Mirrors the panel's saves-slot load's offline
   // handling (#1345 F1): a known-offline fast path (no ladder hang), a
@@ -294,25 +361,204 @@ export const AchievementsTab: FC<AchievementsTabProps> = ({ romId, raId, isActiv
     };
   }, [isActive, raId, romId, isOffline]);
 
+  // The journal is local, so it loads on first activation even when RomM is
+  // offline — goals and notes stay usable without the server.
+  useEffect(() => {
+    if (!isActive || !raId || journalLoadedRef.current) return;
+    journalLoadedRef.current = true;
+    let cancelled = false;
+    const load = async () => {
+      try {
+        const answer = await getAchievementJournal(romId);
+        if (cancelled) return;
+        if (answer.success) setJournal(answer);
+        else setJournalError(answer.message);
+      } catch (e) {
+        detach(debugLog(`Failed to load achievement journal: ${e}`));
+        if (!cancelled) {
+          journalLoadedRef.current = false;
+          setJournalError("Goals and notes could not be loaded.");
+        }
+      }
+    };
+    detach(load());
+    return () => {
+      cancelled = true;
+    };
+  }, [isActive, raId, romId]);
+
+  const seen = useMemo(() => unlocksByAchievementId(achievements, progress), [achievements, progress]);
+
+  // Relay goals RomM shows unlocked but the journal has not recorded, once per
+  // journal answer, so the QAM goals list ticks them off without the Web API.
+  useEffect(() => {
+    if (!journal) return;
+    const unlocks = unlocksToRecord(journal.goals, seen);
+    if (unlocks.length === 0 || relayedRef.current === journal) return;
+    relayedRef.current = journal;
+    const relay = async () => {
+      try {
+        const answer = await recordAchievementGoalUnlocks(romId, unlocks);
+        if (!answer.success || answer.changed === 0) return;
+        const fresh = await getAchievementJournal(romId);
+        if (fresh.success) setJournal(fresh);
+      } catch (e) {
+        detach(debugLog(`Failed to record goal unlocks: ${e}`));
+      }
+    };
+    detach(relay());
+  }, [journal, seen, romId]);
+
+  // Links (the game page and, with the Web API key, its guide) load the first
+  // time the Notes view opens.
+  useEffect(() => {
+    if (view !== "notes" || linksRequestedRef.current) return;
+    linksRequestedRef.current = true;
+    const load = async () => {
+      try {
+        const answer = await getAchievementGameLinks(romId);
+        if (answer.success) setGuideUrl(answer.guide_url);
+      } catch (e) {
+        detach(debugLog(`Failed to load achievement links: ${e}`));
+      }
+    };
+    detach(load());
+  }, [view, romId]);
+
+  const applyJournalAnswer = (answer: AchievementJournalAnswer, failure: string): string | null => {
+    if (answer.success) {
+      setJournal(answer);
+      setJournalError(null);
+      return null;
+    }
+    const message = answer.message || failure;
+    setJournalError(message);
+    return message;
+  };
+
+  const pin = (a: Achievement) => {
+    const run = async () => {
+      try {
+        const answer = await pinAchievementGoal(romId, {
+          achievement_id: a.ra_id,
+          title: a.title,
+          description: a.description,
+          points: a.points,
+        });
+        applyJournalAnswer(answer, "The goal could not be pinned.");
+      } catch (e) {
+        detach(debugLog(`Failed to pin goal: ${e}`));
+        setJournalError("The goal could not be pinned.");
+      }
+    };
+    detach(run());
+  };
+
+  const unpin = (achievementId: number) => {
+    const run = async () => {
+      try {
+        applyJournalAnswer(await unpinAchievementGoal(romId, achievementId), "The goal could not be removed.");
+      } catch (e) {
+        detach(debugLog(`Failed to remove goal: ${e}`));
+        setJournalError("The goal could not be removed.");
+      }
+    };
+    detach(run());
+  };
+
+  const editNotes = () => {
+    if (!journal) return;
+    showModal(
+      <NotesModal
+        gameTitle={journal.game_title}
+        initial={journal.notes}
+        onSave={async (text) => applyJournalAnswer(await saveAchievementNotes(romId, text), "Saving failed.")}
+      />,
+    );
+  };
+
   if (!isActive) return null;
 
-  if (loading) {
-    // The load pays the backend retry ladder — surface the shared
-    // ConnectingIndicator (with live "(attempt N/M)" progress) instead of
-    // frozen "Loading…" text (#1345).
-    return <ConnectingIndicator label="Loading achievements" />;
-  }
+  const goalIds = new Set((journal?.goals ?? []).map((g) => g.achievement_id));
+  const rowActions: RowGoalActions = {
+    goalIds,
+    onActivate: (a, target) =>
+      showAchievementMenu(
+        {
+          achievementId: a.ra_id,
+          title: a.title,
+          isGoal: goalIds.has(a.ra_id),
+          ...(journal ? { onPin: () => pin(a), onUnpin: () => unpin(a.ra_id) } : {}),
+        },
+        target,
+      ),
+  };
 
-  if (achievements.length === 0) {
-    // No cached list to fall back on. When the server is known-offline this is
-    // the degraded state for the fast path (no ladder hang); otherwise it's the
-    // genuine "this game has none" case (#1345).
+  const goals = journal?.goals ?? [];
+  const bar = journal ? (
+    <AchievementViewBar
+      view={view}
+      goalCount={goals.length}
+      doneCount={goals.filter((g) => isGoalDone(g, seen)).length}
+      hasNotes={!!journal.notes}
+      onSelect={setView}
+    />
+  ) : null;
+  const errorLine = journalError ? (
+    <div data-testid="journal-error" style={{ fontSize: "12px", color: core.crimsonText, marginBottom: "8px" }}>
+      {journalError}
+    </div>
+  ) : null;
+
+  if (journal && view === "goals") {
     return (
-      <div className="romm-panel-muted">
-        {isOffline ? "RomM offline — achievements unavailable." : "No achievements found for this game"}
+      <div>
+        {bar}
+        {errorLine}
+        <GoalsView goals={goals} seen={seen} onUnpin={unpin} />
+      </div>
+    );
+  }
+  if (journal && view === "notes") {
+    return (
+      <div>
+        {bar}
+        {errorLine}
+        <NotesView
+          notes={journal.notes}
+          notesUpdatedAt={journal.notes_updated_at}
+          gameUrl={journal.game_url ?? null}
+          guideUrl={guideUrl}
+          webApiConfigured={journal.web_api_configured ?? false}
+          onEdit={editNotes}
+        />
       </div>
     );
   }
 
-  return renderCheevoList(achievements, progress);
+  let body: ReactElement;
+  if (loading) {
+    // The load pays the backend retry ladder — surface the shared
+    // ConnectingIndicator (with live "(attempt N/M)" progress) instead of
+    // frozen "Loading…" text (#1345).
+    body = <ConnectingIndicator label="Loading achievements" />;
+  } else if (achievements.length === 0) {
+    // No cached list to fall back on. When the server is known-offline this is
+    // the degraded state for the fast path (no ladder hang); otherwise it's the
+    // genuine "this game has none" case (#1345).
+    body = (
+      <div className="romm-panel-muted">
+        {isOffline ? "RomM offline — achievements unavailable." : "No achievements found for this game"}
+      </div>
+    );
+  } else {
+    body = renderCheevoList(achievements, progress, rowActions);
+  }
+  return (
+    <div>
+      {bar}
+      {errorLine}
+      {body}
+    </div>
+  );
 };

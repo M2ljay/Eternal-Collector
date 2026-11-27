@@ -205,7 +205,7 @@ Format: **invariant** — tier — enforced by.
   confinement holds `session_budget`'s stated promise that no renderer-RSS reading is taken anywhere else in the package
 - **A module declared read-only calls no repository write — `services/library/local_library_reader.py` and
   `services/console_shelf.py`** — check — `scripts/check_read_only_module.py` (AST over the declared file's own calls,
-  matching the two-attribute `<...>.<repo>.<method>` shape against the fourteen repositories the UoW exposes). Read or
+  matching the two-attribute `<...>.<repo>.<method>` shape against the fifteen repositories the UoW exposes). Read or
   write is decided **by the name's shape** — `get` / `get_*` / `iter_*` / `count` plus the explicitly listed reads — and
   `tests/scripts/test_check_read_only_module.py` re-derives every method name from `services/protocols/repositories.py`
   and pins its classification, so a new repository method fails there until it is classified. **The two directions are
@@ -434,6 +434,15 @@ Format: **invariant** — tier — enforced by.
   results and captured logs never contain the token, the PPSSPP token file is never passed to `open`). A new emulator, a
   new reader method or a log line that formats parsed text is prompt-only: the tests pin today's parsers, not every
   future one
+- **The RetroAchievements Web API key (`ra_web_api_key`, the one the user enters in The Collector's settings — never an
+  emulator's login) is read only by `adapters/retroachievements_web.py`, sent only as the `y` parameter of a request to
+  `https://retroachievements.org/API/` with redirects refused, never chained into an exception, logged, emitted or
+  returned to the frontend (`get_settings` reports `ra_web_api_key_masked`); `services/achievement_journal.py` tests it
+  only for presence and writes it only through `SettingsPersister`** — test + prompt-only —
+  `tests/adapters/test_retroachievements_web.py` (host, query, refused redirect, key absent from every error and log),
+  `tests/services/test_achievement_journal.py` and `tests/contract/test_achievement_journal.py` (masked settings, key
+  absent from answers). A new request method, a second reader of the setting or a log line that formats a request URL
+  is prompt-only ([Achievement journal](docs/architecture/achievement-journal.md#the-retroachievements-web-api-key))
 - **The "now playing" record leaves the plugin (other plugins send it to Discord), so it never carries anything that
   points at the RomM server: `cover_url` is only a RomM `url_cover` that `domain/now_playing.public_cover_url` accepts
   (https, a public metadata CDN host, no user info, port, query or fragment) — never a `path_cover_*`/RomM asset URL,

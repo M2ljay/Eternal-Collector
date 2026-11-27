@@ -234,6 +234,7 @@ class Plugin:
         self._game_detail_service = services["game_detail_service"]
         self._console_shelf_service = services["console_shelf_service"]
         self._steam_collection_service = services["steam_collection_service"]
+        self._achievement_journal_service = services["achievement_journal_service"]
         self._artwork_service = services["artwork_service"]
         self._shortcut_removal_service = services["shortcut_removal_service"]
         self._settings_service = services["settings_service"]
@@ -1164,6 +1165,48 @@ class Plugin:
 
     async def get_achievement_progress(self, rom_id):
         return await self._achievements_service.get_achievement_progress(rom_id)
+
+    # ── Achievement goals, notes and unlock timeline ──────────
+
+    async def get_achievement_journal(self, rom_id):
+        return await self.loop.run_in_executor(None, self._achievement_journal_service.get_journal, rom_id)
+
+    async def save_achievement_notes(self, rom_id, text):
+        return await self.loop.run_in_executor(None, self._achievement_journal_service.save_notes, rom_id, text)
+
+    async def pin_achievement_goal(self, rom_id, achievement):
+        return await self.loop.run_in_executor(None, self._achievement_journal_service.pin_goal, rom_id, achievement)
+
+    async def unpin_achievement_goal(self, rom_id, achievement_id):
+        return await self.loop.run_in_executor(
+            None, self._achievement_journal_service.unpin_goal, rom_id, achievement_id
+        )
+
+    async def record_achievement_goal_unlocks(self, rom_id, unlocks):
+        return await self.loop.run_in_executor(
+            None, self._achievement_journal_service.record_goal_unlocks, rom_id, unlocks
+        )
+
+    async def get_achievement_goals(self):
+        return await self.loop.run_in_executor(None, self._achievement_journal_service.get_goals_overview)
+
+    async def refresh_achievement_goals(self):
+        return await self._achievement_journal_service.refresh_goals()
+
+    async def get_unlock_timeline(self, days, force):
+        return await self._achievement_journal_service.get_unlock_timeline(days, force)
+
+    async def get_achievement_game_links(self, rom_id):
+        return await self._achievement_journal_service.get_game_links(rom_id)
+
+    async def verify_ra_web_api(self, username, api_key):
+        return await self._achievement_journal_service.verify_web_api(username, api_key)
+
+    async def save_ra_web_api(self, username, api_key):
+        return await self.loop.run_in_executor(None, self._achievement_journal_service.save_web_api, username, api_key)
+
+    async def clear_ra_web_api(self):
+        return await self.loop.run_in_executor(None, self._achievement_journal_service.clear_web_api)
 
     # ── The Collector: console shelf and console pages ────────
 

@@ -468,6 +468,26 @@ class RommTokenApi(Protocol):
         ...
 
 
+class RetroAchievementsWebApi(Protocol):
+    """RetroAchievements.org's Web API, read with the key the user stored in The Collector's settings.
+
+    The adapter reads the key itself and sends it only to retroachievements.org; the
+    key never crosses this seam. Every failure raises ``lib.errors.RaWebApiError``.
+    """
+
+    def get_achievements_earned_between(self, username: str, from_epoch: int, to_epoch: int) -> Any:
+        """The raw ``API_GetAchievementsEarnedBetween`` answer for *username* in the window."""
+        ...
+
+    def get_game_info_and_user_progress(self, username: str, game_id: int) -> Any:
+        """The raw ``API_GetGameInfoAndUserProgress`` answer for *username* in *game_id*."""
+        ...
+
+    def verify_credentials(self, username: str, api_key: str) -> None:
+        """Ask RetroAchievements whether *api_key* can read *username*'s profile; raises on refusal."""
+        ...
+
+
 class RommAchievementsApi(RommRomReader, RommVersion, Protocol):
     """RomM surface for AchievementsService — ROM detail + server identity."""
 

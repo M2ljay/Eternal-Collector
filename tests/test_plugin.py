@@ -828,6 +828,21 @@ _MIGRATION_BLOCKED_WHITELIST: set[str] = {
     "record_owned_steam_collection",
     "forget_owned_steam_collection",
     "finish_steam_collection_adoption",
+    # Achievement goals, notes and the unlock timeline — SQLite journal rows, a
+    # settings.json write for the RetroAchievements Web API key, and requests to
+    # retroachievements.org; none touches RetroDECK state.
+    "get_achievement_journal",
+    "save_achievement_notes",
+    "pin_achievement_goal",
+    "unpin_achievement_goal",
+    "record_achievement_goal_unlocks",
+    "get_achievement_goals",
+    "refresh_achievement_goals",
+    "get_unlock_timeline",
+    "get_achievement_game_links",
+    "verify_ra_web_api",
+    "save_ra_web_api",
+    "clear_ra_web_api",
     # Preferred sibling-group region — a settings.json-only write (ADR-0021 §3),
     # never touches RetroDECK state; takes effect on the next sync. Its companion
     # read (distinct regions in the local library) is a pure local DB read.
@@ -1163,6 +1178,7 @@ class TestMainStartupOrdering:
             "launcher_backend_service": MagicMock(),
             "retroachievements_check_service": MagicMock(),
             "now_playing_service": MagicMock(),
+            "achievement_journal_service": MagicMock(),
         }
 
         bootstrap_result = BootstrapResult(
@@ -1193,6 +1209,7 @@ class TestMainStartupOrdering:
                 retrodeck_launcher_backend_factory=FakeLauncherBackendFactory("retrodeck"),
                 emudeck_launcher_backend_factory=FakeLauncherBackendFactory("emudeck", installations=[]),
                 retroachievements_config=MagicMock(),
+                retroachievements_web=MagicMock(),
                 now_playing_store=MagicMock(),
             ),
             stores=StateBundle(

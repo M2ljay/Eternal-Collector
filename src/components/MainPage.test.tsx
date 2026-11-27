@@ -4832,6 +4832,14 @@ describe("MainPage", () => {
       expect(onNavigate).toHaveBeenCalledWith("library");
     });
 
+    it("clicking Achievements invokes onNavigate('achievements')", async () => {
+      const onNavigate = vi.fn();
+      const { container } = render(<MainPage onNavigate={onNavigate} />);
+      await flushAsync();
+      fireEvent.click(buttonByExactText(container, "Achievements")!);
+      expect(onNavigate).toHaveBeenCalledWith("achievements");
+    });
+
     it("clicking System invokes onNavigate('system')", async () => {
       const onNavigate = vi.fn();
       const { container } = render(<MainPage onNavigate={onNavigate} />);

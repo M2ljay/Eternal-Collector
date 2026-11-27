@@ -70,6 +70,7 @@ import { retroDeckBanner, type RetroDeckBanner } from "../utils/retrodeckHealth"
 import { VersionErrorCard, useVersionError } from "./VersionErrorCard";
 import { WarningCard } from "./WarningCard";
 import { DownloadProgressRow } from "./DownloadProgressRow";
+import { GoalsQamSection } from "./achievements/GoalsQamSection";
 import { MigrationBlockedPage } from "./MigrationBlockedPage";
 import { SettingsResetBanner } from "./SettingsResetBanner";
 import { PlaytimeScopeBanner } from "./PlaytimeScopeBanner";
@@ -1712,10 +1713,17 @@ export const MainPage: FC<MainPageProps> = ({ onNavigate }) => {
         </PanelSection>
       )}
 
+      <GoalsQamSection onOpen={() => onNavigate("achievements")} />
+
       <PanelSection>
         <PanelSectionRow>
           <ButtonItem layout="below" bottomSeparator="none" onClick={() => onNavigate("library")}>
             Library
+          </ButtonItem>
+        </PanelSectionRow>
+        <PanelSectionRow>
+          <ButtonItem layout="below" bottomSeparator="none" onClick={() => onNavigate("achievements")}>
+            Achievements
           </ButtonItem>
         </PanelSectionRow>
         <PanelSectionRow>

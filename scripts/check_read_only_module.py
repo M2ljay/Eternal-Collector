@@ -8,7 +8,7 @@ where they are cheap rather than for where a write would be safe. Drop a write
 in among them and it commits at a moment nobody picked.
 
 Each module listed in :data:`READ_ONLY_MODULES` is walked for repository calls —
-``<anything>.<repo>.<method>(...)`` where ``<repo>`` is one of the fourteen
+``<anything>.<repo>.<method>(...)`` where ``<repo>`` is one of the fifteen
 repositories :class:`services.protocols.uow.UnitOfWork` exposes — and every
 method that is not a read is a finding. Read or write is decided **by the name's
 shape**: ``get`` / ``get_*`` / ``iter_*`` / ``count`` plus the explicit names in
@@ -41,8 +41,8 @@ it cannot see:
 * an **aliased repository handle** (``repo = uow.roms`` then ``repo.save(...)``),
   which flattens the two-attribute shape the scan matches on;
 * ``getattr(uow, "roms").save(...)`` or any other dynamically-named access;
-* a write through a repository the UoW does not expose under one of the fourteen
-  names in :data:`REPOSITORY_ATTRS`, including a future fifteenth not added here.
+* a write through a repository the UoW does not expose under one of the fifteen
+  names in :data:`REPOSITORY_ATTRS`, including a future sixteenth not added here.
 
 What the gate does catch is the plain ``uow.roms.save(...)`` added to a read
 module because it was the closest place with a Unit of Work already open. The
@@ -94,6 +94,7 @@ REPOSITORY_ATTRS: frozenset[str] = frozenset(
         "platform_sync_state",
         "collection_sync_state",
         "owned_steam_collections",
+        "ra_game_journals",
         "kv_config",
     }
 )

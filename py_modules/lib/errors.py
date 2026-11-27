@@ -17,6 +17,19 @@ class SgdbApiError(Exception):
         self.status_code = status_code
 
 
+class RaWebApiError(Exception):
+    """Raised by the RetroAchievements Web API adapter for any failed request.
+
+    ``status_code`` is the HTTP status when RetroAchievements answered, ``None``
+    when it could not be reached or the answer could not be read. The message
+    never carries the request URL, whose query string holds the Web API key.
+    """
+
+    def __init__(self, status_code: int | None, message: str) -> None:
+        super().__init__(message)
+        self.status_code = status_code
+
+
 class SteamGridDirMissingError(Exception):
     """Raised when the Steam grid directory cannot be located.
 

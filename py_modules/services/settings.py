@@ -95,7 +95,7 @@ class SettingsService:
 
         Reports whether a Client API Token is stored via ``has_token``;
         the token itself is never sent to the frontend. The SteamGridDB
-        API key is reported as a masked placeholder.
+        and RetroAchievements Web API keys are reported as a masked placeholder.
         """
         return {
             "romm_url": self._settings.get("romm_url", ""),
@@ -112,6 +112,8 @@ class SettingsService:
             "preferred_region": self._settings.get("preferred_region", AUTO_REGION),
             "retroachievements_warning": self._settings.get("retroachievements_warning", True),
             "collector_home_shelf": self._settings.get("collector_home_shelf", True),
+            "ra_web_username": self._settings.get("ra_web_username", ""),
+            "ra_web_api_key_masked": _MASK_PLACEHOLDER if self._settings.get("ra_web_api_key") else "",
         }
 
     # ── Log level ────────────────────────────────────────────────────────

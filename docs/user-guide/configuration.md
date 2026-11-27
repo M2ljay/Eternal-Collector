@@ -210,6 +210,14 @@ Windows build; see [RetroAchievements check](windows.md#retroachievements-check)
 **Show The Collector on Home**, in **The Collector** section of the settings page (on by default), shows a row of your
 consoles on Steam's Big Picture Home, under Recent games. See [Console Shelf and Console Pages](console-shelf.md).
 
+## RetroAchievements Web API
+
+**RetroAchievements Web API**, in **The Collector** section of the settings page (not set by default), takes your
+RetroAchievements username and the Web API key from your RetroAchievements settings page. It powers the unlock timeline,
+**Check goals on RetroAchievements** and game guide links; goals and notes work without it. The key is checked with
+RetroAchievements before it is saved, shown only as `••••`, and sent only to retroachievements.org. See
+[Achievements: goals, notes and timeline](achievements.md#setting-up-the-web-api-key).
+
 ## Launcher
 
 Two dropdowns in the **Launcher** section on the main page: **Launcher** (which app your games actually run through) and

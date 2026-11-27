@@ -1,4 +1,4 @@
-"""In-memory ``UnitOfWork`` composing the fourteen fake repositories, for service tests.
+"""In-memory ``UnitOfWork`` composing the fifteen fake repositories, for service tests.
 
 Mirrors the real UoW's context-manager shape — a clean ``__exit__`` commits and
 flips ``committed``; an exceptional one truly rolls back (discards every write
@@ -36,6 +36,7 @@ from fakes.fake_kv_config_repository import FakeKvConfigRepository
 from fakes.fake_owned_steam_collection_repository import FakeOwnedSteamCollectionRepository
 from fakes.fake_platform_sync_state_repository import FakePlatformSyncStateRepository
 from fakes.fake_playtime_repository import FakePlaytimeRepository
+from fakes.fake_ra_game_journal_repository import FakeRaGameJournalRepository
 from fakes.fake_rom_achievement_progress_repository import FakeRomAchievementProgressRepository
 from fakes.fake_rom_install_repository import FakeRomInstallRepository
 from fakes.fake_rom_metadata_repository import FakeRomMetadataRepository
@@ -53,6 +54,7 @@ if TYPE_CHECKING:
     from domain.owned_steam_collection import OwnedSteamCollection
     from domain.platform_sync_state import PlatformSyncState
     from domain.playtime import Playtime
+    from domain.ra_game_journal import RaGameJournal
     from domain.rom import Rom
     from domain.rom_achievement_progress import RomAchievementProgress
     from domain.rom_install import RomInstall
@@ -79,11 +81,12 @@ class _Snapshot:
     platform_sync_state: dict[str, PlatformSyncState]
     collection_sync_state: dict[tuple[str, str], CollectionSyncState]
     owned_steam_collections: dict[str, OwnedSteamCollection]
+    ra_game_journals: dict[int, RaGameJournal]
     kv_config: dict[str, str]
 
 
 class FakeUnitOfWork:
-    """In-memory unit of work over fourteen fake repositories with commit/rollback flags."""
+    """In-memory unit of work over fifteen fake repositories with commit/rollback flags."""
 
     # Child repos whose aggregate carries a ``rom_id`` foreign key onto ``roms``
     # (schema: rom_installs / rom_metadata / rom_playtime / rom_save_sync_states +
@@ -115,6 +118,7 @@ class FakeUnitOfWork:
         self.platform_sync_state = FakePlatformSyncStateRepository()
         self.collection_sync_state = FakeCollectionSyncStateRepository()
         self.owned_steam_collections = FakeOwnedSteamCollectionRepository()
+        self.ra_game_journals = FakeRaGameJournalRepository()
         self.kv_config = FakeKvConfigRepository()
         self.committed = False
         self.rolled_back = False
@@ -139,6 +143,7 @@ class FakeUnitOfWork:
             platform_sync_state=self.platform_sync_state._snapshot(),
             collection_sync_state=self.collection_sync_state._snapshot(),
             owned_steam_collections=self.owned_steam_collections._snapshot(),
+            ra_game_journals=self.ra_game_journals._snapshot(),
             kv_config=self.kv_config._snapshot(),
         )
         return self
@@ -186,6 +191,7 @@ class FakeUnitOfWork:
         self.platform_sync_state._restore(snapshot.platform_sync_state)
         self.collection_sync_state._restore(snapshot.collection_sync_state)
         self.owned_steam_collections._restore(snapshot.owned_steam_collections)
+        self.ra_game_journals._restore(snapshot.ra_game_journals)
         self.kv_config._restore(snapshot.kv_config)
 
     def _enforce_rom_id_foreign_keys(self) -> None:

@@ -75,6 +75,10 @@ export interface PluginSettings {
   // Optional: older payloads may omit it, treated as on.
   retroachievements_warning?: boolean;
   collector_home_shelf?: boolean;
+  // RetroAchievements Web API for the unlock timeline: the username, and the key
+  // as a masked placeholder ("••••") or "" when none is stored. Never the key.
+  ra_web_username?: string;
+  ra_web_api_key_masked?: string;
   // QAM collection owner-scope (#1532): "all" (default) or "own" (only the
   // signed-in user's own collections). Optional: older payloads may omit it,
   // treated as "all". Mirrors the CollectionOwnerScope type in sync.ts.

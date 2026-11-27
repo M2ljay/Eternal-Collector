@@ -37,6 +37,7 @@ if TYPE_CHECKING:
     from domain.owned_steam_collection import OwnedSteamCollection
     from domain.platform_sync_state import PlatformSyncState
     from domain.playtime import PendingSessionRow, Playtime
+    from domain.ra_game_journal import RaGameJournal
     from domain.rom import Rom
     from domain.rom_achievement_progress import RomAchievementProgress
     from domain.rom_install import RomInstall
@@ -508,6 +509,30 @@ class OwnedSteamCollectionRepository(Protocol):
 
     def delete(self, collection_id: str) -> None:
         """Forget *collection_id*. A no-op when absent."""
+        ...
+
+
+class RaGameJournalRepository(Protocol):
+    """Persistence seam for the ``RaGameJournal`` aggregate (the user's achievement goals and notes).
+
+    Keyed by the RetroAchievements game id, not a ROM: a journal outlives every ROM
+    that points at its game.
+    """
+
+    def get(self, ra_game_id: int) -> RaGameJournal | None:
+        """Return the journal for *ra_game_id*, or ``None`` when the user has none."""
+        ...
+
+    def iter_all(self) -> Iterator[RaGameJournal]:
+        """Iterate every journal, by game id."""
+        ...
+
+    def save(self, journal: RaGameJournal) -> None:
+        """Upsert *journal* with its goals, replacing the stored goals whole."""
+        ...
+
+    def delete(self, ra_game_id: int) -> None:
+        """Remove the journal for *ra_game_id* and its goals. A no-op when absent."""
         ...
 
 

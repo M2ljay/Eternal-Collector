@@ -381,6 +381,15 @@ The user's RetroAchievements progress per ROM as RomM last reported it (`ra_prog
 persisted in `rom_achievement_progress` (the `RomAchievementProgress` aggregate) and replaced as a whole from one
 answer. A ROM with a set but no row has "no progress yet". It is only as fresh as RomM's own RetroAchievements sync.
 
+### Achievement journal / goal / unlock timeline
+
+The **achievement journal** is the user's own layer per RetroAchievements game (the `RaGameJournal` aggregate, keyed by
+`roms.ra_id`, not by a ROM): free-text **notes** and **goals**. A **goal** is an achievement the user pinned; it is
+**unlocked** (ticked off) once an unlock is seen in RomM's progress data or RetroAchievements' Web API, and an unlock
+only moves forward (softcore may become hardcore, never back). The **unlock timeline** is the user's unlocks across games
+read from RetroAchievements' Web API, which needs the **RetroAchievements Web API key** the user stores in The
+Collector's settings — never an emulator's RetroAchievements login.
+
 ### Mod target / mod backup
 
 A **mod target** is one place a game's mods go under the emulator it launches with (`domain/game_mods.py`

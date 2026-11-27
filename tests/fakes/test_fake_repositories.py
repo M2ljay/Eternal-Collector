@@ -18,6 +18,7 @@ from domain.firmware_cache import FirmwareCacheEntry
 from domain.owned_steam_collection import OwnedSteamCollection
 from domain.platform_sync_state import PlatformSyncState
 from domain.playtime import Playtime
+from domain.ra_game_journal import RaGameJournal
 from domain.rom import Rom
 from domain.rom_achievement_progress import RomAchievementProgress
 from domain.rom_install import RomInstall
@@ -32,6 +33,7 @@ from fakes.fake_kv_config_repository import FakeKvConfigRepository
 from fakes.fake_owned_steam_collection_repository import FakeOwnedSteamCollectionRepository
 from fakes.fake_platform_sync_state_repository import FakePlatformSyncStateRepository
 from fakes.fake_playtime_repository import FakePlaytimeRepository
+from fakes.fake_ra_game_journal_repository import FakeRaGameJournalRepository
 from fakes.fake_rom_achievement_progress_repository import FakeRomAchievementProgressRepository
 from fakes.fake_rom_install_repository import FakeRomInstallRepository
 from fakes.fake_rom_metadata_repository import FakeRomMetadataRepository
@@ -708,3 +710,38 @@ class TestFakeUnitOfWorkRomIdForeignKey:
             )
             uow.kv_config.set("k", "v")
         assert uow.committed is True
+
+
+class TestFakeRaGameJournalRepository:
+    @staticmethod
+    def _journal(ra_game_id: int) -> RaGameJournal:
+        journal = RaGameJournal.opened(ra_game_id=ra_game_id, game_title="Sonic")
+        journal.write_notes("notes", at="2026-11-26T10:00:00+00:00")
+        return journal
+
+    def test_round_trip_iter_delete(self):
+        repo = FakeRaGameJournalRepository()
+        repo.save(self._journal(9))
+        repo.save(self._journal(3))
+        assert [j.ra_game_id for j in repo.iter_all()] == [3, 9]
+        assert repo.get(9) == self._journal(9)
+        repo.delete(9)
+        repo.delete(9)
+        assert repo.get(9) is None
+
+    def test_returns_copies(self):
+        repo = FakeRaGameJournalRepository()
+        repo.save(self._journal(1))
+        loaded = repo.get(1)
+        assert loaded is not None
+        loaded.write_notes("changed", at="later")
+        stored = repo.get(1)
+        assert stored is not None
+        assert stored.notes == "notes"
+
+    def test_uow_rollback_discards_a_journal(self):
+        uow = FakeUnitOfWork()
+        with pytest.raises(RuntimeError), uow:
+            uow.ra_game_journals.save(self._journal(1))
+            raise RuntimeError("boom")
+        assert uow.ra_game_journals.get(1) is None
