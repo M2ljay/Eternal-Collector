@@ -895,6 +895,7 @@ _MIGRATION_BLOCKED_WHITELIST: set[str] = {
     "check_plugin_update",
     "prepare_plugin_update",
     "prepare_plugin_reinstall",
+    "prepare_for_plugin_install",
     "get_plugin_rollback",
     # Install check: reads the plugin's own folder, and must answer even when
     # the rest of the plugin failed to import.

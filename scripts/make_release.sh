@@ -14,7 +14,8 @@
 # launcher files, every file of defaults/ except README.md copied flat into the
 # top folder (as the Decky CLI does), py_modules/ without bytecode caches, and
 # install-manifest.json listing the path, size and SHA-256 of every other file.
-# Entries carry a fixed timestamp so an unchanged tree zips byte-identically.
+# Entries are written in install order (manifest first, py_modules/native/ last)
+# with a fixed timestamp, so an unchanged tree zips byte-identically.
 #
 # SKIP_BUILD=1 reuses an existing dist/index.js instead of running `pnpm build`.
 # See docs/architecture/plugin-self-update.md for the channel this feeds.
@@ -100,10 +101,33 @@ for name, path in sorted(entries):
     files.append({"path": name, "size": len(data), "sha256": hashlib.sha256(data).hexdigest()})
 manifest = json.dumps({"format": MANIFEST_FORMAT, "version": version, "files": files}, indent=1).encode() + b"\n"
 
+# Zip order is install order: Decky's ZipFile.extractall writes entries in it
+# and stops at the first file it cannot write, leaving every later entry
+# unwritten. The manifest goes first, so a cut-short install is checked against
+# the new build; the Python code and main.py next; then the rest; bin/ (locked
+# while a game runs from rom-launcher.exe) and py_modules/native/ (mapped by any
+# build up to 0.33.0-win.24 that is still running) last. See
+# docs/architecture/plugin-self-update.md#zip-order.
+def install_order(name):
+    if name == MANIFEST_NAME:
+        group = 0
+    elif name.startswith("py_modules/native/"):
+        group = 5
+    elif name.startswith("bin/"):
+        group = 4
+    elif name.startswith("py_modules/"):
+        group = 1
+    elif name == "main.py":
+        group = 2
+    else:
+        group = 3
+    return (group, name)
+
+
 tmp = dest + ".part"
 with zipfile.ZipFile(tmp, "w", compression=zipfile.ZIP_DEFLATED) as zf:
     blobs = [(name, path, None) for name, path in entries] + [(MANIFEST_NAME, None, manifest)]
-    for name, path, blob in sorted(blobs, key=lambda e: e[0]):
+    for name, path, blob in sorted(blobs, key=lambda e: install_order(e[0])):
         info = zipfile.ZipInfo(f"{top}/{name}", date_time=stamp)
         info.compress_type = zipfile.ZIP_DEFLATED
         mode = 0o755 if path is not None and os.access(path, os.X_OK) else 0o644

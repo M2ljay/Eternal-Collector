@@ -1380,6 +1380,9 @@ export const checkPluginUpdate = callable<[boolean], PluginUpdateCheck>("check_p
 export const preparePluginUpdate = callable<[], PluginUpdatePrepared>("prepare_plugin_update");
 export const getPluginRollback = callable<[], PluginRollback>("get_plugin_rollback");
 export const preparePluginReinstall = callable<[], PluginUpdatePrepared>("prepare_plugin_reinstall");
+/** Called right before every hand-off to Decky's installer: refuses while a launched game runs, releases folder handles. */
+export type PluginInstallReady = { success: true; still_held: string[] } | PluginUpdateFailure;
+export const prepareForPluginInstall = callable<[], PluginInstallReady>("prepare_for_plugin_install");
 
 /** Whether the installed plugin folder matches its build's install manifest (works when the rest of the backend could not load). */
 export type InstallIntegrity =
@@ -1395,6 +1398,10 @@ export type InstallIntegrity =
       hashes_checked: boolean;
       detail: string | null;
       import_error?: string;
+      /** Files restored from the kept release zip (`repair_source`); `restart_needed` once the plugin had already loaded. */
+      repaired?: string[];
+      repair_source?: string | null;
+      restart_needed?: boolean;
     }
   | { success: false; reason: string; message: string };
 export const getInstallIntegrity = callable<[], InstallIntegrity>("get_install_integrity");

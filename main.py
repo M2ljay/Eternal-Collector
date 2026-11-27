@@ -26,11 +26,24 @@ import decky
 # docs/architecture/plugin-self-update.md) fails the full import below, and these
 # two must still load to tell the user and to offer the reinstall.
 try:
-    from core_bootstrap import build_core
+    from core_bootstrap import build_core, check_install_before_import
 except Exception:
     CORE_IMPORT_ERROR: str | None = traceback.format_exc()
 else:
     CORE_IMPORT_ERROR = None
+
+# Runs before the full import below so that files restored from the kept
+# release zip are the ones that import (a restart is needed otherwise).
+PRE_IMPORT_CHECK: Any = None
+if CORE_IMPORT_ERROR is None:
+    try:
+        PRE_IMPORT_CHECK = check_install_before_import(
+            logger=decky.logger,
+            plugin_dir=decky.DECKY_PLUGIN_DIR,
+            runtime_dir=decky.DECKY_PLUGIN_RUNTIME_DIR,
+        )
+    except Exception:
+        decky.logger.exception("Install check: the pass before import failed")
 
 try:
     from bootstrap import (
@@ -164,6 +177,7 @@ class Plugin:
                 log_debug=self._log_debug,
                 plugin_dir=decky.DECKY_PLUGIN_DIR,
                 runtime_dir=decky.DECKY_PLUGIN_RUNTIME_DIR,
+                pre_import_check=PRE_IMPORT_CHECK,
             )
             self._plugin_update_service = self._core.plugin_update
             self._core.install_integrity.start_hash_check()
@@ -382,6 +396,13 @@ class Plugin:
         if service is None:
             return _update_unavailable()
         return await service.prepare_reinstall()
+
+    async def prepare_for_plugin_install(self):
+        """Called by the frontend right before every hand-off to Decky's installer (works in rescue mode)."""
+        service = self._plugin_update_service
+        if service is None:
+            return {"success": True, "still_held": []}
+        return await service.prepare_for_install()
 
     async def get_plugin_rollback(self):
         service = self._plugin_update_service

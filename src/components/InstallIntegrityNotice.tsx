@@ -6,13 +6,16 @@
  * (docs/architecture/plugin-self-update.md#half-copied-installs), and the backend's
  * other callables may not exist at all then, so this component asks only the
  * one callable that is guaranteed to answer and renders nothing otherwise. The
- * button reinstalls the published build through Decky's own installer.
+ * button reinstalls the published build through Decky's own installer or, once
+ * the backend restored the missing files from its kept copy of the build,
+ * restarts the plugin so they load.
  */
 
 import { useEffect, useState, FC } from "react";
 import { ButtonItem, PanelSection, PanelSectionRow } from "@decky/ui";
 import { getInstallIntegrity, logError, type InstallIntegrity } from "../api/backend";
 import { detach } from "../utils/detach";
+import { reloadPlugin } from "../utils/installHandoff";
 import { canSelfUpdate, reinstallPlugin } from "../utils/pluginUpdate";
 import { PLUGIN_DISPLAY_NAME } from "../utils/toast";
 import { core, tint } from "../theme/coreTokens";
@@ -26,27 +29,44 @@ export function shortVersion(version: string | null | undefined): string {
   return match?.[1] ?? version;
 }
 
-/** The notice's title and body for a report, or `null` when there is nothing to say. */
-export function integrityNotice(report: InstallIntegrity | null): { title: string; body: string } | null {
+export interface Notice {
+  title: string;
+  body: string;
+  action: "reinstall" | "restart";
+}
+
+/** The notice's title, body and button for a report, or `null` when there is nothing to say. */
+export function integrityNotice(report: InstallIntegrity | null): Notice | null {
   if (!report?.success) return null;
   const target = shortVersion(report.expected_version || report.current_version);
   const reinstall = target ? `Reinstall ${target}` : "Reinstall it";
   if (report.status === "incomplete") {
     return {
-      title: "Update didn't finish",
-      body: `${PLUGIN_DISPLAY_NAME}'s last update didn't finish copying. ${reinstall}.`,
+      title: "Install cut short",
+      body: `Reinstall ${PLUGIN_DISPLAY_NAME} — the last install was cut short.`,
+      action: "reinstall",
+    };
+  }
+  if (report.restart_needed && report.repaired?.length) {
+    const files = report.repaired.length === 1 ? "1 file" : `${report.repaired.length} files`;
+    return {
+      title: "Files restored",
+      body: `${PLUGIN_DISPLAY_NAME} restored ${files} the last install didn't copy. Restart it to load them.`,
+      action: "restart",
     };
   }
   if (report.status === "stale_files") {
     return {
       title: "Old files left behind",
       body: `${PLUGIN_DISPLAY_NAME}'s last update left files from an older version behind. ${reinstall} to clean them up.`,
+      action: "reinstall",
     };
   }
   return null;
 }
 
 const HANDED_OFF = "Decky will ask you to confirm, then reload the plugin.";
+const RESTARTING = "Decky is restarting the plugin.";
 
 export const InstallIntegrityNotice: FC = () => {
   const [report, setReport] = useState<Shown | null>(null);
@@ -73,11 +93,12 @@ export const InstallIntegrityNotice: FC = () => {
 
   const selfUpdate = canSelfUpdate();
   const target = shortVersion(report.expected_version || report.current_version);
-  const reinstall = async () => {
+  const restart = notice.action === "restart";
+  const run = async () => {
     setBusy(true);
-    setStatus("Downloading and verifying...");
-    const err = await reinstallPlugin();
-    setStatus(err || HANDED_OFF);
+    setStatus(restart ? "Restarting..." : "Downloading and verifying...");
+    const err = restart ? await reloadPlugin() : await reinstallPlugin();
+    setStatus(err || (restart ? RESTARTING : HANDED_OFF));
     setBusy(false);
   };
 
@@ -102,10 +123,10 @@ export const InstallIntegrityNotice: FC = () => {
         <ButtonItem
           layout="below"
           disabled={busy || !selfUpdate}
-          onClick={() => detach(reinstall())}
+          onClick={() => detach(run())}
           description={selfUpdate ? status || undefined : "This Decky Loader cannot install plugins from here."}
         >
-          {target ? `Reinstall ${target}` : "Reinstall"}
+          {restart ? `Restart ${PLUGIN_DISPLAY_NAME}` : target ? `Reinstall ${target}` : "Reinstall"}
         </ButtonItem>
       </PanelSectionRow>
     </PanelSection>

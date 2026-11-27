@@ -35,7 +35,9 @@ vocabulary the answer comes back in.
 
 from __future__ import annotations
 
+import contextlib
 import ctypes
+import hashlib
 import os
 import sys
 import threading
@@ -397,6 +399,43 @@ def _decode_action(result: _SyncActionResult, saves_by_id: dict[int, dict[str, A
     if result.action == _ACTION_DOWNLOAD:
         return Download(server_save=server_save)
     return Conflict(server_save=server_save)
+
+
+def copy_out_of_plugin_folder(dest_dir: str, source: str = _BUNDLED_LIB_PATH) -> str:
+    """Copy the bundled core into *dest_dir* and return the copy's path, for the backend to load instead.
+
+    Windows refuses to open a mapped DLL for writing, and Decky Loader v3.3.1's
+    "Install plugin from ZIP" extracts over the running plugin's folder without
+    stopping it (``browser.py`` ``_install``: the install-check name is the zip's
+    file name, so the old plugin is never found or uninstalled), aborting at the
+    first locked file. Loading a copy that lives outside the plugin folder leaves
+    nothing there for the extract to trip on. The copy is named after its
+    SHA-256, so a newer build never overwrites a copy an older process may still
+    map; copies of other builds are removed when nothing holds them. Raises
+    ``OSError`` when the copy cannot be made.
+    """
+    with open(source, "rb") as f:
+        data = f.read()
+    digest = hashlib.sha256(data).hexdigest()
+    stem, ext = os.path.splitext(os.path.basename(source))
+    name = f"{stem}-{digest[:16]}{ext}"
+    dest = os.path.join(dest_dir, name)
+    if not (os.path.isfile(dest) and _file_sha256(dest) == digest):
+        os.makedirs(dest_dir, exist_ok=True)
+        tmp = dest + ".part"
+        with open(tmp, "wb") as f:
+            f.write(data)
+        os.replace(tmp, dest)
+    for other in os.listdir(dest_dir):
+        if other != name and other.startswith(f"{stem}-"):
+            with contextlib.suppress(OSError):
+                os.remove(os.path.join(dest_dir, other))
+    return dest
+
+
+def _file_sha256(path: str) -> str:
+    with open(path, "rb") as f:
+        return hashlib.sha256(f.read()).hexdigest()
 
 
 def _unload_library(handle: int) -> None:

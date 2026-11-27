@@ -17,6 +17,7 @@ import os
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
+from domain.install_manifest import RELEASE_DOWNLOAD_DIR, release_zip_name
 from domain.plugin_release import (
     CHECK_INTERVAL_SECONDS,
     MANIFEST_URL,
@@ -44,7 +45,6 @@ if TYPE_CHECKING:
     )
 
 _STATE_FILE = "state.json"
-_DOWNLOAD_DIR = "download"
 _PREVIOUS_DIR = "previous"
 _PREVIOUS_RECORD = "previous.json"
 _UNSUPPORTED = "Self-update is only offered on the Windows fork build."
@@ -219,13 +219,15 @@ class PluginUpdateService:
             if not newer and manifest.version != self._current:
                 return self._failure(
                     "channel_older",
-                    f"The release channel offers {manifest.version}, older than the installed {self._current}.",
+                    f"The update channel only has {manifest.version}, older than the installed {self._current}. "
+                    f"Install {release_zip_name(self._current)} again from Decky's Developer menu "
+                    "(Install plugin from ZIP).",
                 )
         elif not newer:
             return self._failure("up_to_date", f"{self._current} is already the newest build.")
 
-        download_dir = os.path.join(self._staging_dir, _DOWNLOAD_DIR)
-        dest = os.path.join(download_dir, f"romm-dock-{manifest.version}.zip")
+        download_dir = os.path.join(self._staging_dir, RELEASE_DOWNLOAD_DIR)
+        dest = os.path.join(download_dir, release_zip_name(manifest.version))
         try:
             size, sha256 = await self._run(lambda: self._download_io(download_dir, dest, manifest, now))
         except PluginReleaseFetchError as e:
@@ -273,6 +275,20 @@ class PluginUpdateService:
             "install_type": INSTALL_TYPE_UPDATE if newer else INSTALL_TYPE_REINSTALL,
         }
 
+    async def prepare_for_install(self) -> dict[str, Any]:
+        """The last step before the frontend hands any build to Decky Loader's installer.
+
+        Every hand-off goes through here (update, reinstall, rollback): refuses
+        with ``game_running`` while a game the plugin launched runs, then
+        releases every handle the backend holds inside its own folder. Returns
+        ``{success: True, still_held}`` — ``still_held`` names holders whose
+        release failed (logged; the install is still allowed, as a refusal
+        would leave the user nothing to do) — or the standard failure shape.
+        """
+        if await self._run(self._game_running_io):
+            return self._failure("game_running", _GAME_RUNNING)
+        return {"success": True, "still_held": self._release_handles()}
+
     def _game_running_io(self) -> bool:
         if self._running_executables is None or not self._launcher_name:
             return False
@@ -282,12 +298,13 @@ class PluginUpdateService:
             return False
         return self._launcher_name in names
 
-    def _release_handles(self) -> None:
+    def _release_handles(self) -> list[str]:
         if self._handles is None:
-            return
+            return []
         failed = self._handles.release_all()
         if failed:
             self._logger.warning(f"Plugin update: still holding {failed} inside the plugin folder")
+        return failed
 
     def _download_io(self, download_dir: str, dest: str, manifest: ReleaseManifest, now: float) -> tuple[int, str]:
         assert self._source is not None and self._files is not None

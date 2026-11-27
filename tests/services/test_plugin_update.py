@@ -367,6 +367,8 @@ class TestPrepareReinstall:
         result = await make_service().prepare_reinstall()
         assert result["success"] is False
         assert result["reason"] == "channel_older"
+        assert f"romm-dock-{CURRENT}.zip" in result["message"]
+        assert "Developer menu" in result["message"]
         assert source.download_urls == []
 
     async def test_reinstall_keeps_the_previous_snapshot(self, make_service, source, tmp_path):
@@ -389,3 +391,40 @@ class TestPrepareReinstall:
     async def test_unsupported_platform(self, make_service):
         result = await make_service(platform_supported=False).prepare_reinstall()
         assert result["reason"] == "unsupported"
+
+
+class TestPrepareForInstall:
+    """The last step before every hand-off to Decky's installer (update, reinstall and rollback alike)."""
+
+    async def test_releases_handles_and_allows_the_install(self, make_service, source):
+        handles = _Handles()
+        result = await make_service(folder_handles=handles).prepare_for_install()
+        assert result == {"success": True, "still_held": []}
+        assert handles.released == 1
+        assert source.download_urls == []
+
+    async def test_refuses_while_a_launched_game_runs(self, make_service):
+        handles = _Handles()
+        svc = make_service(running_executables=lambda: frozenset({"rom-launcher.exe"}), folder_handles=handles)
+        result = await svc.prepare_for_install()
+        assert result["success"] is False
+        assert result["reason"] == "game_running"
+        assert result["current"] == CURRENT
+        assert handles.released == 0
+
+    async def test_a_holder_that_will_not_release_is_named_not_fatal(self, make_service, caplog):
+        svc = make_service(folder_handles=_Handles(failing=["gavel native core"]))
+        with caplog.at_level(logging.WARNING):
+            result = await svc.prepare_for_install()
+        assert result == {"success": True, "still_held": ["gavel native core"]}
+        assert "gavel native core" in caplog.text
+
+    async def test_works_without_handles_or_a_process_table(self, make_service):
+        result = await make_service(running_executables=lambda: None).prepare_for_install()
+        assert result == {"success": True, "still_held": []}
+
+    async def test_works_on_a_build_without_the_update_channel(self, make_service):
+        handles = _Handles()
+        result = await make_service(platform_supported=False, folder_handles=handles).prepare_for_install()
+        assert result["success"] is True
+        assert handles.released == 1

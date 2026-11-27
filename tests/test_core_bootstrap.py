@@ -8,7 +8,7 @@ import logging
 from unittest.mock import patch
 
 import core_bootstrap
-from core_bootstrap import build_core, read_plugin_version
+from core_bootstrap import build_core, check_install_before_import, read_plugin_version
 
 
 def _no_debug(msg: str) -> None:
@@ -56,6 +56,58 @@ async def test_update_half_failing_leaves_the_install_check(tmp_path):
     assert (await core.install_integrity.get_report())["success"] is True
 
 
+def _half_copied_with_kept_zip(tmp_path, version="0.33.0-win.25"):
+    """A plugin folder missing one module, and the verified release zip of the same build in the update cache."""
+    import hashlib
+    import zipfile
+
+    root = _plugin(tmp_path, version)
+    files = {
+        "package.json": (root / "package.json").read_bytes(),
+        "py_modules/services/now_playing.py": b"NOW = 1\n",
+    }
+    entries = [{"path": p, "size": len(d), "sha256": hashlib.sha256(d).hexdigest()} for p, d in files.items()]
+    manifest = json.dumps({"format": 1, "version": version, "files": entries}).encode()
+    (root / "install-manifest.json").write_bytes(manifest)
+    download = tmp_path / "runtime" / "plugin-update" / "download"
+    download.mkdir(parents=True)
+    with zipfile.ZipFile(download / f"romm-dock-{version}.zip", "w") as zf:
+        zf.writestr("romm-dock/install-manifest.json", manifest)
+        for rel, data in files.items():
+            zf.writestr(f"romm-dock/{rel}", data)
+    return root
+
+
+async def test_pre_import_pass_restores_from_the_kept_zip_and_build_core_reports_it(tmp_path):
+    root = _half_copied_with_kept_zip(tmp_path)
+    runtime = str(tmp_path / "runtime")
+    before = check_install_before_import(logger=logging.getLogger("t"), plugin_dir=str(root), runtime_dir=runtime)
+    assert (root / "py_modules" / "services" / "now_playing.py").read_bytes() == b"NOW = 1\n"
+    core = build_core(
+        loop=asyncio.get_running_loop(),
+        logger=logging.getLogger("t"),
+        log_debug=_no_debug,
+        plugin_dir=str(root),
+        runtime_dir=runtime,
+        pre_import_check=before,
+    )
+    report = await core.install_integrity.get_report()
+    assert report["status"] == "ok"
+    assert report["repaired"] == ["py_modules/services/now_playing.py"]
+    assert report["repair_source"] == "romm-dock-0.33.0-win.25.zip"
+    assert report["restart_needed"] is False
+
+
+def test_pre_import_pass_without_a_kept_zip_changes_nothing(tmp_path):
+    root = _half_copied_with_kept_zip(tmp_path)
+    (tmp_path / "runtime" / "plugin-update" / "download" / "romm-dock-0.33.0-win.25.zip").unlink()
+    before = check_install_before_import(
+        logger=logging.getLogger("t"), plugin_dir=str(root), runtime_dir=str(tmp_path / "runtime")
+    )
+    assert before.repaired == ()
+    assert not (root / "py_modules").exists()
+
+
 def test_read_plugin_version_tolerates_bad_files(tmp_path):
     assert read_plugin_version(str(tmp_path)) == ""
     (tmp_path / "package.json").write_text("[1]")
@@ -69,6 +121,7 @@ _CORE_FILES = {
     "core_bootstrap.py": "core_bootstrap",
     "domain/install_manifest.py": "domain.install_manifest",
     "adapters/install_files.py": "adapters.install_files",
+    "adapters/install_repair_files.py": "adapters.install_repair_files",
     "services/install_integrity.py": "services.install_integrity",
 }
 

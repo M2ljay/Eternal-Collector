@@ -320,3 +320,56 @@ class TestRelease:
         copy.unlink()
         with pytest.raises(GavelNativeLoadError):
             adapter("a", "a", "b", "b")
+
+
+class TestCopyOutOfPluginFolder:
+    """On Windows the core is loaded from a copy outside the plugin folder, so Decky's extract never meets it mapped."""
+
+    def test_copy_is_loadable_and_named_after_its_hash(self, tmp_path):
+        import hashlib
+
+        from adapters.gavel_native import _BUNDLED_LIB_PATH, copy_out_of_plugin_folder
+
+        copy = copy_out_of_plugin_folder(str(tmp_path / "native"))
+        data = Path(_BUNDLED_LIB_PATH).read_bytes()
+        assert Path(copy).read_bytes() == data
+        assert hashlib.sha256(data).hexdigest()[:16] in Path(copy).name
+        assert Path(copy).parent == tmp_path / "native"
+        adapter = GavelNativeAdapter(copy)
+        assert adapter("a", "a", "b", "b") in ("download", "conflict")
+        adapter.release()
+
+    def test_an_intact_copy_is_reused(self, tmp_path):
+        from adapters.gavel_native import copy_out_of_plugin_folder
+
+        first = copy_out_of_plugin_folder(str(tmp_path))
+        before = Path(first).stat().st_mtime_ns
+        assert copy_out_of_plugin_folder(str(tmp_path)) == first
+        assert Path(first).stat().st_mtime_ns == before
+
+    def test_a_damaged_copy_is_rewritten(self, tmp_path):
+        from adapters.gavel_native import _BUNDLED_LIB_PATH, copy_out_of_plugin_folder
+
+        first = copy_out_of_plugin_folder(str(tmp_path))
+        Path(first).write_bytes(b"truncated")
+        assert copy_out_of_plugin_folder(str(tmp_path)) == first
+        assert Path(first).read_bytes() == Path(_BUNDLED_LIB_PATH).read_bytes()
+
+    def test_copies_of_other_builds_are_removed_and_other_files_kept(self, tmp_path):
+        import os
+
+        from adapters.gavel_native import _BUNDLED_LIB_PATH, copy_out_of_plugin_folder
+
+        stem, ext = os.path.splitext(os.path.basename(_BUNDLED_LIB_PATH))
+        old = tmp_path / f"{stem}-0000000000000000{ext}"
+        old.write_bytes(b"older build")
+        unrelated = tmp_path / "keep.txt"
+        unrelated.write_bytes(b"x")
+        copy = copy_out_of_plugin_folder(str(tmp_path))
+        assert sorted(p.name for p in tmp_path.iterdir()) == sorted([Path(copy).name, "keep.txt"])
+
+    def test_missing_source_raises(self, tmp_path):
+        from adapters.gavel_native import copy_out_of_plugin_folder
+
+        with pytest.raises(OSError):
+            copy_out_of_plugin_folder(str(tmp_path / "out"), source=str(tmp_path / "absent.dll"))

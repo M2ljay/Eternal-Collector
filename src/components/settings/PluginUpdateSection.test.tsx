@@ -25,6 +25,8 @@ describe("PluginUpdateSection", () => {
     vi.mocked(backend.checkPluginUpdate).mockReset();
     vi.mocked(backend.preparePluginUpdate).mockReset();
     vi.mocked(backend.getPluginRollback).mockReset();
+    vi.mocked(backend.prepareForPluginInstall).mockReset();
+    vi.mocked(backend.prepareForPluginInstall).mockResolvedValue({ success: true, still_held: [] });
     vi.mocked(backend.getPluginRollback).mockResolvedValue({ success: true, available: false });
   });
   afterEach(() => {

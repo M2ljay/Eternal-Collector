@@ -30,7 +30,7 @@ from adapters.emudeck_windows_launcher_backend import EmuDeckWindowsLauncherBack
 from adapters.es_de_config import CoreResolver
 from adapters.firmware_file import FirmwareFileAdapter
 from adapters.game_process import GameProcessAdapter
-from adapters.gavel_native import GavelNativeAdapter
+from adapters.gavel_native import GavelNativeAdapter, copy_out_of_plugin_folder
 from adapters.hostname import HostnameAdapter
 from adapters.machine_id import MachineIdAdapter
 from adapters.migration_file import MigrationFileAdapter
@@ -129,6 +129,9 @@ if TYPE_CHECKING:
 # Filename of the SQLite database inside the plugin runtime dir. Created by the
 # migration runner at startup; unused until the service cutover (#784).
 _DB_FILENAME = "romm_sync.db"
+
+# Where the Windows build loads its native libraries from (see _gavel_load_path).
+_NATIVE_COPY_DIR = "native"
 
 # The shared "now playing" file (docs/architecture/now-playing-presence.md):
 # beside the plugins' own data folders, ``<Decky home>/data/``, because each
@@ -268,6 +271,23 @@ class BootstrapResult:
     callbacks: CallbackBundle
     runtime_adapters: RuntimeAdaptersBundle
     handles: BootstrapHandles
+
+
+def _gavel_load_path(runtime_dir: str, logger: logging.Logger) -> dict[str, str]:
+    """On Windows, load the gavel core from a copy in the runtime folder, never from the plugin folder.
+
+    A mapped DLL inside the plugin folder is what stops Decky's ZIP install
+    half-way (docs/architecture/plugin-self-update.md#half-copied-installs).
+    Linux keeps the bundled path: Decky there uninstalls before extracting, and
+    loading from the data folder is unverified on SteamOS.
+    """
+    if sys.platform != "win32":
+        return {}
+    try:
+        return {"lib_path": copy_out_of_plugin_folder(os.path.join(runtime_dir, _NATIVE_COPY_DIR))}
+    except OSError as e:
+        logger.warning(f"gavel core: could not copy it out of the plugin folder, loading it in place: {e}")
+        return {}
 
 
 def bootstrap(
@@ -439,7 +459,7 @@ def bootstrap(
     # wrong-architecture artifact is fatal here (like the SQLite migration gate
     # above) rather than surfacing mid-sync — there is no Python fallback
     # (GavelNativeLoadError propagates, plugin stays inert).
-    gavel = GavelNativeAdapter()
+    gavel = GavelNativeAdapter(**_gavel_load_path(runtime_dir, logger))
     if folder_handles is not None:
         folder_handles.register("gavel native core", gavel.release)
     uuid_gen = SystemUuidGen()

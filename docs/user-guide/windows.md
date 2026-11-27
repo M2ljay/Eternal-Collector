@@ -220,11 +220,29 @@ the plugin's database is not safe.
 ### If an update didn't finish
 
 Decky can stop part-way through replacing the plugin's files — for example when one of them is locked by another program
-— and leave a mix of old and new files behind. The Collector checks its own files every time it starts. If any are
-missing or wrong, the top of its QAM panel says _The Collector's last update didn't finish copying. Reinstall win.N_,
-with a **Reinstall win.N** button. The button downloads that version again, checks it, and hands it to Decky's prompt;
-it works even when the rest of the plugin cannot start. If files from an older version were left behind instead, the
-panel says so and offers the same button. The copy saved for **Roll Back** is not replaced by a reinstall.
+— and leave a mix of old and new files behind. When that happens Decky's screen stays on _Installing_; restart Decky (or
+the PC) to get out of it. The Collector checks its own files every time it starts:
+
+- If the update was installed from the toast or **Settings → Plugin Updates**, the plugin still has the downloaded copy
+  of that version and puts the missing files back by itself the next time it starts. Nothing needs doing. If it only
+  notices once it is already running, the panel says _The Collector restored N files the last install didn't copy.
+  Restart it to load them._ with a **Restart The Collector** button.
+- Otherwise the top of its QAM panel says _Reinstall The Collector — the last install was cut short._, with a
+  **Reinstall win.N** button. The button downloads that version again, checks it, and hands it to Decky's prompt; it
+  works even when the rest of the plugin cannot start. If that version is not on the update channel (a test build you
+  installed from a zip), the button says so: install the same zip again from Decky's Developer menu.
+
+If files from an older version were left behind instead, the panel says so and offers the same button. The copy saved
+for **Roll Back** is not replaced by a reinstall, and repairing never deletes anything.
+
+### Installing from a zip
+
+Decky's **Settings → Developer → Install plugin from ZIP** works for this build, with one difference from the update
+button: Decky does not stop the running plugin first, it copies the new files over it (the plugin cannot see or delay
+that install). From `0.33.0-win.25` the plugin keeps no file of its own folder open, so that copy goes through. Close
+any game you started from The Collector first, because Windows keeps the game launcher locked while it runs. Installing
+`win.25` or later over `win.24` or earlier can still stop at the very end — the older build holds one file open — and
+leave Decky on _Installing_: restart Decky and the new build starts normally.
 
 If your Decky Loader does not offer installing from plugins, the buttons are greyed out with a note, and no toast
 appears; install the zip from the fork's `release` branch by hand (Decky settings → Developer → Install Plugin from

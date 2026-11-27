@@ -288,6 +288,7 @@ class TestPluginUpdateCallableDelegation:
         [
             ("prepare_plugin_update", "prepare_update"),
             ("get_plugin_rollback", "get_rollback"),
+            ("prepare_for_plugin_install", "prepare_for_install"),
         ],
     )
     async def test_delegates(self, plugin, callable_name, method):
@@ -296,6 +297,11 @@ class TestPluginUpdateCallableDelegation:
         setattr(plugin._plugin_update_service, method, AsyncMock(return_value=answer))
         assert await getattr(plugin, callable_name)() is answer
         getattr(plugin._plugin_update_service, method).assert_awaited_once_with()
+
+    @pytest.mark.asyncio
+    async def test_prepare_for_plugin_install_without_the_update_half_allows_the_install(self, plugin):
+        plugin._plugin_update_service = None
+        assert await plugin.prepare_for_plugin_install() == {"success": True, "still_held": []}
 
 
 class TestLauncherBackendCallableDelegation:

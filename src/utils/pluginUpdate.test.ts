@@ -40,6 +40,8 @@ describe("pluginUpdate", () => {
     vi.mocked(backend.preparePluginUpdate).mockReset();
     vi.mocked(backend.getPluginRollback).mockReset();
     vi.mocked(backend.preparePluginReinstall).mockReset();
+    vi.mocked(backend.prepareForPluginInstall).mockReset();
+    vi.mocked(backend.prepareForPluginInstall).mockResolvedValue({ success: true, still_held: [] });
     resetPluginUpdateToastMemory();
   });
   afterEach(() => {
@@ -190,6 +192,55 @@ describe("pluginUpdate", () => {
         SHA,
         DECKY_INSTALL_TYPE_DOWNGRADE,
       );
+    });
+
+    it("asks the backend to get ready before handing the kept build to Decky", async () => {
+      const call = installRouter();
+      vi.mocked(backend.getPluginRollback).mockResolvedValue({
+        success: true,
+        available: true,
+        version: "0.33.0-win.16",
+        artifact: "file:///kept.zip",
+        sha256: SHA,
+      });
+      await rollbackPlugin();
+      expect(backend.prepareForPluginInstall).toHaveBeenCalledTimes(1);
+      expect(vi.mocked(backend.prepareForPluginInstall).mock.invocationCallOrder[0]).toBeLessThan(
+        call.mock.invocationCallOrder[0]!,
+      );
+    });
+
+    it("does not hand off while a launched game is running", async () => {
+      const call = installRouter();
+      vi.mocked(backend.getPluginRollback).mockResolvedValue({
+        success: true,
+        available: true,
+        version: "0.33.0-win.16",
+        artifact: "file:///kept.zip",
+        sha256: SHA,
+      });
+      vi.mocked(backend.prepareForPluginInstall).mockResolvedValue({
+        success: false,
+        reason: "game_running",
+        message: "Close the game first.",
+        current: "0.33.0-win.17",
+      });
+      expect(await rollbackPlugin()).toBe("Close the game first.");
+      expect(call).not.toHaveBeenCalled();
+    });
+
+    it("does not hand off when the backend cannot be asked", async () => {
+      const call = installRouter();
+      vi.mocked(backend.getPluginRollback).mockResolvedValue({
+        success: true,
+        available: true,
+        version: "0.33.0-win.16",
+        artifact: "file:///kept.zip",
+        sha256: SHA,
+      });
+      vi.mocked(backend.prepareForPluginInstall).mockRejectedValue(new Error("bridge"));
+      expect(await rollbackPlugin()).toBe("The plugin could not get ready for the install.");
+      expect(call).not.toHaveBeenCalled();
     });
 
     it("says so when nothing is kept", async () => {

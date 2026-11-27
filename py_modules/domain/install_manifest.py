@@ -15,12 +15,24 @@ modules cannot.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import re
 from dataclasses import dataclass
 
 MANIFEST_NAME = "install-manifest.json"
 MANIFEST_FORMAT = 1
+
+UPDATE_STAGING_DIR = "plugin-update"
+RELEASE_DOWNLOAD_DIR = "download"
+"""The self-update keeps each verified download in ``<runtime>/plugin-update/download/``;
+the install check restores a half-copied folder from the one whose version is running."""
+
+
+def release_zip_name(version: str) -> str:
+    """The file name a verified download of *version* is kept under."""
+    return f"romm-dock-{version}.zip"
+
 
 _SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 
@@ -122,6 +134,11 @@ def is_safe_relative(path: str) -> bool:
     if not path or path.startswith("/") or "\\" in path or ":" in path:
         return False
     return all(part not in ("", ".", "..") for part in path.split("/"))
+
+
+def content_matches(entry: ManifestEntry, data: bytes) -> bool:
+    """Whether *data* is exactly the file the manifest entry describes (size and SHA-256)."""
+    return len(data) == entry.size and hashlib.sha256(data).hexdigest() == entry.sha256
 
 
 def compare_sizes(

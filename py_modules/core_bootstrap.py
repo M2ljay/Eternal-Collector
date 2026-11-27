@@ -21,6 +21,8 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from adapters.install_files import InstallFileAdapter
+from adapters.install_repair_files import InstallRepairFileAdapter
+from domain.install_manifest import RELEASE_DOWNLOAD_DIR, UPDATE_STAGING_DIR
 from services.install_integrity import InstallIntegrityService, InstallIntegrityServiceConfig
 
 if TYPE_CHECKING:
@@ -54,6 +56,35 @@ def read_plugin_version(plugin_dir: str) -> str:
     return version if isinstance(version, str) else ""
 
 
+def _integrity_service(
+    *, loop: asyncio.AbstractEventLoop | None, logger: logging.Logger, plugin_dir: str, runtime_dir: str
+) -> InstallIntegrityService:
+    return InstallIntegrityService(
+        config=InstallIntegrityServiceConfig(
+            loop=loop,
+            logger=logger,
+            scanner=InstallFileAdapter(plugin_dir),
+            current_version=read_plugin_version(plugin_dir),
+            repair_store=InstallRepairFileAdapter(
+                plugin_dir, os.path.join(runtime_dir, UPDATE_STAGING_DIR, RELEASE_DOWNLOAD_DIR)
+            ),
+        )
+    )
+
+
+def check_install_before_import(
+    *, logger: logging.Logger, plugin_dir: str, runtime_dir: str
+) -> InstallIntegrityService:
+    """The size pass ``main.py`` runs before importing the rest of the plugin, repairing from the kept zip.
+
+    A half-copied install whose verified release zip is still kept heals here,
+    and the plugin then imports the restored files on this very start.
+    """
+    integrity = _integrity_service(loop=None, logger=logger, plugin_dir=plugin_dir, runtime_dir=runtime_dir)
+    integrity.check_sizes_and_repair()
+    return integrity
+
+
 def build_core(
     *,
     loop: asyncio.AbstractEventLoop,
@@ -61,17 +92,17 @@ def build_core(
     log_debug: DebugLogger,
     plugin_dir: str,
     runtime_dir: str,
+    pre_import_check: InstallIntegrityService | None = None,
 ) -> CoreServices:
-    """Build the install check (running its size pass now) and, when it imports, the update service."""
+    """Build the install check (running its size pass now) and, when it imports, the update service.
+
+    *pre_import_check* is the pass :func:`check_install_before_import` ran;
+    what it restored is carried into this check's report.
+    """
     version = read_plugin_version(plugin_dir)
-    integrity = InstallIntegrityService(
-        config=InstallIntegrityServiceConfig(
-            loop=loop,
-            logger=logger,
-            scanner=InstallFileAdapter(plugin_dir),
-            current_version=version,
-        )
-    )
+    integrity = _integrity_service(loop=loop, logger=logger, plugin_dir=plugin_dir, runtime_dir=runtime_dir)
+    if pre_import_check is not None:
+        integrity.note_repaired(pre_import_check.repaired, pre_import_check.repair_source)
     integrity.check_sizes()
 
     try:
@@ -124,7 +155,7 @@ def _build_update(
             files=PluginUpdateFileAdapter(),
             current_version=version,
             plugin_dir=plugin_dir,
-            staging_dir=os.path.join(runtime_dir, "plugin-update"),
+            staging_dir=os.path.join(runtime_dir, UPDATE_STAGING_DIR),
             platform_supported=sys.platform == "win32",
             running_executables=running_executables,
             launcher_name=launcher_name,

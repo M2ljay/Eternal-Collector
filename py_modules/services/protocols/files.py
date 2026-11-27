@@ -1018,3 +1018,28 @@ class InstallFileScanner(Protocol):
     def sha256(self, rel_path: str) -> str | None:
         """The file's SHA-256 hex digest, or ``None`` when it cannot be read."""
         ...
+
+
+class InstallRepairStore(Protocol):
+    """Restores files into the installed plugin folder from a kept copy of the same build.
+
+    The copy is a release zip the self-update downloaded and verified earlier;
+    which zip, and whether its contents are the running build, is the
+    service's decision. Paths are manifest-style (relative to the plugin
+    folder, forward slashes). Synchronous; never deletes anything.
+    """
+
+    def cached_release(self, version: str) -> str | None:
+        """The path of the kept release zip for *version*, or ``None`` when there is none."""
+        ...
+
+    def read_members(self, archive_path: str, rel_paths: list[str]) -> dict[str, bytes]:
+        """The named files from the zip's single top folder; a file the zip lacks is left out.
+
+        Returns ``{}`` when the archive cannot be read or has no single top folder.
+        """
+        ...
+
+    def write_file(self, rel_path: str, data: bytes) -> None:
+        """Replace the file at *rel_path* with *data* atomically, creating its folder. Raises ``OSError``."""
+        ...

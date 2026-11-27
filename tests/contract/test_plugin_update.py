@@ -2,8 +2,9 @@
 
 Driven frontend-shaped per ``src/api/backend.ts``:
 ``checkPluginUpdate = callable<[boolean], PluginUpdateCheck>``,
-``preparePluginUpdate = callable<[], PluginUpdatePrepared>`` and
-``getPluginRollback = callable<[], PluginRollback>``.
+``preparePluginUpdate = callable<[], PluginUpdatePrepared>``,
+``getPluginRollback = callable<[], PluginRollback>`` and
+``prepareForPluginInstall = callable<[], PluginInstallReady>``.
 
 The test process is not ``win32``, so the real wiring must leave the update to the
 Decky store: the check answers ``supported: False`` without touching the network,
@@ -32,3 +33,9 @@ async def test_prepare_is_refused_off_windows(harness):
 
 async def test_no_rollback_off_windows(harness):
     assert await harness.plugin.get_plugin_rollback() == {"success": True, "available": False}
+
+
+async def test_prepare_for_install_releases_the_real_handles(harness):
+    """The hand-off step runs on every build: nothing launched is running here, so the install is allowed."""
+    result = await harness.plugin.prepare_for_plugin_install()
+    assert result == {"success": True, "still_held": []}

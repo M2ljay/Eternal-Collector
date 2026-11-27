@@ -7,7 +7,8 @@
  * file is handed to the loader's `utilities/install_plugin` route, which shows its
  * confirmation prompt, checks the SHA-256 again, replaces the plugin folder and
  * reloads the plugin. The same route reinstalls the build kept from before the
- * last update. See docs/architecture/plugin-self-update.md.
+ * last update. Every hand-off goes through `installHandoff.ts`.
+ * See docs/architecture/plugin-self-update.md.
  */
 
 import {
@@ -19,7 +20,10 @@ import {
   type PluginUpdateCheck,
 } from "../api/backend";
 import { detach } from "./detach";
-import { PLUGIN_NAME, showToast } from "./toast";
+import { canSelfUpdate, requestDeckyInstall } from "./installHandoff";
+import { showToast } from "./toast";
+
+export { canSelfUpdate, deckyRouter, requestDeckyInstall } from "./installHandoff";
 
 /** Decky Loader's `PluginInstallType` (backend/decky_loader/browser.py); the prompt words itself from it. */
 export const DECKY_INSTALL_TYPE_REINSTALL = 1;
@@ -28,41 +32,6 @@ export const DECKY_INSTALL_TYPE_DOWNGRADE = 3;
 
 /** How often a running Steam session re-asks the backend; the backend itself reads the channel at most this often. */
 export const UPDATE_CHECK_INTERVAL_MS = 6 * 60 * 60 * 1000;
-
-interface DeckyRouter {
-  call<T = unknown>(route: string, ...args: unknown[]): Promise<T>;
-}
-
-/**
- * The loader's websocket router, as the loader's own store UI uses it. Not part of
- * `@decky/api`, so it may be absent on a loader build that renamed it.
- */
-export function deckyRouter(): DeckyRouter | undefined {
-  const be = (globalThis as unknown as { DeckyBackend?: DeckyRouter }).DeckyBackend;
-  return typeof be?.call === "function" ? be : undefined;
-}
-
-export function canSelfUpdate(): boolean {
-  return deckyRouter() !== undefined;
-}
-
-/** Hand a verified local build to Decky's installer. Returns "" once Decky has it, else why not. */
-export async function requestDeckyInstall(
-  artifact: string,
-  version: string,
-  sha256: string,
-  installType: number,
-): Promise<string> {
-  const router = deckyRouter();
-  if (!router) return "This Decky Loader cannot install plugins from here.";
-  try {
-    // The name must be plugin.json's, or Decky installs a second copy beside this one.
-    await router.call("utilities/install_plugin", artifact, PLUGIN_NAME, version, sha256, installType);
-    return "";
-  } catch (e) {
-    return `Decky refused the install: ${String(e)}`;
-  }
-}
 
 /** Download, verify and hand the newest build to Decky. Returns "" on hand-off, else the reason. */
 export async function installPluginUpdate(): Promise<string> {

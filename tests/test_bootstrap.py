@@ -2,6 +2,7 @@
 
 import asyncio
 import logging
+import os
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
@@ -605,3 +606,40 @@ class TestWireServices:
                 "sort_by_core": False,
             }
         deps["loop"].close()
+
+
+class TestGavelLoadPath:
+    """On Windows the gavel core is loaded from the runtime folder, so nothing in the plugin folder stays mapped."""
+
+    def test_windows_loads_a_copy_in_the_runtime_folder(self, tmp_path, monkeypatch):
+        import logging
+
+        import bootstrap.adapters as wiring
+
+        monkeypatch.setattr(wiring.sys, "platform", "win32")
+        monkeypatch.setattr(wiring, "copy_out_of_plugin_folder", lambda dest: os.path.join(dest, "gavel-copy.dll"))
+        got = wiring._gavel_load_path(str(tmp_path), logging.getLogger("t"))
+        assert got == {"lib_path": os.path.join(str(tmp_path), "native", "gavel-copy.dll")}
+
+    def test_windows_falls_back_to_the_bundled_core_when_the_copy_fails(self, tmp_path, monkeypatch, caplog):
+        import logging
+
+        import bootstrap.adapters as wiring
+
+        def refuse(dest):
+            raise PermissionError(13, "denied", dest)
+
+        monkeypatch.setattr(wiring.sys, "platform", "win32")
+        monkeypatch.setattr(wiring, "copy_out_of_plugin_folder", refuse)
+        with caplog.at_level(logging.WARNING):
+            assert wiring._gavel_load_path(str(tmp_path), logging.getLogger("t")) == {}
+        assert "loading it in place" in caplog.text
+
+    def test_linux_keeps_the_bundled_core(self, tmp_path, monkeypatch):
+        import logging
+
+        import bootstrap.adapters as wiring
+
+        monkeypatch.setattr(wiring.sys, "platform", "linux")
+        assert wiring._gavel_load_path(str(tmp_path), logging.getLogger("t")) == {}
+        assert not (tmp_path / "native").exists()

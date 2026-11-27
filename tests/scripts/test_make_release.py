@@ -78,3 +78,37 @@ def test_an_interrupted_extract_is_incomplete(release, tmp_path):
     report = _check(copy)
     assert report["status"] == "incomplete"
     assert "py_modules/services/game_mods.py" in report["missing"]
+
+
+def test_entries_are_in_install_order(release):
+    """Decky's extractall stops at the first file it cannot write, so the lock-prone files go last."""
+    _, _, names = release
+    rel = [n.removeprefix("romm-dock/") for n in names]
+
+    def group(name):
+        if name == "install-manifest.json":
+            return 0
+        if name.startswith("py_modules/native/"):
+            return 5
+        if name.startswith("bin/"):
+            return 4
+        if name.startswith("py_modules/"):
+            return 1
+        return 2 if name == "main.py" else 3
+
+    assert rel[0] == "install-manifest.json"
+    assert [group(n) for n in rel] == sorted(group(n) for n in rel)
+    assert rel[-1].startswith("py_modules/native/")
+    assert rel.index("main.py") > rel.index("py_modules/services/achievement_journal.py")
+    assert rel.index("main.py") < rel.index("bin/rom-launcher.exe")
+    assert rel.index("bin/rom-launcher.exe") < rel.index("py_modules/native/gavel-x86_64-windows.dll")
+    assert rel == sorted(rel, key=lambda n: (group(n), n))
+
+
+def test_install_order_is_reproducible(release, tmp_path):
+    version, _, names = release
+    subprocess.run(
+        ["bash", SCRIPT, str(tmp_path)], env={**os.environ, "SKIP_BUILD": "1"}, check=True, capture_output=True
+    )
+    with zipfile.ZipFile(tmp_path / f"romm-dock-{version}.zip") as zf:
+        assert zf.namelist() == names
