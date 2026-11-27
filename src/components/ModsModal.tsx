@@ -26,7 +26,7 @@ import {
 import { formatBytes } from "../utils/formatters";
 import { showToast } from "../utils/toast";
 import { detach } from "../utils/detach";
-import type { GameModsAnswer, ModEntry, ModFailure, ModInstallPreview, ModSource, ModTarget } from "../types";
+import type { GameModsAnswer, ModEntry, ModFailure, ModInstallPreview, ModKind, ModSource, ModTarget } from "../types";
 import { core } from "../theme/coreTokens";
 import { ModBuiltinsSection } from "./ModBuiltinsSection";
 
@@ -86,10 +86,12 @@ function settingHint(target: ModTarget, emulator: string): string | null {
 interface ModsModalProps {
   romId: number;
   gameName: string;
+  /** Show only targets of these kinds (the Updates & DLC view); all targets when absent. */
+  kinds?: readonly ModKind[] | undefined;
   closeModal?: () => void;
 }
 
-export const ModsModal: FC<ModsModalProps> = ({ romId, gameName, closeModal }) => {
+export const ModsModal: FC<ModsModalProps> = ({ romId, gameName, kinds, closeModal }) => {
   const [answer, setAnswer] = useState<GameModsAnswer | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [view, setView] = useState<View>({ kind: "main" });
@@ -250,23 +252,25 @@ export const ModsModal: FC<ModsModalProps> = ({ romId, gameName, closeModal }) =
     body = (
       <Focusable flow-children="column" style={{ display: "flex", flexDirection: "column" }}>
         {answer.note ? <div style={{ ...BODY, marginBottom: "10px" }}>{answer.note}</div> : null}
-        {answer.targets.map((target) => (
-          <TargetSection
-            key={target.target_id}
-            target={target}
-            hint={settingHint(target, emulatorLabel)}
-            busy={busy}
-            builtins={
-              target.kind === "builtinToggle" ? (
-                <ModBuiltinsSection romId={romId} target={target} emulatorLabel={emulatorLabel} />
-              ) : null
-            }
-            onRemove={(entry) => detach(handleRemove(target, entry))}
-            onEnable={() => detach(handleEnable(target))}
-            onOpen={() => detach(handleOpen(target))}
-            onBrowse={() => detach(handleBrowse(target))}
-          />
-        ))}
+        {answer.targets
+          .filter((target) => !kinds || kinds.includes(target.kind))
+          .map((target) => (
+            <TargetSection
+              key={target.target_id}
+              target={target}
+              hint={settingHint(target, emulatorLabel)}
+              busy={busy}
+              builtins={
+                target.kind === "builtinToggle" ? (
+                  <ModBuiltinsSection romId={romId} target={target} emulatorLabel={emulatorLabel} />
+                ) : null
+              }
+              onRemove={(entry) => detach(handleRemove(target, entry))}
+              onEnable={() => detach(handleEnable(target))}
+              onOpen={() => detach(handleOpen(target))}
+              onBrowse={() => detach(handleBrowse(target))}
+            />
+          ))}
         {answer.omitted.map((o) => (
           <div key={o.label} style={{ ...LABEL, marginBottom: "6px" }}>
             Not offered: {o.label} — {o.reason}
@@ -351,9 +355,11 @@ const TargetSection: FC<TargetSectionProps> = ({
           </div>
           <div style={LABEL}>{entrySummary(entry)}</div>
         </div>
-        <DialogButton disabled={busy} onClick={() => onRemove(entry)} style={{ width: "auto", minWidth: "90px" }}>
-          Remove
-        </DialogButton>
+        {target.scope === "install" || target.scope === "readonly" ? null : (
+          <DialogButton disabled={busy} onClick={() => onRemove(entry)} style={{ width: "auto", minWidth: "90px" }}>
+            Remove
+          </DialogButton>
+        )}
       </Focusable>
     ))}
     {target.installed_truncated ? <div style={LABEL}>More entries are in the folder than are listed.</div> : null}
@@ -377,6 +383,7 @@ const TargetSection: FC<TargetSectionProps> = ({
 
 function sourceKindsText(target: ModTarget): string {
   if (target.accepts === "patch") return ".ips / .bps / .ups files, or a .zip holding one";
+  if (target.accepts === "cia_file") return "a .cia file; the emulator installs it";
   if (target.accepts === "cheat_file") {
     const ext = target.file_name?.slice(target.file_name.lastIndexOf(".")) ?? "";
     return `a ${ext} file, or a .zip holding exactly one; it is saved as ${target.file_name ?? "the game's cheat file"}`;
@@ -431,10 +438,22 @@ interface PreviewViewProps {
 
 const PreviewView: FC<PreviewViewProps> = ({ preview, busy, onInstall, onBack }) => (
   <Focusable flow-children="column" style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-    <div style={BODY}>
-      Install {preview.source}: {preview.write_count} files, {formatBytes(preview.total_bytes)}, into
-    </div>
+    {preview.installer ? (
+      <div style={BODY}>
+        Azahar will install {preview.source} ({formatBytes(preview.total_bytes)}) into its emulated SD card. Close
+        Azahar first; an update or DLC already installed is copied to the backup folder.
+      </div>
+    ) : (
+      <div style={BODY}>
+        Install {preview.source}: {preview.write_count} files, {formatBytes(preview.total_bytes)}, into
+      </div>
+    )}
     <div style={PATH}>{preview.destination}</div>
+    {preview.replaces_folder ? (
+      <div style={{ ...BODY, color: core.warning }}>
+        The update already there is moved to {preview.backup_root} first; the game folder is not changed.
+      </div>
+    ) : null}
     {preview.stripped_folder ? (
       <div style={LABEL}>
         The archive&apos;s own {preview.stripped_folder} folder is this game&apos;s folder, so its contents go straight
@@ -468,7 +487,7 @@ const PreviewView: FC<PreviewViewProps> = ({ preview, busy, onInstall, onBack })
   </Focusable>
 );
 
-/** Open the Mods panel for a game. */
-export function showModsModal(romId: number, gameName: string): void {
-  showModal(<ModsModal romId={romId} gameName={gameName} />);
+/** Open the Mods panel for a game, optionally showing only targets of some kinds. */
+export function showModsModal(romId: number, gameName: string, kinds?: readonly ModKind[]): void {
+  showModal(<ModsModal romId={romId} gameName={gameName} kinds={kinds} />);
 }

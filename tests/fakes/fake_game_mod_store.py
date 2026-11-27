@@ -41,6 +41,11 @@ class FakeGameModStore:
         self.zips: dict[tuple[str, str], str] = {}
         self.created: list[tuple[str, str]] = []
         self.create_result = True
+        self.binaries: dict[str, bytes] = {}
+        self.found: dict[tuple[str, str], list[str]] = {}
+        self.copies: list[tuple[str, str]] = []
+        self.installer_result: tuple[int | None, str] = (0, "Installed CIA successfully.")
+        self.installer_runs: list[tuple[str, tuple[str, ...]]] = []
 
     def downloads_folder(self) -> str:
         return self.downloads
@@ -75,6 +80,20 @@ class FakeGameModStore:
             return False
         self.created.append((path, new_text))
         return True
+
+    def read_bytes(self, path: str, limit: int) -> bytes | None:
+        data = self.binaries.get(path)
+        return data[:limit] if data is not None else None
+
+    def find_files(self, root: str, name: str, limit: int) -> list[str]:
+        return self.found.get((root, name), [])[:limit]
+
+    def copy_to_backup(self, path: str, backup: str) -> None:
+        self.copies.append((path, backup))
+
+    def run_installer(self, exe: str, args: tuple[str, ...], timeout: float) -> tuple[int | None, str]:
+        self.installer_runs.append((exe, args))
+        return self.installer_result
 
     def source_path(self, name: str) -> str | None:
         return f"{self.downloads}\\{name}" if name in self.sources else None

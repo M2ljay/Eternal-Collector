@@ -16,6 +16,15 @@ import struct
 from typing import TYPE_CHECKING, BinaryIO
 
 from adapters.disc_images import ChdReader, ChdSource, CsoSource, DiscImageError, PlainIsoSource
+from domain.console_ids import (
+    XDVDFS_DESCRIPTOR_SECTOR,
+    XDVDFS_PARTITION_OFFSETS,
+    XDVDFS_SECTOR,
+    TitleIdAnswer,
+    find_xdvdfs_entry,
+    parse_xdvdfs_descriptor,
+    xex_title_id,
+)
 from domain.disc_ids import (
     CIA_TMD_READ_SIZE,
     DISC_HEADER_PREFIX,
@@ -66,6 +75,8 @@ _WIA_MAX_DISC_STRUCT = 0x1000
 
 _MAX_DIRECTORY_BYTES = 64 * ISO_SECTOR_SIZE
 _MAX_ID_FILE_BYTES = 32 * ISO_SECTOR_SIZE
+_MAX_XDVDFS_DIRECTORY = 4 * 1024 * 1024
+_XEX_HEADER_BYTES = 64 * 1024
 
 
 class DiscCodeReaderAdapter:
@@ -150,6 +161,36 @@ class DiscCodeReaderAdapter:
         if elf is None or not elf.startswith(ELF_MAGIC):
             return Ps2ElfCrc(None, "the boot executable SYSTEM.CNF names is missing or not an ELF")
         return Ps2ElfCrc(ps2_elf_crc(elf))
+
+    def read_iso_member(self, path: str, parts: tuple[str, ...], limit: int) -> bytes | None:
+        """The bytes of the file *parts* (``("PS3_GAME", "PARAM.SFO")``) inside an ISO 9660 image, or ``None``."""
+        ext = os.path.splitext(path)[1].lower()
+        try:
+            with open(path, "rb") as f:
+                source = self._sector_source(f, ext)
+                return _read_iso_file(source, parts, limit) if source is not None else None
+        except (OSError, DiscImageError, struct.error):
+            return None
+
+    def read_xbox360_title_id(self, path: str) -> TitleIdAnswer:
+        """The title ID of an Xbox 360 game: from ``default.xex`` in an XDVDFS ``.iso``, or a ``.xex`` itself.
+
+        A full disc dump is tried at each known game-partition offset. Other
+        containers (Games on Demand, ``.zar``) answer the reason.
+        """
+        ext = os.path.splitext(path)[1].lower()
+        try:
+            with open(path, "rb") as f:
+                if ext == ".xex":
+                    title_id = xex_title_id(f.read(_XEX_HEADER_BYTES))
+                    return TitleIdAnswer(title_id, None if title_id else "the executable has no readable title ID")
+                if ext != ".iso":
+                    return TitleIdAnswer(None, f"Xbox 360 game files of type {ext or 'none'} are not read here")
+                return _xbox360_iso_title_id(f)
+        except OSError as exc:
+            return TitleIdAnswer(None, f"the game file could not be read: {exc.strerror or exc}")
+        except struct.error as exc:
+            return TitleIdAnswer(None, f"the image could not be decoded: {exc}")
 
     def disc_code_problem(self, path: str, family: str) -> tuple[str, str] | None:
         """Why the last :meth:`read_disc_code` of *path* as *family* found no identifier, or ``None``."""
@@ -267,3 +308,21 @@ def _ps2_code(source: _SectorSource) -> DiscCode | None:
     cnf = _read_iso_file(source, ("SYSTEM.CNF",), _MAX_ID_FILE_BYTES)
     serial = parse_system_cnf_serial(cnf) if cnf is not None else None
     return DiscCode(PS2, serial) if serial else None
+
+
+def _xbox360_iso_title_id(f: BinaryIO) -> TitleIdAnswer:
+    for base in XDVDFS_PARTITION_OFFSETS:
+        f.seek(base + XDVDFS_DESCRIPTOR_SECTOR * XDVDFS_SECTOR)
+        root = parse_xdvdfs_descriptor(f.read(XDVDFS_SECTOR))
+        if root is None:
+            continue
+        if root.size > _MAX_XDVDFS_DIRECTORY:
+            return TitleIdAnswer(None, "the disc's root folder is implausibly large")
+        f.seek(base + root.sector * XDVDFS_SECTOR)
+        entry = find_xdvdfs_entry(f.read(root.size), "default.xex")
+        if entry is None or entry.is_dir:
+            return TitleIdAnswer(None, "the disc has no default.xex")
+        f.seek(base + entry.sector * XDVDFS_SECTOR)
+        title_id = xex_title_id(f.read(min(entry.size, _XEX_HEADER_BYTES)))
+        return TitleIdAnswer(title_id, None if title_id else "default.xex has no readable title ID")
+    return TitleIdAnswer(None, "the image is not an Xbox 360 (XDVDFS) disc")

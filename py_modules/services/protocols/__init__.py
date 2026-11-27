@@ -70,6 +70,7 @@ from services.protocols.cross_service import (
 from services.protocols.determinism import Clock, Sleeper, UuidGen
 from services.protocols.files import (
     AdoptionMoveStore,
+    ConsoleIdReader,
     CoverArtFileStore,
     DirectoryFileListerFn,
     DiscCodeReader,
@@ -90,6 +91,7 @@ from services.protocols.files import (
     SgdbArtworkCache,
     SteamRecoveryStore,
     VitaAppLinker,
+    YamlCodec,
 )
 from services.protocols.infra import (
     ComputeSyncActionFn,
@@ -189,6 +191,7 @@ __all__ = [
     "BiosFileRepository",
     "Clock",
     "ComputeSyncActionFn",
+    "ConsoleIdReader",
     "CoreInfoProvider",
     "CoreNameProviderFn",
     "CoreResolverFn",
@@ -315,6 +318,7 @@ __all__ = [
     "UuidGen",
     "VersionSwitcherFn",
     "VitaAppLinker",
+    "YamlCodec",
     "WindowsResolver",
     "XemuConfigReader",
 ]

@@ -45,6 +45,7 @@ import {
   type RomPageContext,
 } from "../utils/gamePageExtensions";
 import { ExtensionOverviewCards, ExtensionTabPane } from "./GamePageExtensions";
+import { GameContentSection } from "./GameContentSection";
 
 function pageLocale(): string {
   return globalThis.navigator.language || "en";
@@ -227,6 +228,9 @@ export const RomMGameInfoPanel: FC<RomMGameInfoPanelProps> = ({ appId }) => {
         {activeTab === "info" ? <ExtensionOverviewCards key="ext-cards" entries={extensions} ctx={ctx} /> : null}
         {activeExtension ? <ExtensionTabPane key="ext-tab" entry={activeExtension} ctx={ctx} /> : null}
         {buildTabContent({ appId, binding: bindRomInState(romId, setState), state: tabState })}
+        {activeTab === "info" && state.installed ? (
+          <GameContentSection key={`content-${romId}`} romId={romId} romName={state.romName} />
+        ) : null}
         {/* Mounted for every ROM and rendering nothing until their tab is active.
             For achievements that is load-bearing: the list is fetched by the tab
             itself, and unmounting it on a tab switch would re-fetch (and re-spinner)

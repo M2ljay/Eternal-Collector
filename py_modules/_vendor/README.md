@@ -181,3 +181,15 @@ rather than "diff and pray". See the `_vendor/` rules in [`CLAUDE.md`](../../CLA
   `SHA256SUMS` (`sha256sum LICENSE.txt glob.py tomllib/*.py > SHA256SUMS` in this folder), and bump the version here.
   Whether either module can be dropped is a question for the frozen runtime, not for this copy: re-read the bundle's
   module list after a Decky for Windows update.
+
+## yaml (PyYAML)
+
+- **Upstream:** <https://github.com/yaml/pyyaml>
+- **Version:** 6.0.2 — tag `6.0.2`, the pure-Python package `lib/yaml/` copied file by file from the tag
+- **License:** MIT — see [`yaml/LICENSE`](yaml/LICENSE)
+- **Pinned:** `yaml/SHA256SUMS` (every `.py` file and `LICENSE`), verified by `mise run lint`
+- **Local patches:** none. `cyaml.py` is not copied: PyYAML imports it inside `try` / `except ImportError` and falls back
+  to the pure-Python parser and emitter, which is what runs here (Decky's frozen Python has no libyaml). Its imports
+  are all in `tests/runtime/decky_frozen_stdlib.txt` or built in. Imported only by `adapters/yaml_codec.py`, which
+  reads with `BaseLoader` (every scalar stays text) — RPCS3's patch files are its only use.
+

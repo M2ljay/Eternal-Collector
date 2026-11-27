@@ -4,6 +4,7 @@
 #include <stdlib.h>
 
 #include "launch_command.h"
+#include "launch_policy.h"
 
 static int failures = 0;
 
@@ -130,7 +131,40 @@ static void test_big_picture_title(void) {
     expect_int("bpm empty", lc_is_big_picture_title(L""), 0);
 }
 
+static void test_policy_waits_for_the_whole_job(void) {
+    LpState s = {0, 0};
+    /* The first process may be gone while a process it started lives on. */
+    expect_int("job busy: wait", lp_next(&s, 1, 0, 100), LP_WAIT);
+    expect_int("job empty: end", lp_next(&s, 0, 0, 200), LP_END);
+}
+
+static void test_policy_close_is_asked_once_then_ends_after_grace(void) {
+    LpState s = {0, 0};
+    expect_int("close: ask", lp_next(&s, 2, 1, 1000), LP_ASK_CLOSE);
+    expect_int("close: asked once", lp_next(&s, 2, 1, 1050), LP_WAIT);
+    expect_int("close: within grace", lp_next(&s, 1, 1, 1000 + LP_CLOSE_GRACE_MS - 1), LP_WAIT);
+    expect_int("close: grace over", lp_next(&s, 1, 1, 1000 + LP_CLOSE_GRACE_MS), LP_END);
+}
+
+static void test_policy_close_that_quits_in_time_ends_clean(void) {
+    LpState s = {0, 0};
+    lp_next(&s, 1, 1, 5);
+    expect_int("quit in time", lp_next(&s, 0, 1, 900), LP_END);
+}
+
+static void test_policy_tick_wraparound(void) {
+    LpState s = {0, 0};
+    unsigned int near_wrap = 0xFFFFFFFFU - 100U;
+    lp_next(&s, 1, 1, near_wrap);
+    expect_int("wrap: within grace", lp_next(&s, 1, 1, 200U), LP_WAIT);
+    expect_int("wrap: grace over", lp_next(&s, 1, 1, near_wrap + LP_CLOSE_GRACE_MS), LP_END);
+}
+
 int main(void) {
+    test_policy_waits_for_the_whole_job();
+    test_policy_close_is_asked_once_then_ends_after_grace();
+    test_policy_close_that_quits_in_time_ends_clean();
+    test_policy_tick_wraparound();
     test_retroarch();
     test_vita_unquoted_exe();
     test_vita_quoted_exe();

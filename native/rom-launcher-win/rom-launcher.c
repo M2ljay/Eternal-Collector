@@ -13,9 +13,17 @@
  *      with the PS Vita title ID that file holds (Vita3K runs `-r PCSE00000`,
  *      the library keeps ES-DE-style `<TITLE_ID>.psvita` files).
  *   3. Starts the emulator suspended, in its own folder, inside a job object
- *      that kills it when this process goes away — so Steam's "Stop game",
- *      which ends the shortcut's process, also ends the emulator.
- *   4. Waits, then returns the emulator's exit code to Steam.
+ *      that kills it, and everything it starts, when this process goes away —
+ *      so Steam's Exit Game, which ends the shortcut's process, also ends the
+ *      emulator, and nothing is left running behind Big Picture.
+ *   4. Waits until the job is empty — not just the first process, so an
+ *      emulator that hands off to another process (a launcher stub, a
+ *      relaunch) keeps Steam's game running instead of being cut off — then
+ *      returns the emulator's exit code to Steam.
+ *   4a. A close request reaching this process (WM_CLOSE to its hidden host
+ *      window or the curtain, or the session ending) is passed on as WM_CLOSE
+ *      to the emulator's windows so it can save and quit; anything still
+ *      running LP_CLOSE_GRACE_MS later is ended with the job (launch_policy.h).
  *   4b. While the emulator starts and while it shuts down, covers the screen
  *      with the Core logo so its menu window never flashes up; the curtain is
  *      down whenever the game is fullscreen (see the curtain section).
@@ -34,6 +42,10 @@
 #include <windows.h>
 
 #include "launch_command.h"
+#include "launch_policy.h"
+
+/* Set by a close request from Steam or Windows; read by the wait loop. */
+static volatile LONG g_close_requested = 0;
 
 /* ------------------------------------------------------------------ log -- */
 
@@ -220,6 +232,10 @@ static void curtain_paint(HWND hwnd) {
 }
 
 static LRESULT CALLBACK curtain_proc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
+    if (msg == WM_CLOSE) {
+        InterlockedExchange(&g_close_requested, 1);
+        return 0;
+    }
     if (msg == WM_NCHITTEST)
         return HTTRANSPARENT;
     if (msg == WM_MOUSEACTIVATE)
@@ -310,6 +326,58 @@ static BOOL CALLBACK find_game(HWND hwnd, LPARAM lp) {
     return TRUE;
 }
 
+/* A never-shown top-level window, so a close aimed at this process's windows
+   (what clicking a window's close button sends, and what a session end sends)
+   has somewhere to land when the curtain is down. */
+static LRESULT CALLBACK host_proc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
+    if (msg == WM_CLOSE || msg == WM_QUERYENDSESSION || (msg == WM_ENDSESSION && wp)) {
+        InterlockedExchange(&g_close_requested, 1);
+        return msg == WM_QUERYENDSESSION ? TRUE : 0;
+    }
+    return DefWindowProcW(hwnd, msg, wp, lp);
+}
+
+static HWND host_create(void) {
+    WNDCLASSW wc;
+    for (SIZE_T i = 0; i < sizeof wc; i++)
+        ((char *)&wc)[i] = 0;
+    wc.lpfnWndProc = host_proc;
+    wc.hInstance = GetModuleHandleW(NULL);
+    wc.lpszClassName = L"RomLauncherHost";
+    RegisterClassW(&wc);
+    return CreateWindowExW(WS_EX_TOOLWINDOW, wc.lpszClassName, L"RomM game", WS_POPUP, 0, 0, 0, 0, NULL, NULL,
+                           wc.hInstance, NULL);
+}
+
+/* Processes still alive in the job; with no job, whether the emulator is. */
+static unsigned long job_active(HANDLE job, HANDLE process) {
+    if (job) {
+        JOBOBJECT_BASIC_ACCOUNTING_INFORMATION info;
+        if (QueryInformationJobObject(job, JobObjectBasicAccountingInformation, &info, sizeof info, NULL))
+            return info.ActiveProcesses;
+    }
+    return WaitForSingleObject(process, 0) == WAIT_TIMEOUT ? 1UL : 0UL;
+}
+
+typedef struct {
+    HANDLE job;
+    DWORD pid;  /* used when there is no job */
+    int asked;
+} AskClose;
+
+static BOOL CALLBACK ask_close(HWND hwnd, LPARAM lp) {
+    AskClose *ctx = (AskClose *)lp;
+    if (!IsWindowVisible(hwnd) || GetWindow(hwnd, GW_OWNER) != NULL)
+        return TRUE;
+    DWORD pid = 0;
+    GetWindowThreadProcessId(hwnd, &pid);
+    if (ctx->job ? !in_job(hwnd, ctx->job) : pid != ctx->pid)
+        return TRUE;
+    PostMessageW(hwnd, WM_CLOSE, 0, 0);
+    ctx->asked++;
+    return TRUE;
+}
+
 static void pump_messages(void) {
     MSG m;
     while (PeekMessageW(&m, NULL, 0, 0, PM_REMOVE)) {
@@ -326,21 +394,35 @@ static void pump_messages(void) {
    while they shut down. If the game was only leaving fullscreen, not
    quitting, the curtain lifts again after CURTAIN_EXIT_MAX_MS. */
 static HWND wait_with_curtain(HANDLE process, HANDLE job) {
-    if (!job) {
-        WaitForSingleObject(process, INFINITE);
-        return NULL;
-    }
     RECT mon = curtain_monitor();
-    HWND curtain = curtain_raise(mon);
+    HWND curtain = job ? curtain_raise(mon) : NULL;
     DWORD start = GetTickCount();
     DWORD seen_at = 0, raised_at = start;
     BOOL playing = FALSE;  /* the game has been fullscreen at least once */
+    BOOL first_done = FALSE;
+    LpState policy = {0, 0};
     for (;;) {
-        DWORD r = MsgWaitForMultipleObjects(1, &process, FALSE, 50, QS_ALLINPUT);
+        DWORD r = MsgWaitForMultipleObjects(first_done ? 0 : 1, &process, FALSE, 50, QS_ALLINPUT);
         pump_messages();
-        if (r == WAIT_OBJECT_0)
-            break;
+        if (!first_done && r == WAIT_OBJECT_0) {
+            first_done = TRUE;
+            if (job_active(job, process) > 0)
+                log_line(L"emulator process ended; waiting for the rest of its job", NULL);
+        }
         DWORD now = GetTickCount();
+        LpAction step = lp_next(&policy, job_active(job, process), g_close_requested != 0, now);
+        if (step == LP_END) {
+            if (policy.asked && job_active(job, process) > 0)
+                log_line(L"still running after the close grace period: ending the job", NULL);
+            break;
+        }
+        if (step == LP_ASK_CLOSE) {
+            AskClose ask = {job, GetProcessId(process), 0};
+            EnumWindows(ask_close, (LPARAM)&ask);
+            log_number(L"close requested: asked windows to close: ", (unsigned long)ask.asked);
+        }
+        if (!job)
+            continue;
         FindGame ctx = {job, curtain, mon, FALSE, FALSE};
         EnumWindows(find_game, (LPARAM)&ctx);
         BOOL game_up = ctx.found && !ctx.menu_up;
@@ -367,8 +449,7 @@ static HWND wait_with_curtain(HANDLE process, HANDLE job) {
             log_line(L"curtain up: game left fullscreen", NULL);
         }
     }
-    WaitForSingleObject(process, INFINITE);
-    if (!curtain) {
+    if (!curtain && job && !policy.asked) {
         /* Exited straight from fullscreen: cover the gap until Big Picture is back. */
         curtain = curtain_raise(mon);
     }
@@ -438,12 +519,20 @@ static int run(void) {
     ResumeThread(pi.hThread);
     CloseHandle(pi.hThread);
     log_number(L"started pid ", pi.dwProcessId);
+    HWND host = host_create();
 
     HWND curtain = wait_with_curtain(pi.hProcess, job);
+    if (job && job_active(job, pi.hProcess) > 0) {
+        /* Close request outlived its grace period: end everything now, before Big Picture is refocused. */
+        TerminateJobObject(job, 1);
+        WaitForSingleObject(pi.hProcess, 5000);
+    }
     DWORD code = 0;
     GetExitCodeProcess(pi.hProcess, &code);
     CloseHandle(pi.hProcess);
     log_number(L"emulator exited with code ", code);
+    if (host)
+        DestroyWindow(host);
 
     refocus_big_picture();
     if (curtain) {

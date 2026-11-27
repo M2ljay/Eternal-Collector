@@ -40,6 +40,7 @@ import type {
   ModSourcesAnswer,
 } from "../types/mods";
 import type { RomPageContext } from "./gamePageExtensions";
+import type { CachedGameDetail } from "../api/backend";
 
 export const COLLECTOR_MODS_GLOBAL = "__eternalCollectorMods";
 /** Dispatched on `window` each time the bridge is installed. */
@@ -50,7 +51,30 @@ export type BridgeRomInfo = Omit<RomPageContext, "openTab"> & {
   emulator: string | null;
   family: string | null;
   gameId: string | null;
+  /** win.30: save sync is on for this ROM and its last check found nothing wrong. */
+  saveSync: boolean;
+  /** win.30: RomM holds the current copy of at least one of this ROM's saves, restorable by The Collector. */
+  saveBackup: boolean;
 };
+
+type CachedSaveFacts = Pick<CachedGameDetail, "save_sync_enabled" | "save_status">;
+
+/**
+ * What the plugin's own save state says, never guessed: sync on, a check that
+ * has run, no conflict and no file whose server state is unknown; and a save
+ * file RomM holds the current copy of.
+ */
+export function saveFacts(detail: CachedSaveFacts): { saveSync: boolean; saveBackup: boolean } {
+  const status = detail.save_status;
+  if (detail.save_sync_enabled !== true || !status) return { saveSync: false, saveBackup: false };
+  const files = status.files;
+  const saveSync =
+    !!status.last_sync_check_at &&
+    (status.conflicts ?? []).length === 0 &&
+    files.every((f) => f.status !== "unknown" && f.status !== "conflict");
+  const saveBackup = files.some((f) => f.status === "synced" && !!f.last_sync_at);
+  return { saveSync, saveBackup };
+}
 
 export type ListInstalledAnswer =
   { success: true; target_id: string; entries: ModEntry[]; truncated: boolean } | ModFailure;
@@ -187,6 +211,7 @@ export function createCollectorModsBridge(deps: CollectorModsBridgeDeps): Collec
           emulator,
           family: emulator ? (IDENTIFIER_FAMILIES[emulator] ?? null) : null,
           gameId: mods?.success ? mods.game_id : null,
+          ...saveFacts(detail),
         };
       } catch {
         return null;

@@ -48,6 +48,7 @@ def is_rom_launcher_exe(exe: str) -> bool:
     normalized = exe.strip('"').replace("\\", "/")
     return normalized.endswith("/bin/rom-launcher") or normalized.lower().endswith("/bin/rom-launcher.exe")
 
+
 # The leading ``%EMULATOR_<NAME>%`` binary token and the trailing ``%ROM%`` target
 # of an ES-DE ``<command>`` — stripped from a standalone command to recover the
 # middle launcher args (e.g. ``--no-gui``) for the folder-boot ``direct`` bake.

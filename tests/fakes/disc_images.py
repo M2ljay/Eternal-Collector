@@ -423,3 +423,50 @@ def cht2(frames: int, track_type: str = "MODE1_RAW", pregap: int = 0, pgtype: st
     return (
         f"TRACK:1 TYPE:{track_type} SUBTYPE:RW FRAMES:{frames} PREGAP:{pregap} PGTYPE:{pgtype} PGSUB:RW POSTGAP:0"
     ).encode() + b"\x00"
+
+
+def xex_header(title_id: int, *, extra_headers: int = 1) -> bytes:
+    """A minimal XEX2 header whose execution-info optional header carries *title_id*."""
+    count = extra_headers + 1
+    table_end = 0x18 + count * 8
+    head = bytearray(table_end + 24)
+    head[:4] = b"XEX2"
+    struct.pack_into(">I", head, 0x14, count)
+    for i in range(extra_headers):
+        struct.pack_into(">II", head, 0x18 + i * 8, 0x000100FF + i, 0)
+    struct.pack_into(">II", head, 0x18 + extra_headers * 8, 0x00040006, table_end)
+    struct.pack_into(">IIII", head, table_end, 0x11111111, 1, 0, title_id)
+    return bytes(head)
+
+
+def build_xiso(files: dict[str, bytes], *, base: int = 0) -> bytes:
+    """An XDVDFS image (root folder only) whose game partition starts at *base*; names kept in insertion order."""
+    sector = 2048
+    names = list(files)
+    table = bytearray()
+    offsets = []
+    for name in names:
+        offsets.append(len(table))
+        size = 14 + len(name)
+        table += bytes(size + (-size % 4))
+    root_sector = 34
+    file_sector = root_sector + 1
+    file_sectors = {}
+    for name in names:
+        file_sectors[name] = file_sector
+        file_sector += max(1, (len(files[name]) + sector - 1) // sector)
+    for i, name in enumerate(names):
+        right = offsets[i + 1] // 4 if i + 1 < len(names) else 0
+        struct.pack_into("<HHIIBB", table, offsets[i], 0, right, file_sectors[name], len(files[name]), 0x20, len(name))
+        table[offsets[i] + 14 : offsets[i] + 14 + len(name)] = name.encode()
+    image = bytearray(base + file_sector * sector)
+    descriptor = bytearray(sector)
+    descriptor[:20] = b"MICROSOFT*XBOX*MEDIA"
+    struct.pack_into("<II", descriptor, 0x14, root_sector, len(table))
+    descriptor[0x7EC : 0x7EC + 20] = b"MICROSOFT*XBOX*MEDIA"
+    image[base + 32 * sector : base + 33 * sector] = descriptor
+    image[base + root_sector * sector : base + root_sector * sector + len(table)] = table
+    for name in names:
+        at = base + file_sectors[name] * sector
+        image[at : at + len(files[name])] = files[name]
+    return bytes(image)

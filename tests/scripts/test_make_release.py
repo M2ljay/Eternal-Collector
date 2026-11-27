@@ -77,7 +77,7 @@ def test_an_interrupted_extract_is_incomplete(release, tmp_path):
     shutil.rmtree(copy / "py_modules" / "services")
     report = _check(copy)
     assert report["status"] == "incomplete"
-    assert "py_modules/services/game_mods.py" in report["missing"]
+    assert "py_modules/services/game_mods/service.py" in report["missing"]
 
 
 def test_entries_are_in_install_order(release):

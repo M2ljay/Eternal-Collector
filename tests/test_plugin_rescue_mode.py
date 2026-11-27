@@ -1,6 +1,6 @@
 """``main.py`` in a half-copied install: the full import fails, the install check still answers.
 
-Reproduces the reported Windows failure — ``services/game_mods.py`` missing after
+Reproduces the reported Windows failure — ``services/game_mods/service.py`` missing after
 an interrupted Decky install — on a copy of the plugin, in a fresh interpreter
 so the test process's own imports are untouched.
 """
@@ -97,8 +97,8 @@ def _run(dest, child=CHILD):
 
 def test_missing_module_runs_the_install_check_only(tmp_path):
     dest = _copy_plugin(tmp_path)
-    _write_manifest(dest, ["main.py", "py_modules/services/game_mods.py"])
-    (dest / "py_modules" / "services" / "game_mods.py").unlink()
+    _write_manifest(dest, ["main.py", "py_modules/services/game_mods/service.py"])
+    (dest / "py_modules" / "services" / "game_mods" / "service.py").unlink()
 
     out = _run(dest)
 
@@ -106,7 +106,7 @@ def test_missing_module_runs_the_install_check_only(tmp_path):
     integrity = out["integrity"]
     assert integrity["success"] is True
     assert integrity["status"] == "incomplete"
-    assert integrity["missing"] == ["py_modules/services/game_mods.py"]
+    assert integrity["missing"] == ["py_modules/services/game_mods/service.py"]
     assert "game_mods" in integrity["import_error"]
     # Off Windows the update channel answers "unsupported", in the canonical failure shape.
     assert out["reinstall"]["success"] is False

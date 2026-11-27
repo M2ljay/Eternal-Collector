@@ -26,10 +26,11 @@ export interface ModSetting {
   can_enable: boolean;
 }
 
-export type ModScope = "game" | "shared" | "patch" | "file" | "toggle";
+export type ModScope = "game" | "shared" | "patch" | "file" | "toggle" | "install" | "readonly";
 
 /** What a target offers: files to install, one cheat file, entries to switch, or a named kind of folder. */
-export type ModKind = "files" | "cheatFile" | "builtinToggle" | "riivolution" | "graphicsMods" | "layeredFs";
+export type ModKind =
+  "files" | "cheatFile" | "builtinToggle" | "riivolution" | "graphicsMods" | "layeredFs" | "update" | "dlc";
 
 export interface ModTarget {
   target_id: string;
@@ -42,7 +43,7 @@ export interface ModTarget {
   installed: ModEntry[];
   installed_truncated: boolean;
   setting: ModSetting | null;
-  accepts: "patch" | "archive_or_folder" | "cheat_file" | "none";
+  accepts: "patch" | "archive_or_folder" | "cheat_file" | "cia_file" | "none";
   kind: ModKind;
   /** The one file a `cheatFile` target writes (named by The Collector); null for other kinds. */
   file_name: string | null;
@@ -71,7 +72,7 @@ export interface GameModsInfo {
 
 export type GameModsAnswer = GameModsInfo | ModFailure;
 
-export type ModSourceKind = "zip" | "folder" | "patch" | "cheat" | "unsupported_archive";
+export type ModSourceKind = "zip" | "folder" | "patch" | "cheat" | "cia" | "unsupported_archive";
 
 export interface ModSource extends ModEntry {
   kind: ModSourceKind;
@@ -91,6 +92,10 @@ export interface ModInstallPreview {
   stripped_folder: string | null;
   backup_root: string | null;
   fingerprint: string;
+  /** True when an update folder already there is moved to the backup before the install. */
+  replaces_folder?: boolean;
+  /** Set when the emulator's own installer does the install ("azahar_cia"). */
+  installer?: string | null;
 }
 
 export type ModPreviewAnswer = ModInstallPreview | ModFailure;

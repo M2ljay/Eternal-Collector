@@ -20,7 +20,6 @@ from domain.game_mods import (
     KIND_BUILTIN_TOGGLE,
     KIND_CHEAT_FILE,
     KIND_GRAPHICS_MODS,
-    RPCS3,
     SCOPE_FILE,
     SCOPE_SHARED,
     SCOPE_TOGGLE,
@@ -32,7 +31,6 @@ from domain.game_mods import (
     TARGET_GRAPHIC_PACKS,
     TARGET_PATCHES,
     XEMU,
-    XENIA,
     EmulatorHome,
     ModTarget,
     OmittedTarget,
@@ -53,6 +51,10 @@ TOGGLE_DOLPHIN_ACTION_REPLAY = "dolphin_action_replay"
 TOGGLE_PCSX2_PATCHES = "pcsx2_patches"
 TOGGLE_PCSX2_CHEATS = "pcsx2_cheats"
 TOGGLE_AZAHAR_CHEATS = "azahar_cheats"
+TOGGLE_RPCS3_PATCHES = "rpcs3_patches"
+TOGGLE_XENIA_PATCHES = "xenia_patches"
+TOGGLE_CEMU_PACKS = "cemu_packs"
+TARGET_PACK_TOGGLES = "pack_toggles"
 
 DOLPHIN_ENABLE_CHEATS = SettingSpec(
     label="Enable Cheats",
@@ -303,24 +305,87 @@ def retroarch_cheat_target(
     return (target, None)
 
 
+# -- RPCS3, Xenia Canary, Cemu -----------------------------------------------------
+
+
+def rpcs3_config_root(exe: str, *, portable_dir_exists: bool) -> str:
+    """RPCS3's configuration root on Windows: ``<exe folder>\\portable`` when it exists, else the exe folder.
+
+    ``fs::get_config_dir`` (``Utilities/File.cpp``); a ``RPCS3_CONFIG_DIR``
+    environment variable would move it and is not read here.
+    """
+    exe_dir = path_dirname(exe)
+    return join_path(exe_dir, "portable") if portable_dir_exists else exe_dir
+
+
+def rpcs3_patch_target(config_root: str, serial: str, app_version: str | None) -> ModTarget:
+    """RPCS3's patches for the game, switched in ``config\\patch_config.yml`` (``get_patch_config_path``)."""
+    patches = join_path(config_root, "patches")
+    return ModTarget(
+        TARGET_PATCHES,
+        "Game patches (60 FPS, resolution, fixes)",
+        SCOPE_TOGGLE,
+        join_path(config_root, "config"),
+        kind=KIND_BUILTIN_TOGGLE,
+        toggle=ToggleSource(
+            TOGGLE_RPCS3_PATCHES,
+            join_path(config_root, "config", "patch_config.yml"),
+            read_files=(
+                join_path(patches, "patch.yml"),
+                join_path(patches, "imported_patch.yml"),
+                join_path(patches, f"{serial}_patch.yml"),
+            ),
+            game=(serial, app_version or ""),
+        ),
+        notes=(
+            "From RPCS3's downloaded patch list (Manage > Game Patches > Download latest patches).",
+            "Some patches need a setting changed too (frame limit, resolution); the patch's notes say so.",
+        ),
+    )
+
+
+def xenia_patch_target(storage_root: str, title_id: str, files: tuple[str, ...]) -> ModTarget:
+    """Xenia's patches for the game, from the ``patches`` files whose ``title_id`` is the game's."""
+    folder = join_path(storage_root, "patches")
+    return ModTarget(
+        TARGET_PATCHES,
+        "Game patches (60 FPS, resolution, fixes)",
+        SCOPE_TOGGLE,
+        folder,
+        kind=KIND_BUILTIN_TOGGLE,
+        toggle=ToggleSource(
+            TOGGLE_XENIA_PATCHES,
+            files[0] if files else join_path(folder, f"{title_id}.patch.toml"),
+            read_files=files,
+            game=(title_id,),
+        ),
+        notes=("Patch files come from Xenia Manager (Patches > Download Patches) or the game-patches repository.",),
+    )
+
+
+def cemu_pack_target(home: EmulatorHome, title_id: str) -> ModTarget | None:
+    """Switching the installed graphic packs that name the game, in Cemu's ``settings.xml``."""
+    if home.data_root is None:
+        return None
+    return ModTarget(
+        TARGET_PACK_TOGGLES,
+        "Graphic packs for this game",
+        SCOPE_TOGGLE,
+        home.data_root,
+        kind=KIND_BUILTIN_TOGGLE,
+        toggle=ToggleSource(
+            TOGGLE_CEMU_PACKS,
+            join_path(home.data_root, "settings.xml"),
+            scan_dir=join_path(home.data_root, "graphicPacks"),
+            game=(title_id,),
+        ),
+        notes=("Packs installed in graphicPacks whose rules.txt names this game.",),
+    )
+
+
 # -- emulators with nothing offered ----------------------------------------------
 
 _NOT_OFFERED: dict[str, tuple[OmittedTarget, ...]] = {
-    RPCS3: (
-        OmittedTarget(
-            "Game patches",
-            "RPCS3 keeps its patch list and the enabled patches in YAML (patches\\patch.yml,"
-            " patch_config.yml), keyed by the executable's PPU hash; this plugin has no YAML reader it can trust to"
-            " edit them. Switch patches in RPCS3 (Manage > Game Patches).",
-        ),
-    ),
-    XENIA: (
-        OmittedTarget(
-            "Patches",
-            "Xenia names patch files by the Xbox 360 title ID inside default.xex, which this plugin does not read"
-            " from disc images. Configure patches in Xenia Manager.",
-        ),
-    ),
     SHADPS4: (
         OmittedTarget(
             "Cheats and patches",
@@ -329,13 +394,6 @@ _NOT_OFFERED: dict[str, tuple[OmittedTarget, ...]] = {
         ),
     ),
     XEMU: (OmittedTarget("Mods", "xemu has no mod, cheat or patch folder."),),
-    CEMU: (
-        OmittedTarget(
-            "Turning graphic packs on",
-            "Cemu enables a pack per game in its Graphic packs window (settings.xml); which packs belong to this"
-            " game is in each pack's rules.txt by Wii U title ID, which is not read from Wii U images here.",
-        ),
-    ),
 }
 
 
@@ -356,7 +414,7 @@ def cemu_targets(home: EmulatorHome) -> tuple[ModTarget, ...]:
         kind=KIND_GRAPHICS_MODS,
         notes=(
             "Shared by every Cemu game: each pack's rules.txt names the games it applies to.",
-            "Turn a pack on in Cemu: right-click the game > Edit graphic packs.",
+            "Switch the packs for this game under Graphic packs for this game (folder games), or in Cemu.",
         ),
     )
     return (target,)

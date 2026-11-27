@@ -319,6 +319,8 @@ class TestWireServices:
                 save_file_store=deps["save_file_store"],
                 disc_codes=MagicMock(),
                 ps2_elf_crcs=MagicMock(),
+                console_ids=MagicMock(),
+                yaml_codec=MagicMock(),
                 path_probe=deps["path_probe"],
                 renderer_rss=deps["renderer_rss"],
                 renderer_gc=deps["renderer_gc"],

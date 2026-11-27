@@ -13,13 +13,11 @@ from domain.game_mods import (
     KIND_CHEAT_FILE,
     KIND_GRAPHICS_MODS,
     PCSX2,
-    RPCS3,
     SCOPE_FILE,
     SCOPE_SHARED,
     SCOPE_TOGGLE,
     SHADPS4,
     XEMU,
-    XENIA,
     EmulatorHome,
 )
 from domain.mod_targets import (
@@ -183,7 +181,7 @@ class TestCemu:
 
 
 class TestNotOffered:
-    @pytest.mark.parametrize("emulator", [RPCS3, XENIA, SHADPS4, XEMU, CEMU])
+    @pytest.mark.parametrize("emulator", [SHADPS4, XEMU])
     def test_every_new_emulator_says_why(self, emulator):
         omitted = not_offered(emulator)
         assert omitted

@@ -13,6 +13,7 @@ from __future__ import annotations
 import os
 import shutil
 import stat
+import subprocess
 import zipfile
 from typing import TYPE_CHECKING
 
@@ -234,6 +235,58 @@ class GameModFilesAdapter:
         except FileExistsError:
             return False
         return True
+
+    def read_bytes(self, path: str, limit: int) -> bytes | None:
+        try:
+            if os.path.islink(path) or not os.path.isfile(path):
+                return None
+            with open(path, "rb") as f:
+                return f.read(limit)
+        except OSError:
+            return None
+
+    def find_files(self, root: str, name: str, limit: int) -> list[str]:
+        found: list[str] = []
+        wanted = name.lower()
+        for folder, dirs, files in os.walk(root):
+            dirs[:] = sorted(d for d in dirs if not os.path.islink(os.path.join(folder, d)))
+            if any(f.lower() == wanted for f in files):
+                rel = os.path.relpath(os.path.join(folder, name), root)
+                found.append(rel.replace(os.sep, "\\"))
+                dirs[:] = []
+                if len(found) >= limit:
+                    break
+        return found
+
+    def copy_to_backup(self, path: str, backup: str) -> None:
+        if os.path.lexists(backup):
+            raise FileExistsError(backup)
+        os.makedirs(os.path.dirname(backup), exist_ok=True)
+        if os.path.isdir(path) and not os.path.islink(path):
+            shutil.copytree(path, backup, symlinks=True)
+        else:
+            shutil.copy2(path, backup)
+
+    def run_installer(self, exe: str, args: tuple[str, ...], timeout: float) -> tuple[int | None, str]:
+        # Output captured on a pipe: Azahar reports its result there instead of
+        # in a message box when standard output is redirected (citra_qt.cpp
+        # ShowCommandOutput).
+        try:
+            done = subprocess.run(
+                [exe, *args],
+                cwd=os.path.dirname(exe) or None,
+                capture_output=True,
+                text=True,
+                errors="replace",
+                timeout=timeout,
+                check=False,
+                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+            )
+        except subprocess.TimeoutExpired:
+            return (None, "timed out")
+        except OSError as exc:
+            return (None, str(exc))
+        return (done.returncode, (done.stdout or "") + (done.stderr or ""))
 
     def open_folder(self, path: str) -> bool:
         if self._open is None or not os.path.isdir(path):

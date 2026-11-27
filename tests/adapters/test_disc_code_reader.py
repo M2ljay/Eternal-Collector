@@ -10,10 +10,12 @@ from fakes.disc_images import (
     build_cso,
     build_iso,
     build_wia_header,
+    build_xiso,
     cd_frames_from_iso,
     cht2,
     gamecube_header,
     param_sfo,
+    xex_header,
 )
 
 from adapters.disc_code_reader import DiscCodeReaderAdapter
@@ -294,3 +296,39 @@ class TestPs2ElfCrc:
     def test_unsupported_format_and_missing_file(self, reader, tmp_path):
         assert "not read here" in (reader.read_ps2_elf_crc(_write(tmp_path, "g.bin", b"x")).reason or "")
         assert "could not be read" in (reader.read_ps2_elf_crc(str(tmp_path / "gone.iso")).reason or "")
+
+
+class TestXbox360TitleId:
+    @pytest.mark.parametrize("base", [0, 0xFD90000])
+    def test_iso_at_each_partition_offset(self, reader, tmp_path, base):
+        image = build_xiso({"default.xex": xex_header(0x4D5307E6)}, base=base)
+        answer = reader.read_xbox360_title_id(_write(tmp_path, "halo.iso", image))
+        assert (answer.title_id, answer.reason) == ("4D5307E6", None)
+
+    def test_xex_file(self, reader, tmp_path):
+        assert reader.read_xbox360_title_id(_write(tmp_path, "default.xex", xex_header(0x584111F7))).title_id == (
+            "584111F7"
+        )
+
+    @pytest.mark.parametrize(
+        ("name", "data", "reason"),
+        [
+            ("g.iso", build_iso({"SYSTEM.CNF": b"x"}), "not an Xbox 360"),
+            ("g.iso", build_xiso({"other.bin": b"x"}), "no default.xex"),
+            ("g.zar", b"x", "not read here"),
+            ("default.xex", b"XEX1", "no readable title ID"),
+        ],
+    )
+    def test_reasons(self, reader, tmp_path, name, data, reason):
+        answer = reader.read_xbox360_title_id(_write(tmp_path, name, data))
+        assert answer.title_id is None
+        assert reason in (answer.reason or "")
+
+
+class TestIsoMember:
+    def test_reads_a_ps3_param_sfo(self, reader, tmp_path):
+        sfo = param_sfo({"TITLE_ID": "BLUS30443", "APP_VER": "01.00"})
+        path = _write(tmp_path, "ds.iso", build_iso({"PS3_GAME/PARAM.SFO": sfo}))
+        assert reader.read_iso_member(path, ("PS3_GAME", "PARAM.SFO"), 65536) == sfo
+        assert reader.read_iso_member(path, ("MISSING",), 65536) is None
+        assert reader.read_iso_member(str(tmp_path / "gone.iso"), ("X",), 10) is None

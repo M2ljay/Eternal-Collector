@@ -419,3 +419,57 @@ describe("ModsModal — cheat files and built-in entries", () => {
     expect(backend.listModBuiltins).toHaveBeenCalledWith(7, "gecko_codes");
   });
 });
+
+describe("ModsModal — updates and DLC (win.30)", () => {
+  it("shows only the asked kinds and offers no Remove for installer or read-only targets", async () => {
+    const content = textures({
+      target_id: "content",
+      label: "Updates & DLC (.cia)",
+      scope: "install",
+      game_folder: null,
+      accepts: "cia_file",
+      kind: "update",
+      installed: [{ name: "Update", is_dir: true, size: 10, files: 1, modified: 1, partial: false }],
+    });
+    const { container } = await renderLoaded(info({ targets: [textures(), content] }));
+    expect(container.textContent).toContain("Texture pack");
+    const narrowed = render(<ModsModal romId={7} gameName="Melee" kinds={["update", "dlc"]} />);
+    await waitFor(() => expect(narrowed.container.textContent).toContain("Updates & DLC (.cia)"));
+    expect(narrowed.container.textContent).not.toContain("Texture pack");
+    expect(Array.from(narrowed.container.querySelectorAll("button")).map((b) => b.textContent)).not.toContain("Remove");
+  });
+
+  it("describes an installer preview and a replaced update folder", async () => {
+    vi.mocked(backend.listModSources).mockResolvedValue({
+      success: true,
+      folder: "D",
+      entries: [
+        {
+          name: "MK7.cia",
+          is_dir: false,
+          size: 5,
+          files: 1,
+          modified: 1,
+          partial: false,
+          kind: "cia",
+          supported: true,
+        },
+      ],
+      truncated: false,
+    });
+    vi.mocked(backend.previewModInstall).mockResolvedValue({
+      ...PREVIEW,
+      source: "MK7.cia",
+      installer: "azahar_cia",
+      replaces_folder: true,
+    });
+    const content = textures({ target_id: "content", scope: "install", accepts: "cia_file", kind: "update" });
+    const { container } = await renderLoaded(info({ targets: [content] }));
+    fireEvent.click(button(container, "Install from Downloads"));
+    await waitFor(() => expect(container.textContent).toContain("a .cia file; the emulator installs it"));
+    const pick = Array.from(container.querySelectorAll("button")).find((b) => b.textContent.startsWith("MK7.cia"));
+    fireEvent.click(pick!);
+    await waitFor(() => expect(container.textContent).toContain("Azahar will install MK7.cia"));
+    expect(container.textContent).toContain("The update already there is moved to");
+  });
+});

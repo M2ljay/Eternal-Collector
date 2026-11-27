@@ -7,6 +7,7 @@ import {
   createCollectorModsBridge,
   installCollectorModsBridge,
   isEntryName,
+  saveFacts,
   type CollectorModsBridge,
 } from "./collectorModsBridge";
 import type { GameModsInfo, ModTarget } from "../types/mods";
@@ -100,6 +101,8 @@ describe("collector mods bridge", () => {
       emulator: "dolphin",
       family: "gc-wii",
       gameId: "GALE01",
+      saveSync: false,
+      saveBackup: false,
     });
     expect(backend.getGameMods).toHaveBeenCalledWith(ROM_ID);
   });
@@ -255,5 +258,38 @@ describe("installCollectorModsBridge", () => {
     uninstall();
     expect(g[COLLECTOR_MODS_GLOBAL]).toBeUndefined();
     globalThis.removeEventListener(COLLECTOR_MODS_READY_EVENT, ready);
+  });
+});
+
+describe("saveFacts (win.30)", () => {
+  const synced = { filename: "a.srm", status: "synced", last_sync_at: "2026-11-27T10:00:00Z" };
+
+  it("reports sync working and a backup only from the plugin's own state", () => {
+    expect(
+      saveFacts({ save_sync_enabled: true, save_status: { files: [synced], last_sync_check_at: "2026-11-27" } }),
+    ).toEqual({ saveSync: true, saveBackup: true });
+  });
+
+  it.each([
+    ["sync off", { save_sync_enabled: false, save_status: { files: [synced], last_sync_check_at: "x" } }],
+    ["no status", { save_sync_enabled: true, save_status: null }],
+  ])("is false for %s", (_label, detail) => {
+    expect(saveFacts(detail)).toEqual({ saveSync: false, saveBackup: false });
+  });
+
+  it("is not working with a conflict, an unknown file or no check yet, and no backup before a sync", () => {
+    expect(
+      saveFacts({
+        save_sync_enabled: true,
+        save_status: { files: [{ filename: "a", status: "unknown" }], last_sync_check_at: "x" },
+      }),
+    ).toEqual({ saveSync: false, saveBackup: false });
+    expect(saveFacts({ save_sync_enabled: true, save_status: { files: [synced] } }).saveSync).toBe(false);
+    expect(
+      saveFacts({
+        save_sync_enabled: true,
+        save_status: { files: [{ filename: "a", status: "upload" }], last_sync_check_at: "x" },
+      }),
+    ).toEqual({ saveSync: true, saveBackup: false });
   });
 });

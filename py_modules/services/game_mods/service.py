@@ -1,13 +1,12 @@
 """GameModsService — the Mods panel of a game's page: where this game's mods go, what is there, and changing it.
 
-Owns the callables behind the panel. Every answer starts from the emulator
-the game launches with right now (the same bake seam the shortcut is written
-from) and the identifier its image carries, and is resolved again on every
-call — a target the frontend names is looked up by id in that fresh
-resolution, never taken as a path. Writes happen only through the
-``GameModStore`` seam, and nothing is ever deleted: an install moves what it
-replaces, and a removal moves what it takes away, into a backup folder whose
-location is reported back.
+Owns the callables behind the panel. Every answer starts from a fresh
+resolution (``ModTargetResolver``) — a target the frontend names is looked up
+by id in it, never taken as a path. Writes happen only through the
+``GameModStore`` seam, and nothing is ever deleted: an install moves (or, when
+an emulator's installer writes, copies) what it replaces, a removal moves what
+it takes away, into a backup folder whose location is reported back, and a
+switch of a built-in entry copies the file it edits first.
 
 Offered only when the active launcher backend is EmuDeck and a mod store is
 wired (Windows); otherwise every callable answers ``unsupported``.
@@ -16,102 +15,59 @@ wired (Windows); otherwise every callable answers ``unsupported``.
 from __future__ import annotations
 
 import asyncio
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING, Any
 
+from domain.game_content import AZAHAR_INSTALL_ERRORS, INSTALLER_AZAHAR_CIA
 from domain.game_mods import (
-    AZAHAR,
-    CEMU,
-    DOLPHIN,
     EMULATOR_LABELS,
-    IDENTIFIER_FAMILIES,
-    PCSX2,
-    PPSSPP,
-    RETROARCH,
     SCOPE_FILE,
+    SCOPE_INSTALL,
     SCOPE_PATCH,
+    SCOPE_READONLY,
     SCOPE_TOGGLE,
     SETTING_ON,
     SETTING_UNKNOWN,
     SOURCE_UNSUPPORTED_ARCHIVE,
-    EmulatorHome,
     InstallPlan,
     ModEntryInfo,
     ModTarget,
-    OmittedTarget,
     PlanCheck,
     PlanRefusal,
-    ToggleSource,
-    azahar_home,
     backup_dir,
     check_against_disk,
-    core_needs_fullpath,
-    dolphin_home,
     enable_setting,
-    identify_mod_emulator,
-    ini_value,
     join_path,
     patch_file_names,
     path_dirname,
-    pcsx2_home,
     plan_dirs,
     plan_fingerprint,
     plan_install,
-    ppsspp_home,
     read_setting,
     removable_name,
-    retroarch_home,
-    soft_patch_target,
     source_fits,
     source_kind,
-    standalone_targets,
 )
-from domain.launcher_backend import EMUDECK_BACKEND_ID
-from domain.mod_targets import (
-    TOGGLE_AZAHAR_CHEATS,
-    TOGGLE_DOLPHIN_ACTION_REPLAY,
-    TOGGLE_DOLPHIN_GECKO,
-    TOGGLE_PCSX2_PATCHES,
-    azahar_cheat_targets,
-    cemu_home,
-    cemu_targets,
-    dolphin_code_targets,
-    not_offered,
-    pcsx2_patch_targets,
-    pcsx2_pnach_matches,
-    retroarch_cheat_dir,
-    retroarch_cheat_target,
-)
-from domain.mod_toggles import (
-    DOLPHIN_ACTION_REPLAY,
-    DOLPHIN_GECKO,
-    ORIGIN_BUILTIN,
-    PCSX2_CHEATS,
-    PCSX2_PATCHES,
-    ToggleEntry,
-    ToggleList,
-    azahar_cheats,
-    azahar_set_cheat,
-    dolphin_codes,
-    dolphin_set_code,
-    pcsx2_enabled,
-    pcsx2_entries,
-    pcsx2_set_enabled,
-    pnach_groups,
-)
-from domain.standalone_saves import emulator_executable
 from lib.list_result import ErrorCode
+from services.game_mods.targets import (
+    NO_FOLDER,
+    ModContext,
+    ModTargetResolver,
+    ModTargetResolverConfig,
+    failure,
+)
+from services.game_mods.toggles import ToggleEditor, ToggleEditorConfig
 
 if TYPE_CHECKING:
     import logging
     from collections.abc import Callable
 
-    from domain.disc_ids import DiscCode
-    from domain.game_mods import SettingSpec
-    from domain.shortcut_data import EmulatorInvocation
+    from domain.game_mods import SettingSpec, ToggleSource
+    from domain.mod_toggles import ToggleEntry
     from services.protocols import (
         ActiveCoreReader,
         Clock,
+        ConsoleIdReader,
         DebugLogger,
         DiscCodeReader,
         GameModStore,
@@ -119,14 +75,20 @@ if TYPE_CHECKING:
         Ps2ElfCrcReader,
         UnitOfWorkFactory,
         UuidGen,
+        YamlCodec,
     )
 
 _LIST_LIMIT = 200
 _SOURCE_LIMIT = 100
 _PREVIEW_ROWS = 200
-_SCAN_LIMIT = 2000
-_NO_FOLDER = "No known mod folder for this emulator."
-_ACCEPTS = {SCOPE_PATCH: "patch", SCOPE_FILE: "cheat_file", SCOPE_TOGGLE: "none"}
+_INSTALLER_TIMEOUT = 30 * 60.0
+_ACCEPTS = {
+    SCOPE_PATCH: "patch",
+    SCOPE_FILE: "cheat_file",
+    SCOPE_TOGGLE: "none",
+    SCOPE_INSTALL: "cia_file",
+    SCOPE_READONLY: "none",
+}
 
 
 @dataclass(frozen=True)
@@ -137,9 +99,10 @@ class GameModsServiceConfig:
     UUID source for backup-folder names), the Unit-of-Work factory (the ROM and
     its install), the per-ROM active-emulator seam and the active backend's
     renderer (together: the exact command the game launches with), the active
-    backend's id, the disc/cartridge identifier reader, the mod-folder
-    filesystem seam — ``None`` where the platform has none — and the reader of
-    a PS2 image's boot ELF CRC (PCSX2 names patches and cheats by it).
+    backend's id, the readers of identifiers in game files (disc codes, a PS2
+    image's boot ELF CRC, PS3 and Xbox 360 files), the mod-folder filesystem
+    seam — ``None`` where the platform has none — and the YAML codec RPCS3's
+    patch files are read and written with.
     """
 
     loop: asyncio.AbstractEventLoop
@@ -154,27 +117,12 @@ class GameModsServiceConfig:
     disc_codes: DiscCodeReader
     mod_store: GameModStore | None
     elf_crcs: Ps2ElfCrcReader
-
-
-@dataclass(frozen=True)
-class _Context:
-    """One fresh resolution of a game's mod targets."""
-
-    emulator: str | None
-    exe: str | None
-    home: EmulatorHome | None
-    identifier: str | None
-    targets: tuple[ModTarget, ...]
-    omitted: tuple[OmittedTarget, ...]
-    note: str | None
-
-
-def _failure(reason: str, message: str) -> dict[str, Any]:
-    return {"success": False, "reason": reason, "message": message}
+    console_ids: ConsoleIdReader
+    yaml: YamlCodec
 
 
 class GameModsService:
-    """Mods panel reads (targets, sources, install preview) and writes (install, remove, enable a setting)."""
+    """Mods panel reads (targets, sources, previews, built-in entries) and writes (install, remove, switch)."""
 
     def __init__(self, *, config: GameModsServiceConfig) -> None:
         self._loop = config.loop
@@ -182,13 +130,19 @@ class GameModsService:
         self._log_debug = config.log_debug
         self._clock = config.clock
         self._uuid_gen = config.uuid_gen
-        self._uow_factory = config.uow_factory
-        self._active_core = config.active_core
-        self._launch_renderer = config.launch_renderer
-        self._active_backend_id = config.active_backend_id
-        self._disc_codes = config.disc_codes
-        self._store = config.mod_store
-        self._elf_crcs = config.elf_crcs
+        self._resolver = ModTargetResolver(
+            config=ModTargetResolverConfig(
+                uow_factory=config.uow_factory,
+                active_core=config.active_core,
+                launch_renderer=config.launch_renderer,
+                active_backend_id=config.active_backend_id,
+                disc_codes=config.disc_codes,
+                elf_crcs=config.elf_crcs,
+                console_ids=config.console_ids,
+                mod_store=config.mod_store,
+            )
+        )
+        self._toggles = ToggleEditor(config=ToggleEditorConfig(mod_store=config.mod_store, yaml=config.yaml))
         self._write_lock = asyncio.Lock()
 
     # -- callables ---------------------------------------------------------------
@@ -262,134 +216,19 @@ class GameModsService:
         """Open *target_id*'s folder (or, before anything is installed, the folder it will be made in)."""
         return await self._loop.run_in_executor(None, self._open_folder_io, rom_id, target_id)
 
-    # -- resolution ----------------------------------------------------------------
+    # -- shared -------------------------------------------------------------------
 
-    def _resolve(self, rom_id: int) -> _Context | dict[str, Any]:
-        if self._store is None or self._active_backend_id() != EMUDECK_BACKEND_ID:
-            return _failure(ErrorCode.UNSUPPORTED.value, "Mods are available for EmuDeck games on Windows.")
-        with self._uow_factory() as uow:
-            rom = uow.roms.get(rom_id)
-            install = uow.rom_installs.get(rom_id)
-        if rom is None or install is None:
-            return _failure("not_installed", f"ROM {rom_id} is not installed.")
-        emulator = self._active_core.active_emulator_for_rom(rom_id)
-        command = (
-            self._launch_renderer.resolve_invocation({"id": rom_id, "platform_slug": rom.platform_slug}, emulator)
-            if emulator is not None
-            else ""
-        )
-        exe = emulator_executable(command)
-        emulator_id = identify_mod_emulator(exe)
-        if exe is None or emulator_id is None:
-            return _Context(None, exe, None, None, (), (), _NO_FOLDER)
-        if emulator_id not in IDENTIFIER_FAMILIES and emulator_id not in (RETROARCH, CEMU):
-            label = EMULATOR_LABELS[emulator_id]
-            return _Context(
-                emulator_id, exe, None, None, (), not_offered(emulator_id), f"Nothing is offered for {label}."
-            )
-        home = self._home(emulator_id, exe)
-        if home.data_root is None:
-            return _Context(emulator_id, exe, home, None, (), not_offered(emulator_id), f"{_NO_FOLDER} {home.reason}.")
-        if emulator_id == CEMU:
-            return _Context(emulator_id, exe, home, None, cemu_targets(home), not_offered(CEMU), None)
-        if emulator_id == RETROARCH:
-            return self._retroarch_context(home, emulator, install.file_path, install.rom_dir is None)
-        code = self._disc_codes.read_disc_code(install.file_path, IDENTIFIER_FAMILIES[emulator_id])
-        targets, omitted = standalone_targets(home, code)
-        if not targets or code is None:
-            note = f"{_NO_FOLDER} The game's ID could not be read from its file, and mod folders are named by it."
-            return _Context(emulator_id, exe, home, None, (), omitted, note)
-        extra, extra_omitted = self._extra_targets(home, code, install.file_path)
-        return _Context(emulator_id, exe, home, code.code, targets + extra, omitted + extra_omitted, None)
+    def _resolve(self, rom_id: int) -> ModContext | dict[str, Any]:
+        return self._resolver.resolve(rom_id)
 
-    def _retroarch_context(
-        self, home: EmulatorHome, emulator: EmulatorInvocation | None, rom_path: str, single_file: bool
-    ) -> _Context:
-        data_root = home.data_root or ""
-        core_so = emulator.core_so if emulator is not None else None
-        info_text = self._load_text(join_path(data_root, "info", f"{core_so}.info")) if core_so else None
-        fullpath = core_needs_fullpath(info_text) if core_so else None
-        patch, patch_omitted = soft_patch_target(home, rom_path, single_file=single_file, needs_fullpath=fullpath)
-        cheat_dir, reason = retroarch_cheat_dir(data_root, self._load_text(join_path(data_root, "retroarch.cfg")))
-        if cheat_dir is None:
-            cheat, cheat_omitted = None, OmittedTarget("Cheat file (.cht)", reason or _NO_FOLDER)
-        else:
-            core_name = ini_value(info_text, "", "corename")
-            core_name = core_name.strip().strip('"') if core_name else None
-            cheat, cheat_omitted = retroarch_cheat_target(cheat_dir, core_name, rom_path, single_file=single_file)
-        targets = tuple(t for t in (patch, cheat) if t is not None)
-        omitted = tuple(o for o in (patch_omitted, cheat_omitted) if o is not None)
-        exe = home.exe
-        return _Context(RETROARCH, exe, home, None, targets, omitted, None if targets else _NO_FOLDER)
-
-    def _extra_targets(
-        self, home: EmulatorHome, code: DiscCode, rom_path: str
-    ) -> tuple[tuple[ModTarget, ...], tuple[OmittedTarget, ...]]:
-        if home.emulator == DOLPHIN:
-            return (dolphin_code_targets(home, code), ())
-        if home.emulator == AZAHAR:
-            return (azahar_cheat_targets(home, code.code), ())
-        if home.emulator == PCSX2:
-            crc = self._elf_crcs.read_ps2_elf_crc(rom_path)
-            if crc.text is None:
-                reason = f"PCSX2 names these by the boot executable's CRC, which could not be read: {crc.reason}."
-                return ((), (OmittedTarget("Cheats and patches (.pnach)", reason),))
-            ini = self._load_text(join_path(home.data_root or "", "inis", "PCSX2.ini"))
-            return (pcsx2_patch_targets(home, ini, code.code, crc.text), ())
-        return ((), ())
-
-    def _home(self, emulator_id: str, exe: str) -> EmulatorHome:
-        store = self._require_store()
-        exe_dir = path_dirname(exe)
-        if emulator_id == DOLPHIN:
-            user = join_path(exe_dir, "User")
-            return dolphin_home(
-                exe,
-                portable=store.is_file(join_path(exe_dir, "portable.txt")),
-                user_dir_exists=store.is_dir(user),
-                dolphin_ini=self._load_text(join_path(user, "Config", "Dolphin.ini")),
-            )
-        if emulator_id == PPSSPP:
-            return ppsspp_home(
-                exe,
-                installed_marker=store.is_file(join_path(exe_dir, "installed.txt")),
-                memstick_exists=store.is_dir(join_path(exe_dir, "memstick")),
-            )
-        if emulator_id == PCSX2:
-            portable_txt = join_path(exe_dir, "portable.txt")
-            return pcsx2_home(
-                exe,
-                portable_marker=store.is_file(join_path(exe_dir, "portable.ini")) or store.is_file(portable_txt),
-                portable_txt=self._load_text(portable_txt),
-                pcsx2_ini=self._load_text(join_path(exe_dir, "inis", "PCSX2.ini")),
-            )
-        if emulator_id == AZAHAR:
-            return azahar_home(exe, user_dir_exists=store.is_dir(join_path(exe_dir, "user")))
-        if emulator_id == CEMU:
-            return cemu_home(
-                exe,
-                portable_dir_exists=store.is_dir(join_path(exe_dir, "portable")),
-                settings_beside_exe=store.is_file(join_path(exe_dir, "settings.xml")),
-            )
-        return retroarch_home(exe)
-
-    def _load_text(self, path: str) -> str | None:
-        store = self._require_store()
-        return store.load_text(path) if store.is_file(path) else None
+    def _target(self, rom_id: int, target_id: str) -> tuple[ModContext, ModTarget] | dict[str, Any]:
+        return self._resolver.target(rom_id, target_id)
 
     def _require_store(self) -> GameModStore:
-        if self._store is None:
-            raise RuntimeError("GameModsService used without a mod store")
-        return self._store
+        return self._resolver.store
 
-    def _target(self, rom_id: int, target_id: str) -> tuple[_Context, ModTarget] | dict[str, Any]:
-        context = self._resolve(rom_id)
-        if isinstance(context, dict):
-            return context
-        target = next((t for t in context.targets if t.target_id == target_id), None)
-        if target is None:
-            return _failure(ErrorCode.NOT_FOUND.value, f"This game has no '{target_id}' mod folder.")
-        return (context, target)
+    def _load_text(self, path: str) -> str | None:
+        return self._resolver.load_text(path)
 
     def _stamp(self) -> str:
         return f"{self._clock.now().strftime('%Y%m%d-%H%M%S')}-{self._uuid_gen.uuid4()[:8]}"
@@ -409,7 +248,7 @@ class GameModsService:
             "note": context.note,
         }
 
-    def _target_view(self, context: _Context, target: ModTarget) -> dict[str, Any]:
+    def _target_view(self, context: ModContext, target: ModTarget) -> dict[str, Any]:
         store = self._require_store()
         exists = store.is_dir(target.path)
         if target.scope == SCOPE_PATCH and target.patch_stem is not None:
@@ -418,6 +257,8 @@ class GameModsService:
             installed, truncated = store.stat_names(target.path, (target.file_name,)), False
         elif target.scope == SCOPE_TOGGLE:
             installed, truncated = [], False
+        elif target.scope == SCOPE_INSTALL:
+            installed, truncated = self._watched(target), False
         elif exists:
             installed, truncated = store.list_folder(target.path, _LIST_LIMIT)
         else:
@@ -438,7 +279,16 @@ class GameModsService:
             "file_name": target.file_name,
         }
 
-    def _setting_view(self, context: _Context, spec: SettingSpec | None) -> dict[str, Any] | None:
+    def _watched(self, target: ModTarget) -> list[ModEntryInfo]:
+        """The folders an installer target fills that exist, each named by its label (``Update``, ``DLC``)."""
+        store = self._require_store()
+        found = []
+        for label, path in target.watch:
+            entries = store.stat_names(path_dirname(path), (_base(path),)) if store.is_dir(path) else []
+            found.extend(replace(e, name=label) for e in entries)
+        return found
+
+    def _setting_view(self, context: ModContext, spec: SettingSpec | None) -> dict[str, Any] | None:
         if spec is None or context.home is None or context.home.data_root is None:
             return None
         path = join_path(context.home.data_root, *spec.ini.split("/"))
@@ -466,7 +316,7 @@ class GameModsService:
         store = self._require_store()
         folder = store.downloads_folder()
         if not store.is_dir(folder):
-            return _failure(ErrorCode.NOT_FOUND.value, f"The Downloads folder was not found at {folder}.")
+            return failure(ErrorCode.NOT_FOUND.value, f"The Downloads folder was not found at {folder}.")
         entries, truncated = store.list_sources(folder, _SOURCE_LIMIT)
         listed = []
         for entry in entries:
@@ -479,27 +329,33 @@ class GameModsService:
         store = self._require_store()
         path = store.source_path(source_name)
         if path is None:
-            return _failure(ErrorCode.NOT_FOUND.value, f"'{source_name}' is not in the Downloads folder.")
+            return failure(ErrorCode.NOT_FOUND.value, f"'{source_name}' is not in the Downloads folder.")
         kind = source_kind(source_name, is_dir=store.is_dir(path))
         if kind == SOURCE_UNSUPPORTED_ARCHIVE:
-            return _failure(ErrorCode.UNSUPPORTED.value, "Only .zip archives can be installed; extract it first.")
+            return failure(ErrorCode.UNSUPPORTED.value, "Only .zip archives can be installed; extract it first.")
         if not source_fits(target, kind):
-            return _failure(ErrorCode.UNSUPPORTED.value, f"'{source_name}' cannot be installed as {target.label}.")
+            return failure(ErrorCode.UNSUPPORTED.value, f"'{source_name}' cannot be installed as {target.label}.")
         stamp = store.source_stamp(path)
         try:
             entries = store.read_source_entries(path)
         except (OSError, ValueError) as exc:
-            return _failure("unreadable_source", f"'{source_name}' could not be read: {exc}")
+            return failure("unreadable_source", f"'{source_name}' could not be read: {exc}")
         if stamp is None:
-            return _failure(ErrorCode.NOT_FOUND.value, f"'{source_name}' is gone.")
+            return failure(ErrorCode.NOT_FOUND.value, f"'{source_name}' is gone.")
         plan = plan_install(target, entries)
         if isinstance(plan, PlanRefusal):
-            return _failure(plan.reason, plan.message)
+            return failure(plan.reason, plan.message)
+        if target.scope == SCOPE_INSTALL:
+            return (path, plan, PlanCheck(frozenset(), ()), plan_fingerprint(stamp, plan, PlanCheck(frozenset(), ())))
+        if target.replace_whole:
+            existing = store.source_stamp(target.path) if store.is_dir(target.path) else None
+            empty = PlanCheck(frozenset(), ())
+            return (path, plan, empty, plan_fingerprint(f"{stamp}|{existing}", plan, empty))
         kinds = store.probe_kinds(target.path, (*plan_dirs(plan), *(w.dest for w in plan.writes)))
         check = check_against_disk(plan, kinds)
         if check.blocked:
             shown = ", ".join(check.blocked[:5])
-            return _failure("conflict", f"A folder and a file of the same name are in the way: {shown}.")
+            return failure("conflict", f"A folder and a file of the same name are in the way: {shown}.")
         return (path, plan, check, plan_fingerprint(stamp, plan, check))
 
     def _preview_io(self, rom_id: int, target_id: str, source_name: str) -> dict[str, Any]:
@@ -526,6 +382,8 @@ class GameModsService:
             "stripped_folder": plan.stripped_folder,
             "backup_root": join_path(data_root, "romm-mod-backups") if data_root else None,
             "fingerprint": fingerprint,
+            "replaces_folder": target.replace_whole and self._require_store().is_dir(target.path),
+            "installer": target.installer,
         }
 
     # -- writes --------------------------------------------------------------------
@@ -540,10 +398,16 @@ class GameModsService:
             return planned
         path, plan, check, current = planned
         if current != fingerprint:
-            return _failure("changed", "The file or the mod folder changed since the preview; review it again.")
+            return failure("changed", "The file or the mod folder changed since the preview; review it again.")
         if context.home is None or context.home.data_root is None:
-            return _failure(ErrorCode.UNSUPPORTED.value, _NO_FOLDER)
+            return failure(ErrorCode.UNSUPPORTED.value, NO_FOLDER)
         backup = backup_dir(context.home.data_root, self._stamp(), target.target_id)
+        if target.scope == SCOPE_INSTALL:
+            return self._run_installer(context, target, path, backup)
+        if target.replace_whole and self._require_store().is_dir(target.path):
+            moved = self._move_existing(target, backup)
+            if moved is not None:
+                return moved
         outcome = self._require_store().install(path, target.path, plan.writes, check.replaces, backup)
         backup_folder = backup if outcome.backed_up else None
         if outcome.error is not None:
@@ -565,6 +429,51 @@ class GameModsService:
             "backup_folder": backup_folder,
         }
 
+    def _move_existing(self, target: ModTarget, backup: str) -> dict[str, Any] | None:
+        """Move the target's existing folder (an update) to the backup before a whole-folder install."""
+        try:
+            self._require_store().move_to_backup(target.path, "", join_path(backup, target.game_folder or "folder"))
+        except (OSError, ValueError) as exc:
+            return failure("io_error", f"Could not move {target.path} to the backup folder: {exc}")
+        self._logger.info("mods: moved %s to %s before installing", target.path, backup)
+        return None
+
+    def _run_installer(self, context: ModContext, target: ModTarget, source: str, backup: str) -> dict[str, Any]:
+        """Install *source* with the emulator's own installer, after copying what it may replace to the backup."""
+        if target.installer != INSTALLER_AZAHAR_CIA or context.exe is None:
+            return failure(ErrorCode.UNSUPPORTED.value, f"{target.label} has no installer here.")
+        running = self._running_refusal(context)
+        if running is not None:
+            return running
+        store = self._require_store()
+        backed_up = 0
+        for label, folder in target.watch:
+            if store.is_dir(folder):
+                try:
+                    store.copy_to_backup(folder, join_path(backup, label))
+                except (OSError, ValueError) as exc:
+                    return failure("io_error", f"Could not back up {folder}: {exc}")
+                backed_up += 1
+        code, output = store.run_installer(context.exe, ("-i", source), _INSTALLER_TIMEOUT)
+        backup_folder = backup if backed_up else None
+        if code != 0:
+            reason = AZAHAR_INSTALL_ERRORS.get(code or -1) or (output.strip()[:200] or "it did not finish")
+            self._logger.warning("mods: Azahar install of %s failed (%s): %s", source, code, output.strip()[:500])
+            return {
+                "success": False,
+                "reason": "installer_failed",
+                "message": f"Azahar did not install it: {reason}",
+                "backup_folder": backup_folder,
+            }
+        self._log_debug(f"mods: Azahar installed {source}")
+        return {
+            "success": True,
+            "destination": target.path,
+            "written": 1,
+            "backed_up": backed_up,
+            "backup_folder": backup_folder,
+        }
+
     def _remove_io(self, rom_id: int, target_id: str, name: str | None) -> dict[str, Any]:
         found = self._target(rom_id, target_id)
         if isinstance(found, dict):
@@ -572,19 +481,19 @@ class GameModsService:
         context, target = found
         entry = removable_name(target, name)
         if entry is None or context.home is None or context.home.data_root is None:
-            return _failure(ErrorCode.NOT_FOUND.value, f"'{name}' is not an entry of {target.label}.")
+            return failure(ErrorCode.NOT_FOUND.value, f"'{name}' is not an entry of {target.label}.")
         store = self._require_store()
         whole = name is None
         root = target.path
         exists = store.is_dir(root) if whole else bool(store.stat_names(root, (entry,)))
         if not exists:
-            return _failure(ErrorCode.NOT_FOUND.value, f"'{entry}' is not in {target.path}.")
+            return failure(ErrorCode.NOT_FOUND.value, f"'{entry}' is not in {target.path}.")
         backup = join_path(backup_dir(context.home.data_root, self._stamp(), target.target_id), entry)
         removed = target.path if whole else join_path(target.path, entry)
         try:
             store.move_to_backup(root, "" if whole else entry, backup)
         except (OSError, ValueError) as exc:
-            return _failure("io_error", f"Could not move {removed} to the backup folder: {exc}")
+            return failure("io_error", f"Could not move {removed} to the backup folder: {exc}")
         self._logger.info("mods: moved %s to %s", removed, backup)
         return {"success": True, "removed": removed, "backup_folder": backup}
 
@@ -595,13 +504,13 @@ class GameModsService:
         context, target = found
         spec = target.setting
         if spec is None or context.home is None or context.home.data_root is None or context.exe is None:
-            return _failure(ErrorCode.UNSUPPORTED.value, "This mod folder has no setting to turn on.")
+            return failure(ErrorCode.UNSUPPORTED.value, "This mod folder has no setting to turn on.")
         store = self._require_store()
         path = join_path(context.home.data_root, *spec.ini.split("/"))
         text = self._load_text(path)
         new_text = enable_setting(text, spec) if text is not None else None
         if text is None or new_text is None:
-            return _failure("setting_unavailable", f"{path} could not be edited safely; change it in the emulator.")
+            return failure("setting_unavailable", f"{path} could not be edited safely; change it in the emulator.")
         running = self._running_refusal(context)
         if running is not None:
             return running
@@ -610,9 +519,9 @@ class GameModsService:
         try:
             changed = store.replace_text(path, text, new_text, backup)
         except (OSError, ValueError) as exc:
-            return _failure("io_error", f"Could not update {path}: {exc}")
+            return failure("io_error", f"Could not update {path}: {exc}")
         if not changed:
-            return _failure("changed", f"{path} changed while it was being edited; nothing was written.")
+            return failure("changed", f"{path} changed while it was being edited; nothing was written.")
         self._logger.info("mods: set [%s] %s in %s (backup %s)", spec.section, spec.key, path, backup)
         return {"success": True, "file": path, "backup_path": backup}
 
@@ -624,65 +533,30 @@ class GameModsService:
         store = self._require_store()
         folder = next((p for p in (target.path, target.base_dir) if store.is_dir(p)), None)
         if folder is None:
-            return _failure(ErrorCode.NOT_FOUND.value, f"{target.path} does not exist yet.")
+            return failure(ErrorCode.NOT_FOUND.value, f"{target.path} does not exist yet.")
         if not store.open_folder(folder):
-            return _failure("open_failed", f"Could not open {folder}.")
+            return failure("open_failed", f"Could not open {folder}.")
         return {"success": True, "folder": folder}
 
     # -- built-in toggles ----------------------------------------------------------
 
-    def _toggle_target(self, rom_id: int, target_id: str) -> tuple[_Context, ModTarget, ToggleSource] | dict[str, Any]:
+    def _toggle_target(
+        self, rom_id: int, target_id: str
+    ) -> tuple[ModContext, ModTarget, ToggleSource] | dict[str, Any]:
         found = self._target(rom_id, target_id)
         if isinstance(found, dict):
             return found
         context, target = found
         if target.toggle is None:
-            return _failure(ErrorCode.UNSUPPORTED.value, f"{target.label} has no entries to switch.")
+            return failure(ErrorCode.UNSUPPORTED.value, f"{target.label} has no entries to switch.")
         return (context, target, target.toggle)
-
-    def _read(self, path: str) -> tuple[bool, str | None]:
-        """``(exists, text)``: a file that exists but cannot be read as text answers ``(True, None)``."""
-        store = self._require_store()
-        return (True, store.load_text(path)) if store.is_file(path) else (False, None)
-
-    def _toggle_state(self, source: ToggleSource) -> tuple[ToggleList, dict[str, bool]]:
-        """The entries and, for Dolphin, each code's shipped default (what ``set`` needs to write the right section)."""
-        store = self._require_store()
-        exists, written = self._read(source.write_file)
-        if exists and written is None:
-            return (ToggleList((), False, f"{source.write_file} could not be read as text."), {})
-        if source.format in (TOGGLE_DOLPHIN_GECKO, TOGGLE_DOLPHIN_ACTION_REPLAY):
-            section = DOLPHIN_GECKO if source.format == TOGGLE_DOLPHIN_GECKO else DOLPHIN_ACTION_REPLAY
-            shipped = [self._read(p)[1] for p in source.read_files]
-            user = [(_base(p), self._read(p)[1]) for p in source.user_files]
-            listing = dolphin_codes(section, shipped, user, _base(source.write_file))
-            defaults = {e.entry_id: e.enabled for e in dolphin_codes(section, shipped, [], "").entries}
-            return (listing, defaults)
-        if source.format == TOGGLE_AZAHAR_CHEATS:
-            return (azahar_cheats(written, _base(source.write_file)), {})
-        section = PCSX2_PATCHES if source.format == TOGGLE_PCSX2_PATCHES else PCSX2_CHEATS
-        files: list[tuple[str, str]] = []
-        if source.scan_dir is not None:
-            names = pcsx2_pnach_matches(store.list_file_names(source.scan_dir, _SCAN_LIMIT), source.scan_prefixes)
-            files = [(n, t) for n in names if (t := self._read(join_path(source.scan_dir, n))[1]) is not None]
-        if source.zip_file is not None and not any(pnach_groups(text)[1] for _n, text in files):
-            for member in source.zip_members:
-                text = store.read_zip_text(source.zip_file, member)
-                if text is not None:
-                    files.append((ORIGIN_BUILTIN, text))
-                    break
-        enabled = pcsx2_enabled(written, section)
-        if enabled is None:
-            reason = f"{source.write_file} has a line PCSX2's settings reader would not take; edit it in PCSX2."
-            return (pcsx2_entries(files, set(), editable=False, reason=reason), {})
-        return (pcsx2_entries(files, enabled, editable=True), {})
 
     def _list_builtins_io(self, rom_id: int, target_id: str) -> dict[str, Any]:
         found = self._toggle_target(rom_id, target_id)
         if isinstance(found, dict):
             return found
         context, target, source = found
-        listing, _defaults = self._toggle_state(source)
+        listing = self._toggles.state(source).listing
         return {
             "success": True,
             "target_id": target.target_id,
@@ -698,64 +572,58 @@ class GameModsService:
         if isinstance(found, dict):
             return found
         context, target, source = found
-        listing, defaults = self._toggle_state(source)
-        entry = next((e for e in listing.entries if e.entry_id == entry_id), None)
+        state = self._toggles.state(source)
+        entry = next((e for e in state.listing.entries if e.entry_id == entry_id), None)
         if entry is None:
-            return _failure(ErrorCode.NOT_FOUND.value, f"{target.label} has no entry {entry_id!r}.")
-        if not listing.editable or not entry.can_toggle:
-            return _failure("not_editable", listing.reason or f"{entry.name!r} cannot be switched here.")
+            return failure(ErrorCode.NOT_FOUND.value, f"{target.label} has no entry {entry_id!r}.")
+        if not state.listing.editable or not entry.can_toggle:
+            return failure("not_editable", state.listing.reason or f"{entry.name!r} cannot be switched here.")
         if entry.enabled == enabled:
             return {"success": True, "file": source.write_file, "backup_path": None, "enabled": enabled}
         running = self._running_refusal(context)
         if running is not None:
             return running
-        _exists, text = self._read(source.write_file)
-        new_text = _toggled_text(source.format, text, entry_id, enabled, defaults.get(entry_id, False))
+        new_text = self._toggles.switched_text(source, state, entry_id, enabled)
         if new_text is None:
-            return _failure(
-                "not_editable", f"{source.write_file} could not be edited safely; change it in the emulator."
-            )
-        return self._write_toggle(context, source.write_file, text, new_text, enabled)
+            message = f"{source.write_file} could not be edited safely; change it in the emulator."
+            return failure("not_editable", message)
+        return self._write_toggle(context, source.write_file, state.written, new_text, enabled)
 
-    def _running_refusal(self, context: _Context) -> dict[str, Any] | None:
+    def _running_refusal(self, context: ModContext) -> dict[str, Any] | None:
         if context.exe is None:
             return None
-        exe_name = context.exe.replace("\\", "/").rsplit("/", 1)[-1].lower()
+        exe_name = _base(context.exe).lower()
         running = self._require_store().running_executable_names()
         if running is not None and exe_name in running:
             label = EMULATOR_LABELS.get(context.emulator or "", "The emulator")
-            return _failure("emulator_running", f"{label} is running. Close it first, then try again.")
+            return failure("emulator_running", f"{label} is running. Close it first, then try again.")
         return None
 
     def _write_toggle(
-        self, context: _Context, path: str, text: str | None, new_text: str, enabled: bool
+        self, context: ModContext, path: str, text: str | None, new_text: str, enabled: bool
     ) -> dict[str, Any]:
         store = self._require_store()
         if context.home is None or context.home.data_root is None:
-            return _failure(ErrorCode.UNSUPPORTED.value, _NO_FOLDER)
+            return failure(ErrorCode.UNSUPPORTED.value, NO_FOLDER)
         try:
             if text is None:
                 if not store.create_text(path, new_text):
-                    return _failure("changed", f"{path} appeared while it was being edited; nothing was written.")
+                    return failure("changed", f"{path} appeared while it was being edited; nothing was written.")
                 backup = None
             else:
                 backup = join_path(backup_dir(context.home.data_root, self._stamp(), "settings"), _base(path))
                 if not store.replace_text(path, text, new_text, backup):
-                    return _failure("changed", f"{path} changed while it was being edited; nothing was written.")
+                    return failure("changed", f"{path} changed while it was being edited; nothing was written.")
         except (OSError, ValueError) as exc:
-            return _failure("io_error", f"Could not update {path}: {exc}")
+            return failure("io_error", f"Could not update {path}: {exc}")
         self._logger.info("mods: switched an entry %s in %s (backup %s)", "on" if enabled else "off", path, backup)
         return {"success": True, "file": path, "backup_path": backup, "enabled": enabled}
 
 
-def _code_text(code: DiscCode | None) -> str | None:
-    return code.code if code is not None else None
-
-
-def _emulator_view(context: _Context) -> dict[str, Any] | None:
+def _emulator_view(context: ModContext) -> dict[str, Any] | None:
     if context.exe is None:
         return None
-    label = EMULATOR_LABELS.get(context.emulator or "") or context.exe.replace("\\", "/").rsplit("/", 1)[-1]
+    label = EMULATOR_LABELS.get(context.emulator or "") or _base(context.exe)
     return {"id": context.emulator, "label": label, "exe": context.exe}
 
 
@@ -784,14 +652,3 @@ def _toggle_view(entry: ToggleEntry) -> dict[str, Any]:
         "can_toggle": entry.can_toggle,
         "origin": entry.origin,
     }
-
-
-def _toggled_text(fmt: str, text: str | None, name: str, enabled: bool, default_enabled: bool) -> str | None:
-    if fmt == TOGGLE_DOLPHIN_GECKO:
-        return dolphin_set_code(text, DOLPHIN_GECKO, name, enabled, default_enabled)
-    if fmt == TOGGLE_DOLPHIN_ACTION_REPLAY:
-        return dolphin_set_code(text, DOLPHIN_ACTION_REPLAY, name, enabled, default_enabled)
-    if fmt == TOGGLE_AZAHAR_CHEATS:
-        return azahar_set_cheat(text, name, enabled) if text is not None else None
-    section = PCSX2_PATCHES if fmt == TOGGLE_PCSX2_PATCHES else PCSX2_CHEATS
-    return pcsx2_set_enabled(text, section, name, enabled)

@@ -1210,6 +1210,8 @@ class TestMainStartupOrdering:
                 save_file_store=MagicMock(),
                 disc_codes=MagicMock(),
                 ps2_elf_crcs=MagicMock(),
+                console_ids=MagicMock(),
+                yaml_codec=MagicMock(),
                 path_probe=MagicMock(),
                 renderer_rss=FakeRendererRss(),
                 renderer_gc=FakeRendererGc(),

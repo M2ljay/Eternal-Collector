@@ -20,5 +20,12 @@ white render window nor an emulator's menu window flashes up. It comes back when
 while the emulator is still shutting down, and stays until Big Picture is in front again. It never takes focus, passes
 clicks through, and lifts after 8 s at launch or 4 s after the game left fullscreen without quitting.
 
+It is the process Steam starts and tracks, and it lives exactly as long as anything in its job object does: an emulator
+that hands off to another process keeps the game running in Steam, and nothing outlives the launcher (the job is
+kill-on-close). A close request — Steam's Exit Game reaching it as `WM_CLOSE` on its hidden host window or the curtain,
+or the session ending — is passed on as `WM_CLOSE` to the emulator's windows; whatever is still running after
+`LP_CLOSE_GRACE_MS` (10 s) is ended with the job. The decision is in [`launch_policy.h`](launch_policy.h), tested on the
+build host with the command-line handling.
+
 Differences from the original: it links Windows' own C runtime (present on Windows 10 and 11) and embeds the curtain
 logo, so it is about 1.1 MB instead of 12 KB.

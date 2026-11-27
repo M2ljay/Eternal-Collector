@@ -26,6 +26,10 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
 from domain.disc_ids import N3DS, NINTENDO_OPTICAL, PS2, PSP, WII, DiscCode
+from domain.mod_files import InstallOutcome as InstallOutcome
+from domain.mod_files import ModEntryInfo as ModEntryInfo
+from domain.mod_files import PlannedWrite as PlannedWrite
+from domain.mod_files import SourceEntry as SourceEntry
 from domain.standalone_saves import DOLPHIN, PCSX2, PPSSPP
 
 if TYPE_CHECKING:
@@ -49,6 +53,10 @@ SCOPE_FILE = "file"
 """One file named for this game (``file_name``) in a folder every game of the emulator shares."""
 SCOPE_TOGGLE = "toggle"
 """Entries the emulator already has, switched on or off in its own settings; nothing is installed or removed."""
+SCOPE_INSTALL = "install"
+"""Installed by running the emulator's own installer on one file (``installer``); its result is in ``watch``."""
+SCOPE_READONLY = "readonly"
+"""Shown, never installed into or removed from here (``notes`` say why)."""
 
 KIND_FILES = "files"
 KIND_CHEAT_FILE = "cheatFile"
@@ -56,6 +64,8 @@ KIND_BUILTIN_TOGGLE = "builtinToggle"
 KIND_RIIVOLUTION = "riivolution"
 KIND_GRAPHICS_MODS = "graphicsMods"
 KIND_LAYERED_FS = "layeredFs"
+KIND_UPDATE = "update"
+KIND_DLC = "dlc"
 
 TARGET_TEXTURES = "textures"
 TARGET_GRAPHIC_MODS = "graphic_mods"
@@ -73,6 +83,7 @@ SOURCE_ZIP = "zip"
 SOURCE_FOLDER = "folder"
 SOURCE_PATCH = "patch"
 SOURCE_CHEAT = "cheat"
+SOURCE_CIA = "cia"
 SOURCE_UNSUPPORTED_ARCHIVE = "unsupported_archive"
 
 CHEAT_EXTENSIONS: tuple[str, ...] = (".txt", ".pnach", ".cht")
@@ -471,6 +482,9 @@ class ModTarget:
     the file a switch edits, described by ``toggle``. ``required_prefix`` is
     the sub-folder inside the game folder the emulator actually reads from.
     ``kind`` is what the target offers, for a caller choosing how to show it.
+    ``replace_whole`` moves an existing game folder to the backup before an
+    install instead of replacing file by file; ``strip_names`` are other names
+    of a wrapper folder an install drops (an update dump named ``-patch``).
     """
 
     target_id: str
@@ -486,6 +500,10 @@ class ModTarget:
     file_name: str | None = None
     file_ext: str | None = None
     toggle: ToggleSource | None = None
+    installer: str | None = None
+    watch: tuple[tuple[str, str], ...] = ()
+    replace_whole: bool = False
+    strip_names: tuple[str, ...] = ()
 
     @property
     def path(self) -> str:
@@ -503,7 +521,8 @@ class ToggleSource:
     ``scan_dir`` with ``scan_prefixes`` lists files whose names start with a
     prefix and end in ``.pnach`` (PCSX2); ``zip_file`` / ``zip_members`` are a
     shipped archive and the members tried in order. ``write_file`` is the only
-    file a switch changes.
+    file a switch changes. ``game`` carries what the format keys a game by
+    (RPCS3: serial and application version; Xenia and Cemu: title ID).
     """
 
     format: str
@@ -514,6 +533,7 @@ class ToggleSource:
     scan_prefixes: tuple[str, ...] = ()
     zip_file: str | None = None
     zip_members: tuple[str, ...] = ()
+    game: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -704,6 +724,8 @@ def source_kind(name: str, *, is_dir: bool) -> str | None:
         return SOURCE_PATCH
     if lower.endswith(CHEAT_EXTENSIONS):
         return SOURCE_CHEAT
+    if lower.endswith(".cia"):
+        return SOURCE_CIA
     if lower.endswith(_UNSUPPORTED_ARCHIVES):
         return SOURCE_UNSUPPORTED_ARCHIVE
     return None
@@ -711,8 +733,10 @@ def source_kind(name: str, *, is_dir: bool) -> str | None:
 
 def source_fits(target: ModTarget, kind: str | None) -> bool:
     """Whether a source of *kind* is worth listing for *target*."""
-    if kind is None or target.scope == SCOPE_TOGGLE:
+    if kind is None or target.scope in (SCOPE_TOGGLE, SCOPE_READONLY):
         return False
+    if target.scope == SCOPE_INSTALL:
+        return kind == SOURCE_CIA
     if target.scope == SCOPE_FILE:
         return kind in (SOURCE_CHEAT, SOURCE_ZIP, SOURCE_UNSUPPORTED_ARCHIVE)
     if target.scope == SCOPE_PATCH:
@@ -721,30 +745,6 @@ def source_fits(target: ModTarget, kind: str | None) -> bool:
 
 
 # -- install plan ----------------------------------------------------------------
-
-
-@dataclass(frozen=True)
-class SourceEntry:
-    """One entry of an install source: an archive member, or a file/folder below a picked folder.
-
-    ``name`` is ``/``-separated and relative; a folder source's entries start
-    with the folder's own name. ``link`` marks a symbolic link, which is never
-    installed.
-    """
-
-    name: str
-    is_dir: bool
-    size: int
-    link: bool = False
-
-
-@dataclass(frozen=True)
-class PlannedWrite:
-    """One file an install writes: from source entry ``source`` to ``dest`` (``/``-relative to the target)."""
-
-    source: str
-    dest: str
-    size: int
 
 
 @dataclass(frozen=True)
@@ -833,13 +833,19 @@ def plan_install(target: ModTarget, entries: Sequence[SourceEntry]) -> InstallPl
         return _plan_patch(target, files)
     if target.scope == SCOPE_FILE:
         return _plan_single_file(target, files)
-    if target.scope == SCOPE_TOGGLE:
-        return PlanRefusal("not_installable", f"{target.label} are switched on or off, not installed.")
+    if target.scope in (SCOPE_TOGGLE, SCOPE_READONLY):
+        return PlanRefusal("not_installable", f"{target.label} cannot be installed from here.")
+    if target.scope == SCOPE_INSTALL:
+        cias = [(n, e) for n, e in files if n.lower().endswith(".cia")]
+        if len(cias) != 1:
+            return PlanRefusal("not_one_file", f"{target.label} installs exactly one .cia file.")
+        return InstallPlan((PlannedWrite(cias[0][1].name, cias[0][0], cias[0][1].size),))
     stripped = None
     names = [name for name, _ in files]
     if target.game_folder is not None:
         tops = {name.split("/", 1)[0].lower() for name in names}
-        if tops == {target.game_folder.lower()} and all("/" in name for name in names):
+        wrappers = {n.lower() for n in (target.game_folder, *target.strip_names)}
+        if len(tops) == 1 and tops <= wrappers and all("/" in name for name in names):
             stripped = names[0].split("/", 1)[0]
             names = [name.split("/", 1)[1] for name in names]
     if target.required_prefix is not None:
@@ -935,39 +941,10 @@ def removable_name(target: ModTarget, name: str | None) -> str | None:
     """
     if name is None:
         return target.game_folder if target.scope == SCOPE_GAME else None
-    if target.scope == SCOPE_TOGGLE:
+    if target.scope in (SCOPE_TOGGLE, SCOPE_INSTALL, SCOPE_READONLY):
         return None
     if target.scope == SCOPE_FILE:
         return name if name == target.file_name else None
     if target.scope == SCOPE_PATCH:
         return name if target.patch_stem is not None and name in patch_file_names(target.patch_stem) else None
     return name if "/" not in name and mod_entry_name(name) == name else None
-
-
-# -- shapes the filesystem seam answers in ---------------------------------------
-
-
-@dataclass(frozen=True)
-class ModEntryInfo:
-    """One file or folder found in a mod folder or a Downloads folder.
-
-    ``size`` and ``files`` are totals over a folder's contents (``None`` when
-    not counted); ``partial`` marks a folder whose count stopped at the walk
-    limit. ``modified`` is seconds since the epoch.
-    """
-
-    name: str
-    is_dir: bool
-    size: int | None
-    modified: float
-    files: int | None = None
-    partial: bool = False
-
-
-@dataclass(frozen=True)
-class InstallOutcome:
-    """What an install did: files written, files moved to the backup, and the error that stopped it, if any."""
-
-    written: int
-    backed_up: int
-    error: str | None = None

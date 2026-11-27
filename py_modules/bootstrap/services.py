@@ -600,6 +600,8 @@ def wire_services(cfg: WiringConfig) -> dict[str, Any]:
             disc_codes=cfg.adapters.disc_codes,
             mod_store=cfg.adapters.game_mods,
             elf_crcs=cfg.adapters.ps2_elf_crcs,
+            console_ids=cfg.adapters.console_ids,
+            yaml=cfg.adapters.yaml_codec,
         ),
     )
 

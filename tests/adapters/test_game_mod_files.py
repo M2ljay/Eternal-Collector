@@ -318,3 +318,43 @@ class TestToggleFiles:
         assert path.read_bytes() == b"[Patches]\r\nEnable = A\r\n"
         assert store.create_text(str(path), "other") is False
         assert path.read_bytes() == b"[Patches]\r\nEnable = A\r\n"
+
+
+class TestContentHelpers:
+    def test_read_bytes(self, store, tmp_path):
+        path = tmp_path / "PARAM.SFO"
+        path.write_bytes(b"\x00PSF1234")
+        assert store.read_bytes(str(path), 4) == b"\x00PSF"
+        assert store.read_bytes(str(tmp_path), 4) is None
+        assert store.read_bytes(str(tmp_path / "gone"), 4) is None
+
+    def test_find_files_stops_at_the_first_match_per_branch(self, store, tmp_path):
+        root = tmp_path / "graphicPacks"
+        (root / "A" / "nested").mkdir(parents=True)
+        (root / "A" / "rules.txt").write_text("x")
+        (root / "A" / "nested" / "rules.txt").write_text("x")
+        (root / "B").mkdir()
+        (root / "B" / "Rules.txt").write_text("x")
+        assert sorted(store.find_files(str(root), "rules.txt", 10)) == ["A\\rules.txt", "B\\rules.txt"]
+        assert store.find_files(str(tmp_path / "missing"), "rules.txt", 10) == []
+
+    def test_copy_to_backup_keeps_the_original(self, store, tmp_path):
+        src = tmp_path / "title"
+        (src / "content").mkdir(parents=True)
+        (src / "content" / "00000000.app").write_bytes(b"data")
+        backup = tmp_path / "backup" / "Update"
+        store.copy_to_backup(str(src), str(backup))
+        assert (backup / "content" / "00000000.app").read_bytes() == b"data"
+        assert (src / "content" / "00000000.app").exists()
+        with pytest.raises(FileExistsError):
+            store.copy_to_backup(str(src), str(backup))
+
+    def test_run_installer_reports_code_and_output(self, store, tmp_path):
+        import sys
+
+        code, output = store.run_installer(sys.executable, ("-c", "print('Installed CIA successfully.')"), 30)
+        assert code == 0
+        assert "Installed CIA successfully." in output
+        code, _ = store.run_installer(sys.executable, ("-c", "import sys; sys.exit(7)"), 30)
+        assert code == 7
+        assert store.run_installer(str(tmp_path / "missing.exe"), (), 5)[0] is None

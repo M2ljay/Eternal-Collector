@@ -7,6 +7,7 @@ import logging
 from datetime import UTC, datetime
 
 import pytest
+from fakes.disc_images import param_sfo
 from fakes.fake_active_core_resolver import FakeActiveCoreResolver
 from fakes.fake_disc_code_reader import FakeDiscCodeReader
 from fakes.fake_game_mod_store import FakeGameModStore, FakeSource
@@ -14,6 +15,8 @@ from fakes.fake_launch_command_renderer import FakeLaunchCommandRenderer
 from fakes.fake_unit_of_work import FakeUnitOfWork, FakeUnitOfWorkFactory
 from fakes.system_time import FakeClock, FakeUuidGen
 
+from adapters.yaml_codec import YamlCodecAdapter
+from domain.console_ids import TitleIdAnswer
 from domain.disc_ids import GAMECUBE, N3DS, PS2, WII, DiscCode, Ps2ElfCrc
 from domain.game_mods import InstallOutcome, ModEntryInfo, SourceEntry
 from domain.rom import Rom
@@ -91,6 +94,8 @@ class _Env:
                 disc_codes=self.discs,
                 mod_store=self.store if with_store else None,
                 elf_crcs=self.discs,
+                console_ids=self.discs,
+                yaml=YamlCodecAdapter(),
             )
         )
 
@@ -637,7 +642,8 @@ class TestNewerEmulators:
         (target,) = result["targets"]
         assert (target["target_id"], target["kind"], target["scope"]) == ("graphic_packs", "graphicsMods", "shared")
         assert target["path"] == f"{cemu_dir}\\portable\\graphicPacks"
-        assert result["omitted"][0]["label"] == "Turning graphic packs on"
+        assert result["omitted"][0]["label"] == "Switching graphic packs"
+        assert "meta.xml" in result["omitted"][0]["reason"]
 
     def test_cemu_not_portable_says_why(self, env):
         env.emulator = EmulatorInvocation.standalone(f'"{_EMU}\\cemu\\Cemu.exe"', "Cemu")
@@ -647,7 +653,7 @@ class TestNewerEmulators:
 
     @pytest.mark.parametrize(
         ("exe", "label"),
-        [("RPCS3\\rpcs3.exe", "RPCS3"), ("xenia\\xenia_canary.exe", "Xenia Canary"), ("xemu\\xemu.exe", "xemu")],
+        [("xemu\\xemu.exe", "xemu")],
     )
     def test_emulators_with_nothing_offered_name_the_reason(self, env, exe, label):
         env.emulator = EmulatorInvocation.standalone(f'"{_EMU}\\{exe}"', label)
@@ -668,3 +674,247 @@ class TestNewerEmulators:
         assert list(targets) == ["soft_patch", "cheats"]
         assert targets["cheats"]["path"] == f"{_RA_DIR}\\cheats\\Snes9x"
         assert targets["cheats"]["file_name"] == "Game (USA).cht"
+
+
+# -- win.30: RPCS3, Xenia, Cemu packs, shadPS4 and Azahar content ----------------------
+
+_PS3_EXE_DIR = f"{_EMU}\\RPCS3"
+_PS3_GAME = "C:\\Emulation\\roms\\ps3\\Demon's Souls.ps3"
+_PS3_HASH = "PPU-b8c34f774adb367761706a7f685d4f8d9d355426"
+_PATCH_YML = (
+    "Version: 1.2\n\n"
+    f"{_PS3_HASH}:\n"
+    '  "60 FPS":\n'
+    "    Games:\n"
+    '      "Demon\'s Souls":\n'
+    "        BLUS30443: [ 01.04 ]\n"
+    "    Patch Version: 1.0\n"
+    "    Patch:\n"
+    "      - [ be32, 0x10000, 0x60000000 ]\n"
+)
+
+
+class TestRpcs3:
+    @pytest.fixture
+    def ps3(self, env):
+        env.uow = FakeUnitOfWork()
+        _seed(env.uow, path=_PS3_GAME, platform="ps3")
+        env.emulator = EmulatorInvocation.standalone(f'"{_PS3_EXE_DIR}\\rpcs3.exe" --no-gui', "RPCS3")
+        disc_sfo = f"{_PS3_GAME}\\PS3_GAME\\PARAM.SFO"
+        update_sfo = f"{_PS3_EXE_DIR}\\dev_hdd0\\game\\BLUS30443\\PARAM.SFO"
+        env.store.dirs.add(_PS3_GAME)
+        env.store.files.update({disc_sfo: "", update_sfo: "", f"{_PS3_EXE_DIR}\\patches\\patch.yml": _PATCH_YML})
+        env.store.binaries[disc_sfo] = param_sfo({"TITLE_ID": "BLUS30443", "APP_VER": "01.00"})
+        env.store.binaries[update_sfo] = param_sfo({"TITLE_ID": "BLUS30443", "APP_VER": "01.04"})
+        return env
+
+    def test_patches_and_installed_update_are_offered_with_downloads_refused(self, ps3):
+        result = ps3.run(ps3.service().get_game_mods(1))
+        assert result["game_id"] == "BLUS30443"
+        targets = _targets(result)
+        assert list(targets) == ["patches", "update"]
+        assert targets["update"]["notes"] == ["Installed update: version 01.04."]
+        assert targets["update"]["accepts"] == "none"
+        assert "certificate" in result["omitted"][0]["reason"]
+
+    def test_patch_for_the_installed_version_is_switched_in_patch_config(self, ps3):
+        svc = ps3.service()
+        (entry,) = ps3.run(svc.list_mod_builtins(1, "patches"))["entries"]
+        assert (entry["name"], entry["enabled"], entry["can_toggle"]) == ("60 FPS", False, True)
+        result = ps3.run(svc.set_mod_builtin(1, "patches", entry["entry_id"], True))
+        assert result["success"] is True
+        ((path, text),) = ps3.store.created
+        assert path == f"{_PS3_EXE_DIR}\\config\\patch_config.yml"
+        assert "Enabled: true" in text and "'01.04'" in text and "BLUS30443" in text
+
+    def test_unreadable_serial_says_why(self, ps3):
+        ps3.store.binaries.clear()
+        result = ps3.run(ps3.service().get_game_mods(1))
+        assert result["targets"] == []
+        assert "serial" in result["note"]
+
+    def test_vfs_moving_dev_hdd0_leaves_the_update_out(self, ps3):
+        ps3.store.files[f"{_PS3_EXE_DIR}\\config\\vfs.yml"] = '/dev_hdd0/: "D:/PS3HDD/"\n'
+        result = ps3.run(ps3.service().get_game_mods(1))
+        assert list(_targets(result)) == ["patches"]
+        assert any("vfs.yml" in o["reason"] for o in result["omitted"])
+
+
+_XENIA_DIR = f"{_EMU}\\xenia"
+_X360_ROM = "C:\\Emulation\\roms\\xbox360\\Halo 3.iso"
+_XENIA_PATCH = f"{_XENIA_DIR}\\patches\\4D5307E6 - Halo 3.patch.toml"
+
+
+class TestXenia:
+    @pytest.fixture
+    def x360(self, env):
+        env.uow = FakeUnitOfWork()
+        _seed(env.uow, path=_X360_ROM, platform="xbox360")
+        env.emulator = EmulatorInvocation.standalone(f'"{_XENIA_DIR}\\xenia_canary.exe"', "Xenia")
+        env.discs.xbox_titles[_X360_ROM] = TitleIdAnswer("4D5307E6")
+        env.store.file_names[f"{_XENIA_DIR}\\patches"] = ["4D5307E6 - Halo 3.patch.toml", "584111F7 - Other.patch.toml"]
+        env.store.files[_XENIA_PATCH] = 'title_id = "4D5307E6"\n[[patch]]\nname = "60 FPS"\nis_enabled = false\n'
+        return env
+
+    def test_patches_and_content_targets(self, x360):
+        content = f"{_XENIA_DIR}\\content\\0000000000000000\\4D5307E6\\000B0000"
+        x360.store.dirs.add(content)
+        x360.store.listings[content] = [ModEntryInfo("TU5", True, 100, 1.0, files=2)]
+        result = x360.run(x360.service().get_game_mods(1))
+        targets = _targets(result)
+        assert list(targets) == ["patches", "update", "dlc"]
+        assert [e["name"] for e in targets["update"]["installed"]] == ["TU5"]
+        assert result["omitted"][0]["label"] == "Installing title updates and DLC"
+
+    def test_switching_a_patch_edits_its_file(self, x360):
+        result = x360.run(x360.service().set_mod_builtin(1, "patches", "60 FPS", True))
+        assert result["success"] is True
+        ((path, _old, new_text, backup),) = x360.store.replacements
+        assert path == _XENIA_PATCH
+        assert "is_enabled = true" in new_text
+        assert backup.endswith("\\settings\\4D5307E6 - Halo 3.patch.toml")
+
+    def test_unreadable_title_id_says_why(self, x360):
+        x360.discs.xbox_titles.clear()
+        result = x360.run(x360.service().get_game_mods(1))
+        assert result["targets"] == []
+        assert "title ID" in result["note"]
+
+    def test_relative_content_root_is_refused(self, x360):
+        x360.store.files[f"{_XENIA_DIR}\\xenia-canary.config.toml"] = 'content_root = "content2"\n'
+        targets = _targets(x360.run(x360.service().get_game_mods(1)))
+        assert list(targets) == ["patches"]
+
+
+_CEMU_DIR = f"{_EMU}\\cemu"
+_CEMU_DATA = f"{_CEMU_DIR}\\portable"
+_WIIU_GAME = "C:\\Emulation\\roms\\wiiu\\BotW"
+
+
+class TestCemuPacks:
+    @pytest.fixture
+    def wiiu(self, env):
+        env.uow = FakeUnitOfWork()
+        _seed(env.uow, path=f"{_WIIU_GAME}\\code\\U-King.rpx", platform="wiiu")
+        env.emulator = EmulatorInvocation.standalone(f'"{_CEMU_DIR}\\Cemu.exe" -g', "Cemu")
+        env.store.dirs.add(_CEMU_DATA)
+        env.store.files[f"{_WIIU_GAME}\\meta\\meta.xml"] = "<title_id>00050000101C9400</title_id>"
+        env.store.found[(f"{_CEMU_DATA}\\graphicPacks", "rules.txt")] = ["BotW_Res\\rules.txt"]
+        env.store.files[f"{_CEMU_DATA}\\graphicPacks\\BotW_Res\\rules.txt"] = (
+            "[Definition]\ntitleIds = 00050000101C9400\nname = Resolution\n"
+        )
+        env.store.files[f"{_CEMU_DATA}\\settings.xml"] = "<content>\n    <GraphicPack/>\n</content>\n"
+        return env
+
+    def test_lists_and_switches_the_games_packs(self, wiiu):
+        svc = wiiu.service()
+        result = wiiu.run(svc.get_game_mods(1))
+        assert result["game_id"] == "00050000101C9400"
+        assert list(_targets(result)) == ["graphic_packs", "pack_toggles"]
+        (entry,) = wiiu.run(svc.list_mod_builtins(1, "pack_toggles"))["entries"]
+        assert (entry["entry_id"], entry["name"], entry["enabled"]) == (
+            "graphicPacks\\BotW_Res\\rules.txt",
+            "Resolution",
+            False,
+        )
+        assert wiiu.run(svc.set_mod_builtin(1, "pack_toggles", entry["entry_id"], True))["success"] is True
+        new_text = wiiu.store.replacements[0][2]
+        assert '<Entry filename="graphicPacks\\BotW_Res\\rules.txt"/>' in new_text
+
+
+_PS4_DIR = f"{_EMU}\\shadps4"
+_PS4_GAME = "D:\\ps4\\CUSA00001"
+
+
+class TestShadPs4:
+    @pytest.fixture
+    def ps4(self, env):
+        env.uow = FakeUnitOfWork()
+        _seed(env.uow, path=f"{_PS4_GAME}\\eboot.bin", platform="ps4")
+        env.emulator = EmulatorInvocation.standalone(f'"{_PS4_DIR}\\shadPS4.exe"', "shadPS4")
+        game_sfo = f"{_PS4_GAME}\\sce_sys\\param.sfo"
+        env.store.files[game_sfo] = ""
+        env.store.binaries[game_sfo] = param_sfo({"TITLE_ID": "CUSA00001", "APP_VER": "01.00"})
+        return env
+
+    def test_update_and_mods_targets_with_versions(self, ps4):
+        update_sfo = f"{_PS4_GAME}-UPDATE\\sce_sys\\param.sfo"
+        ps4.store.files[update_sfo] = ""
+        ps4.store.binaries[update_sfo] = param_sfo({"TITLE_ID": "CUSA00001", "APP_VER": "01.09"})
+        result = ps4.run(ps4.service().get_game_mods(1))
+        targets = _targets(result)
+        assert list(targets) == ["update", "overlay_mods"]
+        assert targets["update"]["path"] == f"{_PS4_GAME}-UPDATE"
+        assert "Game version 01.00." in targets["update"]["notes"]
+        assert "Installed update: version 01.09." in targets["update"]["notes"]
+
+    def test_installing_an_update_moves_the_old_one_to_the_backup_first(self, ps4):
+        ps4.store.dirs.update({f"{_PS4_GAME}-UPDATE", "C:\\Users\\me\\Downloads\\CUSA00001-patch"})
+        ps4.store.sources["CUSA00001-patch"] = FakeSource(
+            is_dir=True, entries=[SourceEntry("CUSA00001-patch/sce_sys/param.sfo", False, 10)]
+        )
+        svc = ps4.service()
+        preview = ps4.run(svc.preview_mod_install(1, "update", "CUSA00001-patch"))
+        assert preview["replaces_folder"] is True
+        assert [w["path"] for w in preview["writes"]] == ["sce_sys/param.sfo"]
+        result = ps4.run(svc.install_mod(1, "update", "CUSA00001-patch", preview["fingerprint"]))
+        assert result["success"] is True
+        ((root, name, backup),) = ps4.store.moves
+        assert (root, name) == (f"{_PS4_GAME}-UPDATE", "")
+        assert backup.endswith("\\update\\CUSA00001-UPDATE")
+        assert ps4.store.installs[0][3] == frozenset()
+
+
+class TestAzaharContent:
+    @pytest.fixture
+    def az(self, env):
+        env.uow = FakeUnitOfWork()
+        _seed(env.uow, path=_3DS, platform="3ds")
+        env.emulator = EmulatorInvocation.standalone(f'"{_AZ_DIR}\\azahar.exe"', "Azahar")
+        env.discs.codes[_3DS] = DiscCode(N3DS, "0004000000055D00")
+        env.store.dirs.add(_AZ_USER)
+        env.store.sources["MK7 Update.cia"] = FakeSource(entries=[SourceEntry("MK7 Update.cia", False, 1000)])
+        return env
+
+    _UPDATE = f"{_AZ_USER}\\sdmc\\Nintendo 3DS\\{'0' * 32}\\{'0' * 32}\\title\\0004000e\\00055d00"
+
+    def test_installs_a_cia_with_azahar_after_backing_up_the_old_update(self, az):
+        az.store.dirs.add(self._UPDATE)
+        svc = az.service()
+        preview = az.run(svc.preview_mod_install(1, "content", "MK7 Update.cia"))
+        assert preview["installer"] == "azahar_cia"
+        result = az.run(svc.install_mod(1, "content", "MK7 Update.cia", preview["fingerprint"]))
+        assert result["success"] is True
+        assert az.store.installer_runs == [
+            (f"{_AZ_DIR}\\azahar.exe", ("-i", "C:\\Users\\me\\Downloads\\MK7 Update.cia"))
+        ]
+        ((copied, backup),) = az.store.copies
+        assert copied == self._UPDATE
+        assert backup.endswith("\\content\\Update")
+        assert az.store.installs == []
+
+    def test_an_encrypted_cia_is_reported(self, az):
+        az.store.installer_result = (7, "Failed to install CIA: CIA is encrypted.")
+        svc = az.service()
+        preview = az.run(svc.preview_mod_install(1, "content", "MK7 Update.cia"))
+        result = az.run(svc.install_mod(1, "content", "MK7 Update.cia", preview["fingerprint"]))
+        assert result["success"] is False
+        assert result["reason"] == "installer_failed"
+        assert "encrypted" in result["message"]
+
+    def test_refused_while_azahar_runs(self, az):
+        az.store.running = frozenset({"azahar.exe"})
+        svc = az.service()
+        preview = az.run(svc.preview_mod_install(1, "content", "MK7 Update.cia"))
+        assert az.run(svc.install_mod(1, "content", "MK7 Update.cia", preview["fingerprint"]))["reason"] == (
+            "emulator_running"
+        )
+        assert az.store.installer_runs == []
+
+    def test_installed_update_is_listed_by_label(self, az):
+        az.store.dirs.add(self._UPDATE)
+        parent = self._UPDATE.rsplit("\\", 1)[0]
+        az.store.listings[parent] = [ModEntryInfo("00055d00", True, None, 5.0)]
+        content = _targets(az.run(az.service().get_game_mods(1)))["content"]
+        assert content["accepts"] == "cia_file"
+        assert [e["name"] for e in content["installed"]] == ["Update"]

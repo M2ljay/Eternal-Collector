@@ -405,6 +405,12 @@ codes, cheats or patches the emulator already has, switched on or off in its own
 removed), `riivolution`, `graphicsMods` or `layeredFs`. The **PCSX2 CRC** is PCSX2's own checksum of a disc's boot
 executable (the XOR of its 32-bit words, not a CRC-32), read from the image and used in those names.
 
+**Game content** is a title update or DLC for a game the user already has, as opposed to a mod: an `update` or `dlc`
+target (`domain/game_content.py`). Its scope says how it is handled — **install** (handed to the emulator's own
+installer, Azahar's `-i` for a `.cia`), **game** (a folder put in place, shadPS4's `<game>-UPDATE`) or **readonly**
+(listed, never written: RPCS3 and Xenia). Game content never changes the base game, and what an install replaces is a
+mod backup first.
+
 ### Game page extension / mods bridge
 
 A **game page extension** is a tab or an Overview card another Decky plugin registers on the ROM game page through the

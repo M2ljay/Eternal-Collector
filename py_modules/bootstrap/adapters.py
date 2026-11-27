@@ -67,6 +67,7 @@ from adapters.system_clock import SystemClock
 from adapters.system_uuid_gen import SystemUuidGen
 from adapters.vita3k_install import Vita3kAppLinker
 from adapters.xemu_config import XemuConfigAdapter
+from adapters.yaml_codec import YamlCodecAdapter
 from domain.state_migrations import fold_legacy_save_sync_settings, migrate_settings
 
 if TYPE_CHECKING:
@@ -78,6 +79,7 @@ if TYPE_CHECKING:
         AdoptionMoveStore,
         Clock,
         ComputeSyncActionFn,
+        ConsoleIdReader,
         CoreNameProviderFn,
         CoreVersionProviderFn,
         CoverArtFileStore,
@@ -125,6 +127,7 @@ if TYPE_CHECKING:
         UuidGen,
         VitaAppLinker,
         XemuConfigReader,
+        YamlCodec,
     )
 
 # Filename of the SQLite database inside the plugin runtime dir. Created by the
@@ -159,6 +162,8 @@ class AdapterBundle:
     save_file_store: SaveFileStore
     disc_codes: DiscCodeReader
     ps2_elf_crcs: Ps2ElfCrcReader
+    console_ids: ConsoleIdReader
+    yaml_codec: YamlCodec
     path_probe: PathExistsReader
     renderer_rss: RendererRssFn
     renderer_gc: RendererGcFn
@@ -485,6 +490,8 @@ def bootstrap(
         save_file_store=save_file_store,
         disc_codes=disc_codes,
         ps2_elf_crcs=disc_codes,
+        console_ids=disc_codes,
+        yaml_codec=YamlCodecAdapter(),
         path_probe=path_probe,
         renderer_rss=renderer_rss,
         renderer_gc=renderer_gc,

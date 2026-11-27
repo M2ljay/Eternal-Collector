@@ -6,21 +6,30 @@ there, and installs, removes and switches on what the emulator needs. User-facin
 
 ## Layers
 
-| Layer   | Module                                            | Owns                                                                                                   |
-| ------- | ------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
-| Domain  | `domain/game_mods.py`                             | Emulator identification, portable-layout rules, mod targets, ini switch read/edit, install planning    |
-| Domain  | `domain/mod_targets.py`                           | Cheat-file, built-in-toggle and graphic-pack targets; Cemu's home; what other emulators do not offer   |
-| Domain  | `domain/mod_toggles.py`                           | Reading and switching Dolphin codes, PCSX2 patches and cheats, Azahar cheats                           |
-| Domain  | `domain/disc_ids.py`                              | Game identifiers, the 3DS title ID, and the PS2 boot ELF path and PCSX2 CRC                            |
-| Adapter | `adapters/game_mod_files.py` (`GameModStore`)     | Listing, Downloads, zip/folder reading, the install itself, moves to backup, the ini rewrite, Explorer |
-| Adapter | `adapters/disc_code_reader.py` (`DiscCodeReader`) | Reading the identifier and the PS2 boot ELF (`Ps2ElfCrcReader`) out of the game file                   |
-| Adapter | `adapters/game_process_windows.py`                | `running_executable_names()` for the "emulator is running" refusal                                     |
-| Service | `services/game_mods.py` (`GameModsService`)       | The nine callables; resolution on every call; the write lock                                           |
-| UI      | `src/components/ModsButton.tsx`, `ModsModal.tsx`  | The button (native look + installed only) and the panel                                                |
-| UI      | `src/components/ModBuiltinsSection.tsx`           | A built-in-toggle target's entries with On/Off switches, in the panel                                  |
-| UI      | `src/utils/gamePageExtensions.ts`                 | The game page registry (Forge bridge, below)                                                           |
-| UI      | `src/utils/collectorModsBridge.ts`                | The mods bridge (Forge bridge, below)                                                                  |
-| UI      | `src/components/GamePageExtensions.tsx`           | Rendering registered tabs and cards, each in its own error boundary                                    |
+| Layer   | Module                                              | Owns                                                                                                   |
+| ------- | --------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| Domain  | `domain/game_mods.py`                               | Emulator identification, portable-layout rules, mod targets, ini switch read/edit, install planning    |
+| Domain  | `domain/mod_targets.py`                             | Cheat-file, built-in-toggle and graphic-pack targets; Cemu's home; what other emulators do not offer   |
+| Domain  | `domain/mod_toggles.py`                             | Reading and switching Dolphin codes, PCSX2 patches and cheats, Azahar cheats                           |
+| Domain  | `domain/disc_ids.py`                                | Game identifiers, the 3DS title ID, and the PS2 boot ELF path and PCSX2 CRC                            |
+| Domain  | `domain/console_ids.py`                             | PS3/PS4 `PARAM.SFO`, the Xbox 360 XDVDFS walk and XEX title ID, the Wii U title ID in `meta.xml`       |
+| Domain  | `domain/game_content.py`                            | Updates and DLC targets: Azahar CIA install, shadPS4 overlays, RPCS3 and Xenia installed content       |
+| Domain  | `domain/rpcs3_patches.py`, `xenia_patches.py`       | Reading and switching RPCS3 patches (YAML tree) and Xenia patches (`*.patch.toml`)                     |
+| Domain  | `domain/cemu_packs.py`                              | Which graphic packs name a Wii U title, and switching them in Cemu's `settings.xml`                    |
+| Domain  | `domain/mod_files.py`                               | The install data shapes (`SourceEntry`, `PlannedWrite`, `InstallOutcome`), re-exported by `game_mods`  |
+| Adapter | `adapters/game_mod_files.py` (`GameModStore`)       | Listing, Downloads, zip/folder reading, the install itself, moves to backup, the ini rewrite, Explorer |
+| Adapter | `adapters/disc_code_reader.py` (`DiscCodeReader`)   | Reading the identifier and the PS2 boot ELF (`Ps2ElfCrcReader`) out of the game file                   |
+| Adapter | `adapters/game_process_windows.py`                  | `running_executable_names()` for the "emulator is running" refusal                                     |
+| Adapter | `adapters/yaml_codec.py` (`YamlCodec`)              | YAML text to plain maps and back, over the vendored pure-Python PyYAML (`_vendor/yaml`)                |
+| Service | `services/game_mods/service.py` (`GameModsService`) | The nine callables; resolution on every call; the write lock; the installer run                        |
+| Service | `services/game_mods/targets.py`                     | Resolving the emulator, its folders and the game's identifier into targets                             |
+| Service | `services/game_mods/toggles.py`                     | Reading a toggle target's file(s) and producing the switched text, for all seven formats               |
+| UI      | `src/components/ModsButton.tsx`, `ModsModal.tsx`    | The button (native look + installed only) and the panel                                                |
+| UI      | `src/components/ModBuiltinsSection.tsx`             | A built-in-toggle target's entries with On/Off switches, in the panel                                  |
+| UI      | `src/components/GameContentSection.tsx`             | GAME INFO's **Updates & DLC** row: installed content, and the panel opened on update and DLC targets   |
+| UI      | `src/utils/gamePageExtensions.ts`                   | The game page registry (Forge bridge, below)                                                           |
+| UI      | `src/utils/collectorModsBridge.ts`                  | The mods bridge (Forge bridge, below)                                                                  |
+| UI      | `src/components/GamePageExtensions.tsx`             | Rendering registered tabs and cards, each in its own error boundary                                    |
 
 `GameModStore` is wired only on Windows (`bootstrap/adapters.py`); with no store, or with a launcher backend other than
 EmuDeck, every callable answers `{success: false, reason: "unsupported"}`.
@@ -50,19 +59,24 @@ patch formats a RetroArch build attempts only for RetroDECK, so the target carri
 
 Every target carries a `kind` saying what it offers, and a `scope` saying how it is written:
 
-| Kind            | Scope            | Targets                                                                                                  |
-| --------------- | ---------------- | -------------------------------------------------------------------------------------------------------- |
-| `files`         | `game` / `patch` | Texture packs (Dolphin, PPSSPP, PCSX2, Azahar), RetroArch's soft patch                                   |
-| `cheatFile`     | `file`           | One cheat file named for the game: Azahar, PCSX2, RetroArch                                              |
-| `builtinToggle` | `toggle`         | Entries the emulator already has: Dolphin Gecko / Action Replay, PCSX2 patches and cheats, Azahar cheats |
-| `riivolution`   | `shared`         | Dolphin `Load\Riivolution` (Wii)                                                                         |
-| `graphicsMods`  | `shared`         | Dolphin `Load\GraphicMods`, Cemu `graphicPacks`                                                          |
-| `layeredFs`     | `game`           | Azahar `load\mods\<TitleID>`                                                                             |
+| Kind            | Scope                           | Targets                                                                                                                                               |
+| --------------- | ------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `files`         | `game` / `patch`                | Texture packs (Dolphin, PPSSPP, PCSX2, Azahar), RetroArch's soft patch                                                                                |
+| `cheatFile`     | `file`                          | One cheat file named for the game: Azahar, PCSX2, RetroArch                                                                                           |
+| `builtinToggle` | `toggle`                        | Entries the emulator already has: Dolphin Gecko / Action Replay, PCSX2 patches and cheats, Azahar cheats, RPCS3 and Xenia patches, Cemu graphic packs |
+| `riivolution`   | `shared`                        | Dolphin `Load\Riivolution` (Wii)                                                                                                                      |
+| `graphicsMods`  | `shared`                        | Dolphin `Load\GraphicMods`, Cemu `graphicPacks`                                                                                                       |
+| `layeredFs`     | `game`                          | Azahar `load\mods\<TitleID>`, shadPS4 `<game>-mods`                                                                                                   |
+| `update`        | `install` / `game` / `readonly` | Azahar CIA install, shadPS4 `<game>-UPDATE`, RPCS3 and Xenia installed updates (listed only)                                                          |
+| `dlc`           | `readonly`                      | Xenia's installed DLC (listed only); Azahar's DLC arrives through the same CIA install as an update                                                   |
 
 A `file` target writes exactly one file, `file_name`, which The Collector names; the source is a single file with the
 target's extension (`file_ext`) or a `.zip` holding exactly one, and it is renamed on the way in. A `toggle` target is
 never installed into or removed from (`plan_install` refuses it, `removable_name` answers nothing); its entries are read
-and switched through `list_mod_builtins` / `set_mod_builtin`.
+and switched through `list_mod_builtins` / `set_mod_builtin`. An `install` target takes exactly one `.cia` and hands it
+to the emulator's own installer (below); a `readonly` target lists what is there and accepts nothing
+(`accepts:
+"none"`). Neither is removed from: `removable_name` answers nothing for both, so the panel has no Remove.
 
 ## Cheat files
 
@@ -113,24 +127,68 @@ its emulator reads it and an edit changes only the lines that carry that one ent
 - **Azahar cheats.** The `[name]` blocks of the game's cheat file; a cheat is on when a `*citra_enabled` line follows
   its header (`GatewayCheat::LoadFile` / `ToString`). Read-only when a code line comes before the first header, a header
   has no code lines (Azahar drops it and carries its state to the next cheat) or a name repeats.
+- **RPCS3 patches.** The patch lists are `patches\patch.yml`, `imported_patch.yml` and `<SERIAL>_patch.yml` under the
+  config root (`<exe folder>\portable` when that folder exists, else the exe folder; `fs::get_config_dir`). Only the
+  blocks that name the game's serial are parsed (`patch_list_subset`), each entry listed once per hash, description and
+  title. The switch is the entry RPCS3's own patch manager writes in `config\patch_config.yml`: hash → description →
+  title → serial → app version → `Enabled: true`, with the serial and `APP_VER` read from `PS3_GAME\PARAM.SFO`
+  (`console_ids.ps3_game`). Turning off removes that leaf and prunes the maps it leaves empty, so no executable hash is
+  computed here. YAML goes through the vendored pure-Python PyYAML with `BaseLoader` (every scalar stays text: `01.00`
+  is not a float) and is dumped with `Enabled` as a bool and `Configurable Values` as numbers. A `patch_config.yml` that
+  is not the hash → … tree shape is read-only.
+- **Xenia patches.** The files in `<storage root>\patches` whose name matches Xenia's own pattern
+  (`^[A-Fa-f0-9]{8}.*\.patch\.toml$`) and starts with the game's title ID, kept only when their `title_id` field is the
+  game's. The title ID is read from `default.xex` (a loose `.xex`, or inside an XISO through the XDVDFS directory at the
+  four partition offsets; XEX2 optional header `0x00040006`, execution info, title ID at +12). Each `[[patch]]` block's
+  `is_enabled` (default `false`) is the switch, edited on its one line. A file with multi-line strings, a repeated patch
+  name or a non-bool `is_enabled` is read-only, and so is a game whose patches are split across several files.
+- **Cemu graphic packs.** The installed packs (`graphicPacks\**\rules.txt`) whose `[Definition] titleIds` name the game,
+  read from `meta\meta.xml` `<title_id>` of a folder game. A pack is on when `settings.xml` has a
+  `<GraphicPack><Entry filename="graphicPacks\…\rules.txt">` without `disabled="true"`, otherwise its rules.txt
+  `default` applies; the switch adds, edits or removes that one `Entry` line (a self-closing `<GraphicPack/>` is
+  expanded). The legacy format and a repeated `GraphicPack` element are read-only.
 
 Every switch is refused while the emulator's executable is running (`emulator_running`), is written only if the file
 still holds what was read (`changed` otherwise), and copies the existing file to
 `romm-mod-backups\<stamp>\settings\<file name>` first; a file that did not exist is created only if it still does not.
 
+## Updates and DLC
+
+Game content — a title update or DLC for a game the user already has — is offered per emulator as `update` and `dlc`
+targets (`domain/game_content.py`), on the Mods panel and from GAME INFO's **Updates & DLC** row (`GameContentSection`,
+controller-only, installed games only), which opens the panel filtered to those kinds. A base game is never touched, and
+anything an install replaces is backed up first.
+
+| Emulator     | What is offered                                                                                                                                                                                                   |
+| ------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Azahar       | Install one `.cia` from Downloads with `azahar -i <cia>` (id `content`, scope `install`). The game's update and DLC title folders under `user\sdmc\Nintendo 3DS\<0×32>\<0×32>\title\0004000e                      |
+| shadPS4      | The `<game>-UPDATE` folder beside the game folder (id `update`, a folder source; an existing update folder is moved to the backup whole), and `<game>-mods` (id `overlay_mods`, `layeredFs`)                      |
+| RPCS3        | The installed update under `dev_hdd0\game\<SERIAL>` (or where `config\vfs.yml` moves `dev_hdd0`), listed with its version from `PARAM.SFO` (id `update`, `readonly`)                                              |
+| Xenia Canary | Installed title updates (`000B0000`) and DLC (`00000002`) under `<content root>\0000000000000000\<TitleID>`, listed (ids `update`, `dlc`, `readonly`); `content_root` from `xenia-canary.config.toml` is followed |
+
+**Azahar's installer.** The run is refused while Azahar is running; with stdout piped Azahar prints instead of showing a
+message box, and its exit code is the install status (3–8 map to `AZAHAR_INSTALL_ERRORS`). A non-zero exit answers
+`installer_failed` with that reason and the backup folder; the output is logged, never returned whole. A CIA must be the
+user's own dump, decrypted, or encrypted with the user's own AES keys set up in Azahar (exit 7 says which).
+
+**Not offered, and why.** Downloading PS3 updates: Sony's update server presents a certificate that cannot be verified,
+and the package hashes come from that same unverified answer, so nothing is fetched; RPCS3 also installs packages only
+through its desktop window. Installing Xbox 360 content: Xenia reads installed content as folders it extracts itself
+(File > Install Content, or Xenia Manager). Both are listed under the panel's omitted entries with these reasons.
+
 ## Emulators with no target, and what is not offered
 
-| Emulator     | Offered                                | Not offered, and why                                                                                                                                                                                     |
-| ------------ | -------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Cemu         | `graphicPacks` in the user data folder | Turning a pack on: Cemu does it per game in `settings.xml`, and which packs belong to a game is in each pack's `rules.txt` by Wii U title ID, which is not read from Wii U images here                   |
-| RPCS3        | —                                      | Game patches: the patch list and the enabled patches are YAML (`patches\patch.yml`, `patch_config.yml`) keyed by the executable's PPU hash, and there is no YAML reader here that could edit them safely |
-| Xenia Canary | —                                      | Patches: files are named by the Xbox 360 title ID inside `default.xex`, which is not read from disc images                                                                                               |
-| shadPS4      | —                                      | Cheats and patches: kept per download source (XML patches indexed by `files.json`, cheat files) keyed by the game's serial; neither is edited here                                                       |
-| xemu         | —                                      | xemu has no mod, cheat or patch folder                                                                                                                                                                   |
+| Emulator | Offered                                                                   | Not offered, and why                                                                                                                               |
+| -------- | ------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Cemu     | `graphicPacks` in the user data folder; switching packs for a folder game | Switching packs for `.wua`/`.wud`/`.wux` images: the title ID is inside the encrypted image and is not read here                                   |
+| RPCS3    | Game patches; the installed update (listed)                               | Downloading or installing updates (above)                                                                                                          |
+| Xenia    | Game patches; installed updates and DLC (listed)                          | Installing content (above); a game whose `default.xex` cannot be read (an image that is not XISO, a compressed XEX header) has no patch target     |
+| shadPS4  | `<game>-UPDATE`, `<game>-mods`                                            | Cheats and patches: kept per download source (XML patches indexed by `files.json`, cheat files) keyed by the game's serial; neither is edited here |
+| xemu     | —                                                                         | xemu has no mod, cheat or patch folder                                                                                                             |
 
 Cemu's user data folder is `<exe folder>\portable` when that folder exists, else the exe folder when `settings.xml` sits
-beside it (installs from before 2.0-89), else `%APPDATA%\Cemu`, which is not read (`CemuApp::DeterminePaths`). The
-others answer `success` with no targets, a note and the omitted entries; their data folders are not read.
+beside it (installs from before 2.0-89), else `%APPDATA%\Cemu`, which is not read (`CemuApp::DeterminePaths`). xemu
+answers `success` with no targets, a note and the omitted entries; its data folder is not read.
 
 ## Install
 
@@ -248,7 +306,7 @@ window.__eternalCollectorMods = {
   version: 1,
   isRomApp(appId): boolean,
   getRomInfo(appId): Promise<(RomPageContext & { emulator: string | null; family: string | null;
-                               gameId: string | null }) | null>,
+                               gameId: string | null; saveSync: boolean; saveBackup: boolean }) | null>,
   getTargets(appId): Promise<GameModsAnswer>,                       // get_game_mods, unchanged
   listSources(appId, targetId?): Promise<ModSourcesAnswer>,         // list_mod_sources
   preview(appId, source, targetId): Promise<ModPreviewAnswer>,      // preview_mod_install
@@ -285,6 +343,15 @@ resolution on every call, the fingerprint check, the gating, the write lock and 
   `builtinToggle` targets only (`unsupported` otherwise); `setBuiltin` takes the `entry_id` `listBuiltins` answered and
   is refused with `not_editable`, `emulator_running`, `changed` or `not_found` as described under
   [Built-in toggles](#built-in-toggles).
+- **v1 additions (win.30).** `kind` gains `update` and `dlc`, `scope` gains `install` and `readonly`, `accepts` gains
+  `cia_file`, and a source may be a `.cia`. New target ids: `content` (Azahar CIA), `update`, `dlc`, `overlay_mods`
+  (shadPS4), `pack_toggles` (Cemu) and `patches` as a toggle target for RPCS3 and Xenia. `preview` answers
+  `replaces_folder` (a whole folder moves to the backup) and `installer` (the emulator's installer runs); `install` may
+  fail with `installer_failed`, carrying `backup_folder`. `getRomInfo` answers `emulator` `rpcs3`, `xenia`, `cemu` or
+  `shadps4` (with `family` `null`) and two save facts, both `false` unless the plugin's own state says otherwise:
+  `saveSync` is true when save sync is on for the ROM, has checked it at least once, and no save is in conflict or of
+  unknown status; `saveBackup` is true when save sync is on and at least one save of the ROM is recorded as synced to
+  RomM, so a copy The Collector could restore exists there.
 
 ### Where Forge puts a download
 

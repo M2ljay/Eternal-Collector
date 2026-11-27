@@ -70,6 +70,7 @@ run = [
     "cd py_modules/native && sha256sum -c libgavel-x86_64-linux.so.sha256",
     "cd defaults && sha256sum -c bios_registry.json.sha256",
     "cd py_modules/_vendor/stdlib_compat && sha256sum -c SHA256SUMS",
+    "cd py_modules/_vendor/yaml && sha256sum -c SHA256SUMS",
 ]
 
 [tasks.gate]

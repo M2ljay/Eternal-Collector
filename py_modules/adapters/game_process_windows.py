@@ -5,8 +5,8 @@ shortcut runs ``bin\\rom-launcher.exe``, which starts the emulator as its child
 and waits for it, so a game "instance" is one ``rom-launcher.exe`` process and
 the tree beneath it. The launcher itself is never a signal target: it holds the
 Job Object that force-closes the emulator when the launcher ends, so stopping
-it first would kill the emulator mid-save. It exits on its own once the
-emulator has.
+it first would kill the emulator mid-save. It exits on its own once
+everything in its job has.
 
 What "ask to exit" means here: Windows has no SIGTERM. The polite request is a
 ``WM_CLOSE`` posted to the process's visible top-level windows — exactly what

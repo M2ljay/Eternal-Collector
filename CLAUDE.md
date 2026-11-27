@@ -425,7 +425,7 @@ record** — test + prompt-only —
   `tests/test_core_bootstrap.py::test_core_files_import_only_the_stdlib_and_each_other` (AST over the four files'
   module-level imports, `TYPE_CHECKING` blocks skipped — an `importlib.import_module` call or an import added to a fifth
   file the core starts importing slips past it, so a new core file must be added to its `_CORE_FILES`), plus
-  `tests/test_plugin_rescue_mode.py` (deletes `services/game_mods.py` from a copy of the plugin and checks
+  `tests/test_plugin_rescue_mode.py` (deletes `services/game_mods/service.py` from a copy of the plugin and checks
   `get_install_integrity` still answers)
   ([plugin-self-update.md](docs/architecture/plugin-self-update.md#half-copied-installs))
 - **An emulator's RetroAchievements username or token is only ever tested for presence: the parsers in
@@ -490,6 +490,17 @@ record** — test + prompt-only —
   `tests/services/test_game_mods.py` (`TestAzaharCheats`, `TestPcsx2Patches`, `TestDolphinCodes`: backup path, created
   file, running and changed refusals). A new toggle format, or a write that bypasses `_write_toggle`, is prompt-only
   ([Built-in toggles](docs/architecture/game-mods.md#built-in-toggles))
+- **On Windows a game ends when everything the emulator started has ended, and Steam's Exit Game ends all of it:
+  `bin/rom-launcher.exe` keeps the emulator in a `JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE` job and stays alive (the process
+  Steam tracks) until that job is empty, not merely until the first process exits; a close request it receives (its
+  hidden window's `WM_CLOSE` or an end-session) is forwarded once as `WM_CLOSE` to the job's windows, and the job is
+  terminated only after `LP_CLOSE_GRACE_MS` (10 s) so the emulator can finish writing a save. Exit is never reached
+  through the launch options or the shortcut's exe, so it adds no `applied_launch_options` writer and no recreate** —
+  test + prompt-only — the pure policy `native/rom-launcher-win/launch_policy.h` (`lp_next`) is pinned by the host
+  tests in `test_launch_command.c` (whole-job wait, one close request then the end after the grace, an emulator that
+  quits in time, tick wraparound); the Win32 glue in `rom-launcher.c` (job assignment, window enumeration,
+  `TerminateJobObject`) is prompt-only, and the `.exe` is checksum-pinned beside it
+  ([windows.md](docs/user-guide/windows.md), [launcher README](native/rom-launcher-win/README.md))
 - **Every module the plugin imports at module level uses only standard-library modules Decky's frozen Windows Python
   ships, or the plugin's own fallback copy** — test — `tests/runtime/test_frozen_runtime.py` against
   `tests/runtime/decky_frozen_stdlib.txt` (a lazily imported Windows-only module is covered only once it is listed in

@@ -6,9 +6,14 @@ Loader for Windows (Playhub), launching games through EmuDeck for Windows instea
 ## What differs from the Steam Deck build
 
 - **Launcher.** Shortcuts run `bin\rom-launcher.exe`. It starts the emulator EmuDeck uses for the system directly (not
-  through EmuDeck's PowerShell launcher scripts, which run a `git pull` and EmuDeck Cloud Sync on every launch), stops
-  the emulator when you stop the game in Steam, and brings Big Picture back to the front when the emulator exits. Each
-  launch is logged to `bin\rom-launcher.log`.
+  through EmuDeck's PowerShell launcher scripts, which run a `git pull` and EmuDeck Cloud Sync on every launch), and
+  brings Big Picture back to the front when the emulator exits. Each launch is logged to `bin\rom-launcher.log`.
+- **Quitting a game.** Quit with Steam's **Exit Game**. The launcher is the process Steam starts and watches, and it
+  stays up exactly as long as the emulator does — including anything the emulator starts on its own — so Steam shows the
+  game as running for its whole life. When Exit Game reaches it as a close request, the launcher asks the emulator to
+  close (the same as its window's close button), so it can save and quit, and ends it 10 seconds later if it is still
+  running. If Steam ends the launcher outright, Windows ends the emulator with it. Either way nothing is left running
+  behind Big Picture.
 - **Launch curtain.** While the emulator starts and while it shuts down, the screen shows the Core logo on black, so its
   menu window or a blank white window never flashes up; it lifts as soon as the game is fullscreen, so console boot
   screens still play. PS2 games start PCSX2 with `-nogui -fullscreen`, which skips its menu window entirely (a library
@@ -136,15 +141,18 @@ Every folder is worked out from your machine — the emulator the game actually 
 folder, its own settings file, and the ID read from the game file itself. When any of that can't be read exactly, the
 panel says **No known mod folder for this emulator** and why, rather than guessing a folder.
 
-| Emulator                           | What the panel offers                                                                                                                                                                                                                  | Setting it checks                                                                                                 |
-| ---------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
-| Dolphin (GameCube, Wii)            | Texture pack in `User\Load\Textures\<ID6>`; graphics mods in `User\Load\GraphicMods` (shared); Wii only: Riivolution in `User\Load\Riivolution` (shared); **Gecko codes** and **Action Replay codes** for the game, switched on or off | `[Settings] HiresTextures` in `User\Config\GFX.ini`; `[Core] EnableCheats` in `User\Config\Dolphin.ini` for codes |
-| PPSSPP (PSP)                       | Texture pack in `memstick\PSP\TEXTURES\<GAME ID>`                                                                                                                                                                                      | `[Graphics] ReplaceTextures` in `PSP\SYSTEM\ppsspp.ini`                                                           |
-| PCSX2 (PS2)                        | Texture replacements in `textures\<SERIAL>\replacements`; a **cheat file** `cheats\<SERIAL>_<CRC>.pnach`; **Patches** (widescreen, 60 FPS, fixes) and **Cheats**, switched on or off                                                   | `[EmuCore/GS] LoadTextureReplacements` and `[EmuCore] EnableCheats` in `inis\PCSX2.ini`                           |
-| Azahar / Citra / Lime3DS (3DS)     | Mods (`romfs` / `exefs`) in `user\load\mods\<TITLE ID>`; custom textures in `user\load\textures\<TITLE ID>`; a **cheat file** `user\cheats\<TITLE ID>.txt` and its **Cheats**, switched on or off                                      | —                                                                                                                 |
-| RetroArch (cartridge games)        | A soft patch beside the ROM: `<ROM name>.ips`, `.bps` or `.ups`; a **cheat file** `cheats\<core>\<ROM name>.cht`                                                                                                                       | —                                                                                                                 |
-| Cemu (Wii U)                       | Graphic packs in `graphicPacks` (shared; turn a pack on in Cemu)                                                                                                                                                                       | —                                                                                                                 |
-| RPCS3, Xenia Canary, shadPS4, xemu | Nothing — the panel says why (see below)                                                                                                                                                                                               | —                                                                                                                 |
+| Emulator                       | What the panel offers                                                                                                                                                                                                                  | Setting it checks                                                                                                 |
+| ------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| Dolphin (GameCube, Wii)        | Texture pack in `User\Load\Textures\<ID6>`; graphics mods in `User\Load\GraphicMods` (shared); Wii only: Riivolution in `User\Load\Riivolution` (shared); **Gecko codes** and **Action Replay codes** for the game, switched on or off | `[Settings] HiresTextures` in `User\Config\GFX.ini`; `[Core] EnableCheats` in `User\Config\Dolphin.ini` for codes |
+| PPSSPP (PSP)                   | Texture pack in `memstick\PSP\TEXTURES\<GAME ID>`                                                                                                                                                                                      | `[Graphics] ReplaceTextures` in `PSP\SYSTEM\ppsspp.ini`                                                           |
+| PCSX2 (PS2)                    | Texture replacements in `textures\<SERIAL>\replacements`; a **cheat file** `cheats\<SERIAL>_<CRC>.pnach`; **Patches** (widescreen, 60 FPS, fixes) and **Cheats**, switched on or off                                                   | `[EmuCore/GS] LoadTextureReplacements` and `[EmuCore] EnableCheats` in `inis\PCSX2.ini`                           |
+| Azahar / Citra / Lime3DS (3DS) | Mods (`romfs` / `exefs`) in `user\load\mods\<TITLE ID>`; custom textures in `user\load\textures\<TITLE ID>`; a **cheat file** `user\cheats\<TITLE ID>.txt` and its **Cheats**, switched on or off                                      | —                                                                                                                 |
+| RetroArch (cartridge games)    | A soft patch beside the ROM: `<ROM name>.ips`, `.bps` or `.ups`; a **cheat file** `cheats\<core>\<ROM name>.cht`                                                                                                                       | —                                                                                                                 |
+| Cemu (Wii U)                   | Graphic packs in `graphicPacks` (shared); for a game kept as a folder, **Graphic packs for this game**, switched on or off                                                                                                             | —                                                                                                                 |
+| RPCS3 (PS3)                    | **Game patches** (60 FPS, resolution, fixes) you already have, switched on or off; the installed update and its version                                                                                                                | —                                                                                                                 |
+| Xenia Canary (Xbox 360)        | **Game patches** from its `patches` folder, switched on or off; installed title updates and DLC                                                                                                                                        | —                                                                                                                 |
+| shadPS4 (PS4)                  | The game's update folder `<game>-UPDATE` and mods folder `<game>-mods`, beside the game folder                                                                                                                                         | —                                                                                                                 |
+| xemu (Xbox)                    | Nothing — xemu has no mod, cheat or patch folder                                                                                                                                                                                       | —                                                                                                                 |
 
 - **Which emulator folder.** Only portable installs are read, which is how EmuDeck installs them: Dolphin with
   `portable.txt` beside `Dolphin.exe`; PPSSPP with its `memstick` folder and no `installed.txt`; PCSX2 with
@@ -157,10 +165,13 @@ panel says **No known mod folder for this emulator** and why, rather than guessi
 - **PCSX2 cheats and patches** are named by the game's serial and the CRC of its boot executable, which the plugin reads
   from ISO, CSO and CHD images (the CRC is shown in the cheat file's name). If it can't be read — another format, or a
   CHD compressed in a way this build can't decode — the panel lists them as not offered and says why.
-- **Not offered.** RPCS3 patches (kept in YAML files the plugin can't edit safely; use _Manage > Game Patches_), Xenia
-  patches (named by a title ID the plugin doesn't read from discs; use Xenia Manager), shadPS4 cheats and patches (use
-  its Cheats/Patches window), xemu (no mods), and turning Cemu graphic packs on (right-click the game in Cemu > _Edit
-  graphic packs_). Dolphin's _Enable Graphics Mods_ and Azahar's _Use Custom Textures_ settings are not checked.
+- **Xbox 360 and Wii U IDs.** Xenia's patches are matched by the title ID in the game's `default.xex`, read from a loose
+  `.xex` or from inside an Xbox 360 ISO (XISO). Cemu's packs are matched by the title ID in `meta\meta.xml` of a game
+  kept as a folder; `.wua`, `.wud` and `.wux` images are encrypted, so they get no pack switches (use right-click the
+  game in Cemu > _Edit graphic packs_).
+- **Not offered.** shadPS4 cheats and patches (use its Cheats/Patches window), xemu (no mods), downloading PS3 updates
+  and installing Xbox 360 content (see [Updates and DLC](#updates-and-dlc)). Dolphin's _Enable Graphics Mods_ and Azahar's
+  _Use Custom Textures_ settings are not checked.
 - **Soft patches.** RetroArch applies the patch in memory each launch; the ROM file is never changed. It only works for
   a single cartridge file loaded into memory, so zipped ROMs, disc images and cores that read the game from disk (their
   core info says `needs_fullpath`) get no soft-patch option. Which patch formats EmuDeck's RetroArch build tries is
@@ -191,13 +202,34 @@ Auto-Apply Cheats During Game Load_ is on.
 
 ### Codes, cheats and patches the emulator already has
 
-**Gecko codes** and **Action Replay codes** (Dolphin), **Patches** and **Cheats** (PCSX2) and **Cheats** (Azahar) list
-what the emulator has for this game, each with an **On / Off** button. Close the emulator first: the plugin refuses
-while it is running. Each switch changes only that entry's line in the emulator's own per-game file (Dolphin
-`User\GameSettings\<ID6>.ini`, PCSX2 `gamesettings\<SERIAL>_<CRC>.ini`, Azahar's cheat file), after copying the file to
-the backup folder. If the files are set up in a way the plugin could misread — for example Dolphin codes also switched
-in `GAL.ini` — the list is shown but can't be changed, with the reason; change it in the emulator instead. Cheats also
-need the emulator's _Enable Cheats_ setting, which the panel offers to turn on.
+**Gecko codes** and **Action Replay codes** (Dolphin), **Patches** and **Cheats** (PCSX2), **Cheats** (Azahar), **Game
+patches** (RPCS3, Xenia) and **Graphic packs for this game** (Cemu) list what the emulator has for this game, each with
+an **On / Off** button. Close the emulator first: the plugin refuses while it is running. Each switch changes only that
+entry's line in the emulator's own per-game file (Dolphin `User\GameSettings\<ID6>.ini`, PCSX2
+`gamesettings\<SERIAL>_<CRC>.ini`, Azahar's cheat file, RPCS3 `config\patch_config.yml`, the Xenia `.patch.toml` file,
+Cemu's `settings.xml`), after copying the file to the backup folder. RPCS3 and Xenia list only patches you already have:
+get them with RPCS3's _Manage > Game Patches > Download latest patches_ or Xenia Manager's _Download Patches_. If the
+files are set up in a way the plugin could misread — for example Dolphin codes also switched in `GAL.ini` — the list is
+shown but can't be changed, with the reason; change it in the emulator instead. Cheats also need the emulator's _Enable
+Cheats_ setting, which the panel offers to turn on.
+
+### Updates and DLC
+
+An installed game's GAME INFO tab has an **Updates & DLC** section listing each update and DLC entry with what is
+installed; **Manage** (or **Details**, for an entry that is only listed) opens the Mods panel on just the update and DLC
+entries. The base game is never changed, and anything an install replaces goes to the backup folder first.
+
+- **3DS (Azahar).** Put the update or DLC `.cia` in Downloads and install it: Azahar's own installer adds it (close
+  Azahar first). The CIA has to be your own dump, decrypted, or encrypted with your own AES keys set up in Azahar; an
+  encrypted one without keys is refused with that reason. The game's existing update and DLC folders are copied to the
+  backup first.
+- **PS4 (shadPS4).** Extract the update to a folder in Downloads and install it as the game's `<game>-UPDATE` folder; an
+  update already there is moved to the backup whole. `<game>-mods` takes mods the same way.
+- **PS3 (RPCS3).** The installed update's version is shown. Downloading updates is not offered: Sony's update server
+  presents a certificate that can't be verified, so neither the download nor its checksums can be trusted, and RPCS3
+  installs packages only through its desktop window (_File > Install Packages/Raps/Edats_).
+- **Xbox 360 (Xenia).** Installed title updates and DLC are listed. Install them in Xenia (_File > Install Content_) or
+  Xenia Manager: Xenia keeps content as folders it extracts itself.
 
 ### Removing
 

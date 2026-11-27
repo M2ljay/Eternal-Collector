@@ -27,6 +27,7 @@ if TYPE_CHECKING:
         SteamRecoverySnapshot,
     )
 
+    from domain.console_ids import TitleIdAnswer
     from domain.disc_ids import DiscCode, Ps2ElfCrc
     from domain.game_mods import InstallOutcome, ModEntryInfo, PlannedWrite, SourceEntry
     from domain.prune import BundleReadmeContext
@@ -803,6 +804,30 @@ class Ps2ElfCrcReader(Protocol):
         ...
 
 
+class ConsoleIdReader(Protocol):
+    """Reads the files PS3 and Xbox 360 games are identified by out of their disc images."""
+
+    def read_iso_member(self, path: str, parts: tuple[str, ...], limit: int) -> bytes | None:
+        """The file *parts* inside the ISO 9660 image at *path* (at most *limit* bytes), or ``None``."""
+        ...
+
+    def read_xbox360_title_id(self, path: str) -> TitleIdAnswer:
+        """The Xbox 360 title ID of a ``.iso`` (from ``default.xex``) or ``.xex``, or why it could not be read."""
+        ...
+
+
+class YamlCodec(Protocol):
+    """Reads and writes YAML documents (RPCS3's patch files) with every scalar read as text."""
+
+    def load(self, text: str) -> object:
+        """The document in *text*; raises ``ValueError`` when it is not YAML."""
+        ...
+
+    def dump(self, document: object) -> str:
+        """*document* as block-style YAML text."""
+        ...
+
+
 class GameModStore(Protocol):
     """Filesystem seam for game mod folders, the Downloads folder mods are installed from, and their backups.
 
@@ -876,6 +901,22 @@ class GameModStore(Protocol):
 
     def create_text(self, path: str, new_text: str) -> bool:
         """Write *new_text* as the new file *path* (its folder created); ``False`` when the file already exists."""
+        ...
+
+    def read_bytes(self, path: str, limit: int) -> bytes | None:
+        """The first *limit* bytes of the plain file *path*, or ``None`` when it is missing or unreadable."""
+        ...
+
+    def find_files(self, root: str, name: str, limit: int) -> list[str]:
+        """Paths (relative to *root*, ``\\``-separated) of files named *name* below *root*, not below another match."""
+        ...
+
+    def copy_to_backup(self, path: str, backup: str) -> None:
+        """Copy the file or folder *path* to *backup* (a path that must not exist yet); the original stays."""
+        ...
+
+    def run_installer(self, exe: str, args: tuple[str, ...], timeout: float) -> tuple[int | None, str]:
+        """Run *exe* with *args* (output captured); ``(exit code, output)``, the code ``None`` if it did not finish."""
         ...
 
     def replace_text(self, path: str, expected: str, new_text: str, backup: str) -> bool:

@@ -255,7 +255,7 @@ The modules the core imports at module level (`core_bootstrap.py`, `domain/insta
 `adapters/install_files.py`, `adapters/install_repair_files.py`, `services/install_integrity.py`) import the standard
 library and each other only. The update half is imported inside `build_core` and degrades to `None` when it cannot load.
 `tests/test_core_bootstrap.py` checks those imports by AST; `tests/test_plugin_rescue_mode.py` deletes
-`services/game_mods.py` from a copy of the plugin and checks the notice's answer, and deletes three `services/` modules
+`services/game_mods/service.py` from a copy of the plugin and checks the notice's answer, and deletes three `services/` modules
 beside a kept zip and checks that the full import then succeeds; `tests/runtime/test_frozen_runtime.py` imports all of
 it against Decky's frozen standard library.
 
