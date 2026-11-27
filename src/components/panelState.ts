@@ -62,6 +62,8 @@ export interface PanelState {
   error: boolean;
   activeTab: string;
   raId: number | null;
+  /** RetroAchievements earned / total from the cached detail, `null` when it carries none. */
+  achievements: { earned: number; total: number } | null;
   slotConfirmed: boolean;
   // The slot the saves surfaces attribute this ROM's saves to. `null` is the
   // legacy web-player bucket — a real answer with its own rendering, never a
@@ -386,6 +388,14 @@ export function refreshPanelCoreInfo(binding: RomBinding): Promise<void> {
 /** Cache-first initial render. Resolves the cached game detail for this appId,
  *  pushes it into PanelState, and fires the background refresh tasks whose
  *  results are merged in later. */
+/** The RetroAchievements counts a cached detail carries, for the Overview card. */
+export function achievementsFromCache(cached: {
+  achievement_summary?: { earned: number; total: number } | null;
+}): { earned: number; total: number } | null {
+  const summary = cached.achievement_summary;
+  return summary ? { earned: summary.earned, total: summary.total } : null;
+}
+
 export async function loadData(
   appId: number,
   cancelled: () => boolean,
@@ -443,6 +453,7 @@ export async function loadData(
       error: false,
       activeTab: "info",
       raId,
+      achievements: achievementsFromCache(cached),
       slotConfirmed: false,
       activeSlot: "default",
       activeSlotKnown: false,

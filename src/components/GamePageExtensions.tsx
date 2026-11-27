@@ -50,14 +50,17 @@ function boundaryKey(entry: RegisteredExtension, ctx: RomPageContext): string {
   return `${entry.extension.id}:${entry.seq}:${ctx.romId}`;
 }
 
-export const ExtensionOverviewCards: FC<{ entries: readonly RegisteredExtension[]; ctx: RomPageContext }> = ({
-  entries,
-  ctx,
-}) => {
+/** The Overview card grid: The Collector's own cards (`children`) first, then the registered ones. */
+export const ExtensionOverviewCards: FC<{
+  entries: readonly RegisteredExtension[];
+  ctx: RomPageContext;
+  children?: ReactNode;
+}> = ({ entries, ctx, children }) => {
   const cards = visibleExtensions(entries, "overviewCard", ctx);
-  if (cards.length === 0) return null;
+  if (cards.length === 0 && !children) return null;
   return (
-    <Focusable className="romm-ext-cards" flow-children="down" data-romm="true">
+    <Focusable className="romm-ext-cards romm-core-cards" flow-children="row" data-romm="true">
+      {children}
       {cards.map((entry) => (
         <div
           key={boundaryKey(entry, ctx)}

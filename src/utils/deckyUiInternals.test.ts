@@ -13,19 +13,22 @@ const appDetails = { HeaderLoaded: "hl", InnerContainer: "ic", AppDetailsOvervie
 const playSection = { PlayBarDetailLabel: "pl", Container: "pc" };
 const appAction = { PlayButtonContainer: "pb" };
 const styler = { AppDetailsRoot: "ar", PlaySection: "ps" };
+const header = { TopCapsule: "tc", ImgContainer: "img" };
 const named = {
+  appDetailsHeaderClasses: header,
   appDetailsClasses: appDetails,
   playSectionClasses: playSection,
   appActionButtonClasses: appAction,
   basicAppDetailsSectionStylerClasses: styler,
 };
 const unnamed = {
+  appDetailsHeaderClasses: undefined,
   appDetailsClasses: undefined,
   playSectionClasses: undefined,
   appActionButtonClasses: undefined,
   basicAppDetailsSectionStylerClasses: undefined,
 };
-const modules: unknown[] = [{ Other: "x" }, appDetails, playSection, appAction, styler];
+const modules: unknown[] = [{ Other: "x" }, appDetails, playSection, appAction, styler, header];
 const finderOver = (values: unknown[]) => (filter: (v: unknown) => boolean) => values.find((v) => filter(v));
 
 describe("deckyUiInternals", () => {
@@ -51,6 +54,7 @@ describe("deckyUiInternals", () => {
     expect(m.appDetailsClasses).toBe(appDetails);
     expect(m.appActionButtonClasses).toBe(appAction);
     expect(m.basicAppDetailsSectionStylerClasses).toBe(styler);
+    expect(m.appDetailsHeaderClasses).toBe(header);
     expect(m.missingDeckyUiLookups()).toEqual([]);
   });
 
@@ -77,6 +81,7 @@ describe("deckyUiInternals", () => {
     expect([...m.missingDeckyUiLookups()].sort()).toEqual([
       "appActionButtonClasses",
       "appDetailsClasses",
+      "appDetailsHeaderClasses",
       "basicAppDetailsSectionStylerClasses",
       "playSectionClasses",
     ]);

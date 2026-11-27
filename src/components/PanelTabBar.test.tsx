@@ -13,30 +13,40 @@ describe("PanelTabBar", () => {
   it("reports the pressed tab's id", () => {
     const onSelect = vi.fn();
     const { getByText } = render(<PanelTabBar activeTab="info" hasAchievements hasSaves hasBios onSelect={onSelect} />);
-    fireEvent.click(getByText("SAVES"));
+    fireEvent.click(getByText("Saves"));
     expect(onSelect).toHaveBeenCalledWith("saves");
   });
 
   it("marks the active tab and only the active tab", () => {
     const { getByText } = render(<PanelTabBar activeTab="bios" hasAchievements hasSaves hasBios onSelect={vi.fn()} />);
     expect(getByText("BIOS").className).toContain("romm-tab-active");
-    expect(getByText("GAME INFO").className).not.toContain("romm-tab-active");
+    expect(getByText("Overview").className).not.toContain("romm-tab-active");
   });
 
   it("renders the tabs in their fixed order", () => {
     const { getAllByRole } = render(
       <PanelTabBar activeTab="info" hasAchievements hasSaves hasBios onSelect={vi.fn()} />,
     );
-    expect(getAllByRole("button").map((b) => b.textContent)).toEqual(["GAME INFO", "ACHIEVEMENTS", "SAVES", "BIOS"]);
+    expect(getAllByRole("button").map((b) => b.textContent)).toEqual([
+      "Overview",
+      "Achievements",
+      "Saves",
+      "Media",
+      "Details",
+      "BIOS",
+    ]);
   });
 
   it("drops the tabs whose pane has nothing to show", () => {
     const { getByText, queryByText } = render(
       <PanelTabBar activeTab="info" hasAchievements={false} hasSaves={false} hasBios={false} onSelect={vi.fn()} />,
     );
-    expect(getByText("GAME INFO")).not.toBeNull();
-    expect(queryByText("ACHIEVEMENTS")).toBeNull();
-    expect(queryByText("SAVES")).toBeNull();
+    expect(getByText("Overview")).not.toBeNull();
+    expect(queryByText("Achievements")).toBeNull();
+    expect(queryByText("Saves")).toBeNull();
     expect(queryByText("BIOS")).toBeNull();
+    // Media and Details have something for every ROM.
+    expect(getByText("Media")).not.toBeNull();
+    expect(getByText("Details")).not.toBeNull();
   });
 });

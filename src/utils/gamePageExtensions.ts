@@ -25,7 +25,7 @@ export const GAME_PAGE_VERSION = 1;
 export const FORGE_MODS_EXTENSION_ID = "forge.mods";
 
 /** Tab order of The Collector's own tabs. Overview (GAME INFO) is always first, whatever an extension asks for. */
-export const BUILTIN_TAB_ORDER = { info: 0, achievements: 20, saves: 30, bios: 40 } as const;
+export const BUILTIN_TAB_ORDER = { info: 0, achievements: 20, saves: 30, media: 34, details: 37, bios: 40 } as const;
 /** Where an extension tab without an `order` goes: after every built-in tab. */
 export const DEFAULT_EXTENSION_ORDER = 100;
 

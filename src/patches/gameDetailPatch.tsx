@@ -9,12 +9,9 @@
 
 import { routerHook } from "@decky/api";
 import { afterPatch, findInReactTree, createReactTreePatcher } from "@decky/ui";
-import {
-  appDetailsClasses,
-  playSectionClasses,
-  basicAppDetailsSectionStylerClasses,
-  missingDeckyUiLookups,
-} from "../utils/deckyUiInternals";
+import { appDetailsClasses, missingDeckyUiLookups } from "../utils/deckyUiInternals";
+import { nativeLook } from "../utils/nativeLook";
+import { CORE_PAGE_CLASS } from "../utils/corePageStyles";
 import { RomMPlaySection } from "../components/RomMPlaySection";
 import { RomMGameInfoPanel } from "../components/RomMGameInfoPanel";
 import { debugLog, logWarn } from "../api/backend";
@@ -23,61 +20,6 @@ import { detach } from "../utils/detach";
 
 // Cached set of RomM app IDs — updated by registerRomMAppId
 const rommAppIds = new Set<number>();
-
-// Tracks which appIds have already had their tree dumped (once per page load)
-let treeDumped = false;
-
-/**
- * Best-effort display name for a React element's `type` field.
- * Anonymous function components surface as "(anonymous fn)" so they remain
- * distinguishable from the string fallback.
- */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any -- Steam internal React tree; runtime shape is dynamic, no upstream types ship
-function resolveTypeName(node: any): string {
-  if (typeof node?.type === "string") return node.type;
-  if (typeof node?.type === "function") return "(anonymous fn)";
-  return String(node?.type ?? "null");
-}
-
-/**
- * Recursively walk a React element tree and log each node.
- * Useful for diagnosing tree structure changes after Steam updates.
- * Runs once per appId to avoid log spam on re-renders.
- */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any -- Steam internal React tree; runtime shape is dynamic, no upstream types ship
-function deepTreeDump(node: any, depth: number, index: number, prefix: string): void {
-  if (depth > 5) return;
-  if (node == null || typeof node !== "object") return;
-
-  const indent = "  ".repeat(depth);
-  const typeName = node?.type?.name || node?.type?.displayName || resolveTypeName(node);
-  const key = node?.key ?? "null";
-  const className = (node?.props?.className || "").substring(0, 60) || "(none)";
-  const childrenRaw = node?.props?.children;
-  let childCount: number;
-  if (Array.isArray(childrenRaw)) {
-    childCount = childrenRaw.length;
-  } else if (childrenRaw == null) {
-    childCount = 0;
-  } else {
-    childCount = 1;
-  }
-
-  detach(
-    debugLog(
-      `${prefix}${indent}[${depth}:${index}] type=${typeName} key=${key} cls=${className} children=${childCount}`,
-    ),
-  );
-
-  // Recurse into children
-  if (Array.isArray(childrenRaw)) {
-    for (let i = 0; i < childrenRaw.length; i++) {
-      deepTreeDump(childrenRaw[i], depth + 1, i, prefix);
-    }
-  } else if (childrenRaw != null && typeof childrenRaw === "object") {
-    deepTreeDump(childrenRaw, depth + 1, 0, prefix);
-  }
-}
 
 /**
  * Locate the InnerContainer node in Steam's app-details React subtree: by its
@@ -128,54 +70,6 @@ export function findNativeOverviewIndex(children: any[]): number {
     }
   }
   return -1;
-}
-
-/**
- * One-time diagnostic dump of the InnerContainer subtree. Runs at most once
- * per plugin load (guarded by module-level `treeDumped`). No-op when the
- * appId is not a RomM shortcut.
- */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any -- Steam internal React tree; runtime shape is dynamic, no upstream types ship
-function dumpTree(container: any, appId: number): void {
-  if (!rommAppIds.has(appId) || treeDumped) return;
-  treeDumped = true;
-
-  detach(debugLog(`===== DEEP TREE DUMP for appId=${appId} =====`));
-  detach(debugLog(`InnerContainer className: ${container.props.className}`));
-
-  const children = container.props.children;
-  detach(debugLog(`InnerContainer direct children count: ${children.length}`));
-  for (let i = 0; i < children.length; i++) {
-    deepTreeDump(children[i], 0, i, "TREE: ");
-  }
-
-  // Search for playSectionClasses.Container deep in tree
-  const psContainerClass = playSectionClasses?.Container;
-  detach(debugLog(`playSectionClasses.Container = "${psContainerClass || "UNDEFINED"}"`));
-  if (psContainerClass) {
-    const psFound = findInReactTree(
-      container,
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Steam internal React tree; runtime shape is dynamic, no upstream types ship
-      (x: any) => x?.props?.className?.includes?.(psContainerClass),
-    );
-    detach(debugLog(`findInReactTree(playSectionClasses.Container): ${psFound ? "FOUND" : "NOT FOUND"}`));
-  }
-
-  // Search for basicAppDetailsSectionStylerClasses.PlaySection deep in tree
-  const bpsClass = basicAppDetailsSectionStylerClasses?.PlaySection;
-  detach(debugLog(`basicAppDetailsSectionStylerClasses.PlaySection = "${bpsClass || "UNDEFINED"}"`));
-  if (bpsClass) {
-    const bpsFound = findInReactTree(
-      container,
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Steam internal React tree; runtime shape is dynamic, no upstream types ship
-      (x: any) => x?.props?.className?.includes?.(bpsClass),
-    );
-    detach(
-      debugLog(`findInReactTree(basicAppDetailsSectionStylerClasses.PlaySection): ${bpsFound ? "FOUND" : "NOT FOUND"}`),
-    );
-  }
-
-  detach(debugLog(`===== END DEEP TREE DUMP =====`));
 }
 
 export function registerRomMAppId(appId: number) {
@@ -238,8 +132,6 @@ export function registerGameDetailPatch() {
             const isRomM = rommAppIds.has(appId);
             detach(debugLog(`gameDetailPatch: appId=${appId} isRomM=${isRomM} setSize=${rommAppIds.size}`));
 
-            dumpTree(container, appId);
-
             // For RomM games: replace the native AppDetailsOverviewPanel
             // (which renders Play button + tabs + all native content via `se`)
             // with our RomMPlaySection and RomMGameInfoPanel.
@@ -262,8 +154,16 @@ export function registerGameDetailPatch() {
                 // CSS class so it participates in InnerContainer's flex layout
                 // and scroll system the same way the native panel does.
                 const panelClass = overviewPanelClass(children, nativeOverviewIdx);
+                // On Windows the wrapper is also the Core page (corePageStyles.ts): black,
+                // with a still starfield behind the content while Core UI is on.
+                const core = nativeLook();
                 const rommWrapper = (
-                  <div key="romm-play-section" className={panelClass} data-romm="true">
+                  <div
+                    key="romm-play-section"
+                    className={core ? `${panelClass} ${CORE_PAGE_CLASS}`.trim() : panelClass}
+                    data-romm="true"
+                  >
+                    {core ? <div className="romm-core-stars" aria-hidden="true" /> : null}
                     {rommPlaySection}
                     {rommInfoPanel}
                   </div>

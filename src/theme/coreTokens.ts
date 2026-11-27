@@ -35,3 +35,70 @@ export function tint(color: CoreColor, alpha: number): string {
   const b = Number.parseInt(color.slice(5, 7), 16);
   return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 }
+
+/**
+ * Console-family tones, as Core UI paints the Library's tabs and tiles (Core's
+ * `CORE_FAMILY_TONES`). A platform chip is filled with its family's tone and
+ * carries black text; a platform outside the four families is "retro".
+ */
+export const familyTones = {
+  playstation: "#6E8CB8",
+  nintendo: "#B07A84",
+  sega: "#5E9E9A",
+  xbox: "#7FA36B",
+  retro: "#8F7CB0",
+} as const;
+
+export type ConsoleFamily = keyof typeof familyTones;
+
+const FAMILY_SLUGS: Record<Exclude<ConsoleFamily, "retro">, readonly string[]> = {
+  playstation: ["psx", "ps", "ps2", "ps3", "ps4", "ps5", "psp", "psvita"],
+  nintendo: [
+    "nes",
+    "famicom",
+    "fds",
+    "snes",
+    "sfam",
+    "n64",
+    "gb",
+    "gbc",
+    "gba",
+    "nds",
+    "nintendo-dsi",
+    "3ds",
+    "n3ds",
+    "ngc",
+    "wii",
+    "wiiu",
+    "switch",
+    "virtualboy",
+    "pokemon-mini",
+    "satellaview",
+    "sufami-turbo",
+    "64dd",
+  ],
+  sega: [
+    "genesis",
+    "genesis-slash-megadrive",
+    "megadrive",
+    "sms",
+    "gamegear",
+    "sega32",
+    "segacd",
+    "saturn",
+    "dc",
+    "sg1000",
+    "sega-pico",
+    "naomi",
+  ],
+  xbox: ["xbox", "xbox360", "xboxone"],
+};
+
+/** The console family a RomM platform slug belongs to. */
+export function consoleFamily(platformSlug: string): ConsoleFamily {
+  const slug = platformSlug.toLowerCase();
+  for (const [family, slugs] of Object.entries(FAMILY_SLUGS) as [ConsoleFamily, readonly string[]][]) {
+    if (slugs.includes(slug)) return family;
+  }
+  return "retro";
+}

@@ -58,6 +58,7 @@ function basePanelState(): PanelState {
     error: false,
     activeTab: "saves",
     raId: null,
+    achievements: null,
     slotConfirmed: false,
     // The pair a freshly-mounted panel holds: the placeholder slot name, and
     // nothing having answered what the active slot actually is.

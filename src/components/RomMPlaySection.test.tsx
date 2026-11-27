@@ -247,14 +247,6 @@ function deferredConnection(): { resolve: (r: ConnectionResult) => void } {
   };
 }
 
-// Inspect the most recent showContextMenu(menuElement, target) call.
-function lastContextMenuElement(): ReactElement | null {
-  const calls = vi.mocked(showContextMenu).mock.calls;
-  if (calls.length === 0) return null;
-  const el = calls[calls.length - 1]?.[0] as ReactElement | undefined;
-  return el ?? null;
-}
-
 // Pull MenuItem children out of the context-menu element by index. We
 // reconstruct via React.Children to avoid coupling to the runtime shape.
 type MenuItemProps = {
@@ -3676,7 +3668,7 @@ describe("RomMPlaySection", () => {
   // ------------------------------------------------------------------
 
   describe("context menus", () => {
-    it("showRomMMenu yields 7 MenuItems + 1 separator (Refresh artwork/metadata/saves/bios + Choose artwork + delete-saves + uninstall)", async () => {
+    it("showRomMMenu yields 8 MenuItems + 1 separator (Refresh artwork/metadata/saves/bios + Choose artwork + Steam properties + delete-saves + uninstall)", async () => {
       vi.mocked(cachedStore.getCachedGameDetail).mockResolvedValue({
         found: true,
         rom_id: 42,
@@ -3684,8 +3676,9 @@ describe("RomMPlaySection", () => {
       render(<RomMPlaySection appId={testAppId} />);
       await flushAsync();
       const items = await openRomMMenuAndGetItems(testAppId);
-      expect(items).toHaveLength(7);
+      expect(items).toHaveLength(8);
       expect(items[4]!.key).toBe("choose-artwork");
+      expect(items[5]!.key).toBe("properties");
       // tone="destructive" on the delete-saves + uninstall ones.
       const destructive = items.filter((i) => i.props.tone === "destructive");
       expect(destructive).toHaveLength(2);
@@ -3904,24 +3897,18 @@ describe("RomMPlaySection", () => {
       expect(items[3]!.props.children).toBe("BlastEm (system) ✓");
     });
 
-    it("showSteamMenu Properties → SteamClient.Apps.OpenAppSettingsDialog(appId, 'general')", async () => {
+    it("Options menu carries Steam properties → SteamClient.Apps.OpenAppSettingsDialog(appId, 'general')", async () => {
       vi.mocked(cachedStore.getCachedGameDetail).mockResolvedValue({
         found: false,
       });
-      const { getAllByTitle } = render(<RomMPlaySection appId={testAppId} />);
+      render(<RomMPlaySection appId={testAppId} />);
       await flushAsync();
-      const steamBtn = getAllByTitle("Steam Properties")[0]!;
-      vi.mocked(showContextMenu).mockClear();
+      expect(document.querySelector('button[title="Steam Properties"]')).toBeNull();
+      const items = await openRomMMenuAndGetItems(testAppId);
+      const last = items.find((i) => i.key === "properties")!;
+      expect(last.props.children).toBe("Steam properties…");
       act(() => {
-        steamBtn.click();
-      });
-      const menuEl = lastContextMenuElement();
-      expect(menuEl).not.toBeNull();
-      const items = getMenuItemsFromElement(menuEl!);
-      // Properties is the only item.
-      expect(items).toHaveLength(1);
-      act(() => {
-        items[0]!.props.onClick?.();
+        last.props.onClick?.();
       });
       expect(vi.mocked(SteamClient.Apps.OpenAppSettingsDialog)).toHaveBeenCalledWith(testAppId, "general");
     });
@@ -3984,27 +3971,17 @@ describe("RomMPlaySection", () => {
       expect(container.textContent).toContain("1h 30m");
     });
 
-    it("achievements item renders when raId is set; clicking dispatches romm_tab_switch with tab=achievements", async () => {
+    it("achievements item shows the earned/total count when raId is set", async () => {
       vi.mocked(cachedStore.getCachedGameDetail).mockResolvedValue({
         found: true,
         rom_id: 42,
         ra_id: 12345,
         achievement_summary: { earned: 3, total: 50, earned_hardcore: 0 },
       });
-      const { container, getByText } = render(<RomMPlaySection appId={testAppId} />);
+      const { container } = render(<RomMPlaySection appId={testAppId} />);
       await flushAsync();
       expect(container.textContent).toContain("ACHIEVEMENTS");
-      const listener = vi.fn();
-      globalThis.addEventListener("romm_tab_switch", listener);
-      try {
-        act(() => {
-          getByText("ACHIEVEMENTS").click();
-        });
-        const ev = listener.mock.calls[0]?.[0] as CustomEvent;
-        expect(ev.detail).toEqual({ tab: "achievements" });
-      } finally {
-        globalThis.removeEventListener("romm_tab_switch", listener);
-      }
+      expect(container.textContent).toContain("3/50");
     });
 
     it("legacy slot warning shows when activeSlot null and saveSyncEnabled true", async () => {
@@ -4556,7 +4533,7 @@ describe("RomMPlaySection", () => {
 
 // ----- Shared helpers — placed at the bottom of the file so they read like
 // declarations. They open a context menu by clicking the corresponding
-// DialogButton (RomM Actions / Emulator Core), then return the MenuItem
+// DialogButton (Options / Emulator Core), then return the MenuItem
 // children from the captured Menu element. -----
 
 // MenuSeparator filter: the mocked MenuSeparator component has no `children`
@@ -4567,9 +4544,9 @@ function isMenuItem(c: MenuItemElement): boolean {
 }
 
 async function openRomMMenuAndGetItems(_appId: number): Promise<MenuItemElement[]> {
-  // Find the RomM Actions button via title attribute.
-  const btn = document.querySelector('button[title="RomM Actions"]') as HTMLButtonElement | null;
-  if (!btn) throw new Error("RomM Actions button not found");
+  // Find the Options button via title attribute.
+  const btn = document.querySelector('button[title="Options"]') as HTMLButtonElement | null;
+  if (!btn) throw new Error("Options button not found");
   vi.mocked(showContextMenu).mockClear();
   act(() => {
     btn.click();

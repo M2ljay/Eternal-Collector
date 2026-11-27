@@ -92,6 +92,20 @@ export const appDetailsClasses: typeof _appDetailsClasses | undefined = resolveC
   _appDetailsClasses,
   ["HeaderLoaded"],
 );
+/** A named @decky/ui export read through the namespace: a test's partial mock throws on one it does not define. */
+function namedExport<T>(name: string): T | undefined {
+  try {
+    return (DeckyUi as Record<string, unknown>)[name] as T | undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+export const appDetailsHeaderClasses: typeof DeckyUi.appDetailsHeaderClasses | undefined = resolveClassModule(
+  "appDetailsHeaderClasses",
+  namedExport<typeof DeckyUi.appDetailsHeaderClasses>("appDetailsHeaderClasses"),
+  ["TopCapsule", "ImgContainer"],
+);
 export const playSectionClasses: typeof _playSectionClasses | undefined = resolveClassModule(
   "playSectionClasses",
   _playSectionClasses,

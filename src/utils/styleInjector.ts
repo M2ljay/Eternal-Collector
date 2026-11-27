@@ -594,19 +594,20 @@ export function hideNativePlaySection(playSectionClass: string) {
   background: ${tint(core.gunmetal, 0.6)};
 }
 .romm-tab {
-  padding: 10px 16px;
-  font-size: 11px;
+  padding: 10px 16px !important;
+  min-width: auto !important;
+  width: auto !important;
+  font-size: 14px;
   font-weight: 600;
-  letter-spacing: 0.5px;
-  text-transform: uppercase;
   color: ${core.hint};
   cursor: pointer;
   border-bottom: 2px solid transparent;
   transition: color 0.15s ease, border-color 0.15s ease;
-  background: transparent;
+  background: transparent !important;
   border-top: none;
   border-left: none;
   border-right: none;
+  border-radius: 0;
   white-space: nowrap;
 }
 .romm-tab:hover {
@@ -648,51 +649,6 @@ export function hideNativePlaySection(playSectionClass: string) {
   30% { opacity: 0.9; transform: scale(0.9); }
   50% { opacity: 1; transform: scale(1); }
   80% { opacity: 0.4; transform: scale(0.6); }
-}
-.romm-cheevo-badge {
-  position: relative;
-  cursor: pointer;
-}
-.romm-cheevo-badge-sparkle {
-  position: relative;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-}
-.romm-sparkle-container {
-  position: absolute;
-  top: -4px;
-  left: -4px;
-  right: -4px;
-  bottom: -4px;
-  pointer-events: none;
-  overflow: visible;
-}
-.romm-sparkle-dot {
-  position: absolute;
-  width: 2px;
-  height: 2px;
-  border-radius: 50%;
-  background: ${core.white};
-  box-shadow: 0 0 2px 1px ${core.crimson};
-  animation: romm-sparkle var(--romm-sparkle-dur, 2s) ease-in-out infinite;
-  animation-delay: var(--romm-sparkle-delay, 0s);
-  top: var(--romm-sparkle-top, 50%);
-  left: var(--romm-sparkle-left, 50%);
-}
-.romm-cheevo-trophy {
-  color: ${core.crimson};
-  font-size: 14px;
-}
-.romm-cheevo-trophy-none {
-  color: ${core.hint};
-  font-size: 14px;
-  filter: none;
-}
-.romm-cheevo-count {
-  font-size: 13px;
-  font-weight: 500;
-  color: ${core.text};
 }
 .romm-cheevo-list {
   display: flex;

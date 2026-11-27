@@ -77,7 +77,11 @@ function tabButton(container: HTMLElement, label: string): HTMLElement | undefin
 describe("game page extensions on the ROM page", () => {
   it("keeps today's page when nothing is registered", async () => {
     const { container } = await mountPanel();
-    expect(Array.from(container.querySelectorAll(".romm-tab")).map((b) => b.textContent)).toEqual(["GAME INFO"]);
+    expect(Array.from(container.querySelectorAll(".romm-tab")).map((b) => b.textContent)).toEqual([
+      "Overview",
+      "Media",
+      "Details",
+    ]);
     expect(container.querySelector(".romm-ext-card")).toBeNull();
   });
 
@@ -92,21 +96,23 @@ describe("game page extensions on the ROM page", () => {
       });
     });
     expect(Array.from(container.querySelectorAll(".romm-tab")).map((b) => b.textContent)).toEqual([
-      "GAME INFO",
-      "MODS",
+      "Overview",
+      "Media",
+      "Details",
+      "Mods",
     ]);
-    fireEvent.click(tabButton(container, "MODS")!);
+    fireEvent.click(tabButton(container, "Mods")!);
     expect(getByTestId("forge-tab").textContent).toBe("mods for 1");
-    expect(container.textContent).not.toContain("Melee (USA)");
+    expect(container.textContent).not.toContain("Save sync");
   });
 
   it("shows a tab registered before the page mounted", async () => {
     registerGamePageExtension({ id: "early", kind: "tab", label: "Early", render: () => null });
     const { container } = await mountPanel();
-    expect(tabButton(container, "EARLY")).toBeDefined();
+    expect(tabButton(container, "Early")).toBeDefined();
   });
 
-  it("renders Overview cards on GAME INFO only, and a card can open its extension's tab", async () => {
+  it("renders Overview cards on the Overview only, and a card can open its extension's tab", async () => {
     let seen: RomPageContext | null = null;
     registerGamePageExtension({ id: "forge.mods", kind: "tab", label: "Mods", render: () => "TAB BODY" });
     registerGamePageExtension({
@@ -147,7 +153,7 @@ describe("game page extensions on the ROM page", () => {
     const { container } = await mountPanel();
     spy.mockRestore();
     expect(container.textContent).toContain("FINE CARD");
-    expect(container.textContent).toContain("Melee (USA)");
+    expect(container.textContent).toContain("Save sync");
     expect(backend.logError).toHaveBeenCalledWith(
       expect.stringContaining("Game page extension broken failed to render and is hidden"),
     );
@@ -165,15 +171,16 @@ describe("game page extensions on the ROM page", () => {
     expect(tabButton(container, "PSP")).toBeUndefined();
   });
 
-  it("falls back to GAME INFO when the open extension tab unregisters", async () => {
+  it("falls back to the Overview when the open extension tab unregisters", async () => {
     let unregister: () => void = () => {};
     unregister = registerGamePageExtension({ id: "x", kind: "tab", label: "X", render: () => "X BODY" });
     const { container } = await mountPanel();
     fireEvent.click(tabButton(container, "X")!);
     expect(container.textContent).toContain("X BODY");
     act(() => unregister());
+    await flushAsync();
     expect(container.textContent).not.toContain("X BODY");
-    expect(container.textContent).toContain("Melee (USA)");
+    expect(container.textContent).toContain("Save sync");
   });
 
   it("re-renders an extension when its own subscribe fires", async () => {

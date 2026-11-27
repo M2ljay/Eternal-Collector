@@ -178,6 +178,21 @@ const flushAsync = () =>
     await Promise.resolve();
   });
 
+/** Open a tab by its label, the way a press on its button does. */
+async function pressTab(label: string): Promise<void> {
+  const button = Array.from(document.querySelectorAll<HTMLElement>(".romm-tab")).find((b) => b.textContent === label);
+  if (!button) throw new Error(`No ${label} tab`);
+  await act(async () => {
+    button.click();
+    await Promise.resolve();
+  });
+}
+
+/** The label of the tab marked active. */
+function activeTabLabel(): string | null | undefined {
+  return document.querySelector(".romm-tab-active")?.textContent;
+}
+
 /** A read the test answers by hand, so it can still be open while the next event
  *  runs — which is what lets one read be made to land after another, or a
  *  request be left open for a later caller to join. */
@@ -643,6 +658,7 @@ describe("RomMGameInfoPanel", () => {
       });
       const { container, queryByText } = render(<RomMGameInfoPanel appId={testAppId} />);
       await flushAsync();
+      await pressTab("Details");
       // Initially installed → ROM File section visible
       expect(queryByText("ROM File")).not.toBeNull();
       // Dispatch uninstall — installed flips to false → ROM File hidden
@@ -677,6 +693,7 @@ describe("RomMGameInfoPanel", () => {
       });
       const { queryByText } = render(<RomMGameInfoPanel appId={testAppId} />);
       await flushAsync();
+      await pressTab("Details");
       expect(queryByText("ROM File")).not.toBeNull();
       await act(async () => {
         globalThis.dispatchEvent(
@@ -721,6 +738,7 @@ describe("RomMGameInfoPanel", () => {
       });
       const { queryByText } = render(<RomMGameInfoPanel appId={testAppId} />);
       await flushAsync();
+      await pressTab("Details");
       // Not installed at mount → ROM File section hidden.
       expect(queryByText("ROM File")).toBeNull();
       // Download finishes for this rom → installed flips true + installedRom
@@ -767,6 +785,7 @@ describe("RomMGameInfoPanel", () => {
       });
       const { container, queryByText } = render(<RomMGameInfoPanel appId={testAppId} />);
       await flushAsync();
+      await pressTab("Details");
 
       expect(queryByText("ROM File")).not.toBeNull();
       expect(queryByText("Puppeteer.pkg")).not.toBeNull();
@@ -794,6 +813,7 @@ describe("RomMGameInfoPanel", () => {
       });
       const { container, queryByText } = render(<RomMGameInfoPanel appId={testAppId} />);
       await flushAsync();
+      await pressTab("Details");
 
       expect(queryByText("test.sfc")).not.toBeNull();
       expect(container.textContent).not.toContain("The files are on disk");
@@ -957,7 +977,7 @@ describe("RomMGameInfoPanel", () => {
       });
       const { container } = render(<RomMGameInfoPanel appId={testAppId} />);
       await flushAsync();
-      expect(container.textContent).toContain("SAVES");
+      expect(container.textContent).toContain("Saves");
       vi.mocked(backend.getSaveStatus).mockClear();
       await act(async () => {
         globalThis.dispatchEvent(
@@ -969,7 +989,7 @@ describe("RomMGameInfoPanel", () => {
       });
       expect(vi.mocked(backend.getSaveStatus)).not.toHaveBeenCalled();
       // SAVES tab now hidden in the rendered tab bar.
-      expect(container.textContent).not.toContain("SAVES");
+      expect(container.textContent).not.toContain("Saves");
     });
 
     // #1748 — the tab strip asks whether save sync is still on, the pane below
@@ -1007,11 +1027,10 @@ describe("RomMGameInfoPanel", () => {
       });
 
       // The button went with the setting; the pane must go with the button,
-      // leaving the tab every ROM has — asserted on the info tab's BODY (the
-      // RomM game name), not on its button, which is present either way.
-      expect(container.textContent).not.toContain("SAVES");
+      // leaving the tab every ROM has, marked active.
+      expect(container.textContent).not.toContain("Saves");
       expect(queryByTestId("saves-tab")).toBeNull();
-      expect(container.textContent).toContain("Game (USA)");
+      expect(activeTabLabel()).toBe("Overview");
     });
 
     it("save_sync_settings enabled=false leaves a user standing on another tab where they are", async () => {
@@ -1035,7 +1054,7 @@ describe("RomMGameInfoPanel", () => {
         await Promise.resolve();
       });
 
-      expect(container.textContent).not.toContain("SAVES");
+      expect(container.textContent).not.toContain("Saves");
       expect(container.textContent).toContain("1/2 files ready");
     });
 
@@ -1065,7 +1084,7 @@ describe("RomMGameInfoPanel", () => {
       // Fallback observable: saveSyncEnabled stays true (SAVES tab still
       // rendered) AND saveStatus is set to the null fallback. Switch to
       // saves tab to capture SavesTab props.
-      expect(container.textContent).toContain("SAVES");
+      expect(container.textContent).toContain("Saves");
       await act(async () => {
         globalThis.dispatchEvent(new CustomEvent("romm_tab_switch", { detail: { tab: "saves" } }));
         await Promise.resolve();
@@ -1859,7 +1878,7 @@ describe("RomMGameInfoPanel", () => {
   // ------------------------------------------------------------------
 
   describe("tab switching + visibility", () => {
-    it("default activeTab is 'info' — only GAME INFO content renders", async () => {
+    it("default activeTab is 'info' — the Overview's cards render, the Details rows do not", async () => {
       vi.mocked(cachedStore.getCachedGameDetail).mockResolvedValue({
         found: true,
         rom_id: 1,
@@ -1869,8 +1888,9 @@ describe("RomMGameInfoPanel", () => {
       });
       const { container } = render(<RomMGameInfoPanel appId={testAppId} />);
       await flushAsync();
-      // The Game Info section renders its content (the platform row) by default.
-      expect(container.textContent).toContain("Super Nintendo");
+      expect(activeTabLabel()).toBe("Overview");
+      expect(container.textContent).toContain("Save sync");
+      expect(container.textContent).not.toContain("Super Nintendo");
     });
 
     it("ACHIEVEMENTS tab is hidden when raId is null", async () => {
@@ -1883,7 +1903,7 @@ describe("RomMGameInfoPanel", () => {
       });
       const { container } = render(<RomMGameInfoPanel appId={testAppId} />);
       await flushAsync();
-      expect(container.textContent).not.toContain("ACHIEVEMENTS");
+      expect(container.textContent).not.toContain("Achievements");
     });
 
     it("ACHIEVEMENTS tab is visible when raId is set", async () => {
@@ -1896,7 +1916,7 @@ describe("RomMGameInfoPanel", () => {
       });
       const { container } = render(<RomMGameInfoPanel appId={testAppId} />);
       await flushAsync();
-      expect(container.textContent).toContain("ACHIEVEMENTS");
+      expect(container.textContent).toContain("Achievements");
     });
 
     it("BIOS tab is visible only when biosStatus is non-null", async () => {
@@ -1929,7 +1949,7 @@ describe("RomMGameInfoPanel", () => {
       });
       const { container } = render(<RomMGameInfoPanel appId={testAppId} />);
       await flushAsync();
-      expect(container.textContent).not.toContain("SAVES");
+      expect(container.textContent).not.toContain("Saves");
     });
 
     it("achievements tab activation triggers lazy-load (getAchievements + getAchievementProgress)", async () => {
@@ -3070,6 +3090,7 @@ describe("RomMGameInfoPanel", () => {
       });
       const { container } = render(<RomMGameInfoPanel appId={testAppId} />);
       await flushAsync();
+      await pressTab("Details");
       expect(container.textContent).toContain("Release Date");
       // Format: "D MMM YYYY" — assert the month abbreviation + year reach
       // the DOM. (Day depends on TZ; "2003" pins the year.)
@@ -3576,6 +3597,7 @@ describe("RomMGameInfoPanel", () => {
       });
       const { container } = render(<RomMGameInfoPanel appId={testAppId} />);
       await flushAsync();
+      await pressTab("Details");
       expect(container.textContent).toContain("No metadata available");
     });
 
@@ -3596,6 +3618,7 @@ describe("RomMGameInfoPanel", () => {
       });
       const { container } = render(<RomMGameInfoPanel appId={testAppId} />);
       await flushAsync();
+      await pressTab("Details");
       expect(container.textContent).toContain("No metadata available");
     });
 
@@ -3610,6 +3633,7 @@ describe("RomMGameInfoPanel", () => {
       });
       const { container } = render(<RomMGameInfoPanel appId={testAppId} />);
       await flushAsync();
+      await pressTab("Details");
       expect(container.textContent).toContain("Chrono Trigger");
     });
 
@@ -3623,6 +3647,7 @@ describe("RomMGameInfoPanel", () => {
       });
       const { container } = render(<RomMGameInfoPanel appId={testAppId} />);
       await flushAsync();
+      await pressTab("Details");
       expect(container.textContent).toContain("Super Nintendo");
     });
 
@@ -3635,6 +3660,7 @@ describe("RomMGameInfoPanel", () => {
       });
       const { container } = render(<RomMGameInfoPanel appId={testAppId} />);
       await flushAsync();
+      await pressTab("Details");
       expect(container.textContent).toContain("87%");
     });
 
@@ -3650,6 +3676,7 @@ describe("RomMGameInfoPanel", () => {
       });
       const { container } = render(<RomMGameInfoPanel appId={testAppId} />);
       await flushAsync();
+      await pressTab("Media");
       expect(container.innerHTML).toContain("data:image/png;base64,AAAA");
     });
 
@@ -3733,6 +3760,7 @@ describe("RomMGameInfoPanel", () => {
       });
       const { container } = render(<RomMGameInfoPanel appId={testAppId} />);
       await flushAsync();
+      await pressTab("Details");
       expect(container.textContent).toContain("Region");
       expect(container.textContent).toContain("USA/Europe");
       expect(container.textContent).toContain("Languages");
@@ -3766,6 +3794,7 @@ describe("RomMGameInfoPanel", () => {
       });
       const { container } = render(<RomMGameInfoPanel appId={testAppId} />);
       await flushAsync();
+      await pressTab("Details");
       expect(container.textContent).toContain("Game (USA)");
 
       // After the switch the cache resolves the new active version, and the
@@ -3795,6 +3824,7 @@ describe("RomMGameInfoPanel", () => {
       // new cover reached the DOM (dropping refreshCoverArtInBackground in the
       // version_switched handler makes this fail).
       expect(vi.mocked(backend.getArtworkBase64)).toHaveBeenCalledWith(2);
+      await pressTab("Media");
       expect(container.innerHTML).toContain("data:image/png;base64,JAPANCOVER");
     });
 
@@ -3809,6 +3839,7 @@ describe("RomMGameInfoPanel", () => {
       });
       const { container } = render(<RomMGameInfoPanel appId={testAppId} />);
       await flushAsync();
+      await pressTab("Details");
 
       vi.mocked(cachedStore.getCachedGameDetail).mockClear();
       await act(async () => {
@@ -4090,6 +4121,7 @@ describe("RomMGameInfoPanel", () => {
         vi.mocked(backend.getInstalledRom).mockResolvedValue(installedRomFor(2, "Game (Japan).sfc"));
         const { container } = render(<RomMGameInfoPanel appId={testAppId} />);
         await flushAsync();
+        await pressTab("Details");
         expect(container.textContent).not.toContain("ROM File");
 
         await switchToRom2(true);
@@ -4111,6 +4143,7 @@ describe("RomMGameInfoPanel", () => {
         vi.mocked(cachedStore.getCachedGameDetail).mockResolvedValue(detailFor(1, true));
         const { container } = render(<RomMGameInfoPanel appId={testAppId} />);
         await flushAsync();
+        await pressTab("Details");
         expect(container.textContent).not.toContain("nothing here is a format");
 
         await switchToRom2(true);
@@ -4144,6 +4177,7 @@ describe("RomMGameInfoPanel", () => {
         vi.mocked(cachedStore.getCachedGameDetail).mockResolvedValue(detailFor(1, true));
         const { container } = render(<RomMGameInfoPanel appId={testAppId} />);
         await flushAsync();
+        await pressTab("Details");
         expect(container.textContent).toContain("Game (USA).sfc");
 
         await switchToRom2(true);
@@ -4210,11 +4244,9 @@ describe("RomMGameInfoPanel", () => {
 
         await switchToRom2();
 
-        // Asserted on the info tab's BODY (the new version's RomM name), not on
-        // its button, which is present either way.
-        expect(container.textContent).not.toContain("SAVES");
+        expect(container.textContent).not.toContain("Saves");
         expect(queryByTestId("saves-tab")).toBeNull();
-        expect(container.textContent).toContain("Game (Japan)");
+        expect(activeTabLabel()).toBe("Overview");
       });
 
       it("lands on the info tab when the switch clears the BIOS answer as well", async () => {
@@ -4231,7 +4263,7 @@ describe("RomMGameInfoPanel", () => {
 
         expect(container.textContent).not.toContain("BIOS");
         expect(queryByTestId("saves-tab")).toBeNull();
-        expect(container.textContent).toContain("Game (Japan)");
+        expect(activeTabLabel()).toBe("Overview");
       });
     });
 
@@ -4346,11 +4378,9 @@ describe("RomMGameInfoPanel", () => {
 
         // The tab the user was standing on is gated on the requirement, so
         // clearing it removes the button. Without the fallback `activeTab` stays
-        // "bios", the body resolves to null, and the panel is a lone GAME INFO
-        // button over an empty pane — which is why the assertion is on the info
-        // tab's BODY and not on its button.
+        // "bios", the body resolves to null, and no tab in the strip is marked.
         expect(container.textContent).not.toContain("Snes9x");
-        expect(container.textContent).toContain("No metadata available");
+        expect(activeTabLabel()).toBe("Overview");
       });
 
       it("re-keys the level and the active core to the new active version", async () => {
@@ -4500,6 +4530,7 @@ describe("RomMGameInfoPanel", () => {
         await flushAsync();
 
         await switchToRom2();
+        await pressTab("Media");
         expect(container.innerHTML).toContain("base64,JAPANCOVER");
 
         await act(async () => {
@@ -4696,7 +4727,7 @@ describe("RomMGameInfoPanel", () => {
 
         // The switched-to version has save sync off, so its tab bar carries no
         // SAVES tab — the refused write is what keeps it that way.
-        expect(container.textContent).not.toContain("SAVES");
+        expect(container.textContent).not.toContain("Saves");
       });
 
       it("does not fold a save-sync read issued for the previous version", async () => {
@@ -4998,6 +5029,7 @@ describe("RomMGameInfoPanel", () => {
       );
       await dispatchDataChanged({ type: "version_switched", app_id: testAppId, rom_id: 3 });
       await flushAsync();
+      await pressTab("Details");
       expect(container.textContent).toContain("Game (Europe)");
 
       await act(async () => {
@@ -5121,7 +5153,7 @@ describe("RomMGameInfoPanel", () => {
       });
       await flushAsync();
 
-      expect(container.textContent).not.toContain("SAVES");
+      expect(container.textContent).not.toContain("Saves");
     });
 
     it("shows the SAVES tab after save sync is switched on even when the status read is overtaken", async () => {
@@ -5144,7 +5176,7 @@ describe("RomMGameInfoPanel", () => {
       });
       await flushAsync();
 
-      expect(container.textContent).toContain("SAVES");
+      expect(container.textContent).toContain("Saves");
     });
 
     it("keeps the newest slot list when the lazy SAVES load's answer lands last", async () => {

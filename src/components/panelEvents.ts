@@ -27,6 +27,7 @@ import type { RommDataChangedDetail } from "../types/events";
 import { detach } from "../utils/detach";
 import {
   bindRom,
+  achievementsFromCache,
   biosFieldsFromCache,
   refreshBiosIfStale,
   refreshPanelCoreInfo,
@@ -262,6 +263,7 @@ async function handleVersionSwitched(
       saveStatus,
       conflicts: cached.save_status?.conflicts ?? [],
       raId: cached.ra_id ?? null,
+      achievements: achievementsFromCache(cached),
       activeSlot: "default",
       activeSlotKnown: false,
       availableSlots: [],

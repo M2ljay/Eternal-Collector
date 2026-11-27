@@ -5,12 +5,13 @@
  * SAVES: `SavesTab` fetches on mount, so building it for a tab nobody opened
  * would fire those requests on every game page.
  *
- * The ACHIEVEMENTS and BIOS panes are not built here — the panel mounts them for
+ * The Achievements and BIOS panes are not built here — the panel mounts them for
  * every ROM and they decide themselves whether to render.
  */
 
 import type { ReactElement } from "react";
-import { GameInfoTab } from "./GameInfoTab";
+import { GameInfoTab, GameSummary } from "./GameInfoTab";
+import { RomMediaTab } from "./RomMediaTab";
 import { SavesTab } from "./SavesTab";
 import { SlotSetupWizard } from "./SlotSetupWizard";
 import type { PanelState, RomBinding } from "./panelState";
@@ -34,18 +35,31 @@ function announceSaveSyncChange(romId: number): void {
 export function buildTabContent({ appId, binding, state }: TabContentContext): ReactElement | null {
   const romId = binding.romId;
 
-  if (state.activeTab === "info") {
+  if (state.activeTab === "info") return <GameSummary key="tab-info" metadata={state.metadata} />;
+
+  if (state.activeTab === "details") {
     return (
       <GameInfoTab
-        key="tab-info"
+        key="tab-details"
         romName={state.romName}
         regions={state.regions}
         languages={state.languages}
         metadata={state.metadata}
         platformName={state.platformName}
-        coverBase64={state.coverBase64}
         installed={state.installed}
         installedRom={state.installedRom}
+      />
+    );
+  }
+
+  if (state.activeTab === "media") {
+    return (
+      <RomMediaTab
+        key="tab-media"
+        appId={appId}
+        romId={romId}
+        romName={state.romName}
+        coverBase64={state.coverBase64}
       />
     );
   }

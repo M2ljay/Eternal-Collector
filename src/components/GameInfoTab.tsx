@@ -1,6 +1,8 @@
 /**
- * GameInfoTab — the GAME INFO pane of the RomM game detail panel: the
- * descriptive rows about the game, and the ROM File section underneath.
+ * GameInfoTab — the Details pane of the RomM game detail panel: the
+ * descriptive rows about the game, and the ROM File section underneath. The
+ * game's summary is the Overview's (`GameSummary`), and its cover the Media
+ * tab's.
  *
  * Render only, from props — nothing here fetches. The panel streams state in as
  * its background reads land, so this pane is routinely open before the cover,
@@ -22,7 +24,6 @@ interface GameInfoTabProps {
   languages: string[];
   metadata: RomMetadata | null;
   platformName: string;
-  coverBase64: string | null;
   installed: boolean;
   installedRom: InstalledRom | null;
 }
@@ -38,14 +39,6 @@ function formatReleaseDate(timestamp: number | null): string | null {
 /** The rows a RomM metadata record contributes, in display order. */
 function metadataRows(meta: RomMetadata, platformName: string): ReactElement[] {
   const rows: ReactElement[] = [];
-
-  if (meta.summary) {
-    rows.push(
-      <div key="summary" className="romm-panel-summary">
-        {meta.summary}
-      </div>,
-    );
-  }
 
   if (platformName) {
     rows.push(infoRow("platform", "Platform", platformName));
@@ -146,31 +139,13 @@ function romFileSection(installed: boolean, installedRom: InstalledRom | null): 
   return section("rom-file", "ROM File", infoRow("filename", "Filename", installedRom.file_name), noLaunchTargetNote);
 }
 
-export const GameInfoTab: FC<GameInfoTabProps> = (props) => {
-  const rows = gameInfoRows(props);
+export const GameInfoTab: FC<GameInfoTabProps> = (props) => (
+  <div>
+    {section("game-info", null, ...gameInfoRows(props))}
+    {romFileSection(props.installed, props.installedRom)}
+  </div>
+);
 
-  const gameInfoSection = props.coverBase64
-    ? section(
-        "game-info",
-        null,
-        <div key="game-info-row" style={{ display: "flex", gap: "16px", alignItems: "flex-start" }}>
-          <img
-            alt=""
-            key="cover"
-            src={`data:image/png;base64,${props.coverBase64}`}
-            style={{ width: "120px", borderRadius: "4px", flexShrink: 0, objectFit: "cover" as const }}
-          />
-          <div key="details" style={{ flex: 1 }}>
-            {rows}
-          </div>
-        </div>,
-      )
-    : section("game-info", null, ...rows);
-
-  return (
-    <div>
-      {gameInfoSection}
-      {romFileSection(props.installed, props.installedRom)}
-    </div>
-  );
-};
+/** The game's description from RomM, at the top of the Overview. */
+export const GameSummary: FC<{ metadata: RomMetadata | null }> = ({ metadata }) =>
+  metadata?.summary ? <div className="romm-panel-summary">{metadata.summary}</div> : null;

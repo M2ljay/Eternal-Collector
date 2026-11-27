@@ -15,7 +15,7 @@ import { showToast } from "../utils/toast";
 import { ConfirmModal, Focusable, Menu, MenuItem, MenuSeparator, showContextMenu, showModal } from "@decky/ui";
 import { basicAppDetailsSectionStylerClasses, playSectionClasses } from "../utils/deckyUiInternals";
 import { ensureNativeLookStyles, joinCls, nativeLook, NativeMenuButton, rc } from "../utils/nativeLook";
-import { FaGamepad, FaCog, FaMicrochip, FaExclamationTriangle } from "react-icons/fa";
+import { FaCog, FaMicrochip, FaExclamationTriangle } from "react-icons/fa";
 import { CustomPlayButton } from "./CustomPlayButton";
 import { DiscSelector } from "./DiscSelector";
 import { ExeSelector } from "./ExeSelector";
@@ -23,6 +23,8 @@ import { ModsButton } from "./ModsButton";
 import { VersionPicker } from "./VersionPicker";
 import { WarningCard } from "./WarningCard";
 import { SgdbGamePickerModalContent } from "./SgdbGamePickerModal";
+import { RomPageHeader } from "./RomPageHeader";
+import { ensureCorePageStyles } from "../utils/corePageStyles";
 import { applyArtwork, cancelArtworkApply } from "../utils/artwork";
 import { applyCaseArt } from "../utils/caseArt";
 import { CaseArtPickerModalContent } from "./CaseArtPickerModal";
@@ -90,6 +92,11 @@ let connectionCheckSeq = 0;
  *  abandoned before it answers (its page closed while the server was still
  *  thinking) from silencing the verdict of a page that is still open. */
 let lastSettledCheckId = 0;
+
+/** The Core play bar's line: "RetroArch: Snes9x · Installed", from what is known. */
+export function coreStatusLine(activeCoreLabel: string | null, installed: boolean): string {
+  return [activeCoreLabel, installed ? "Installed" : "Not installed"].filter(Boolean).join(" \u00B7 ");
+}
 
 /** Resolve the LAST PLAYED display, preferring our restored cross-device
  *  `last_played` (ISO-8601, from `reconcile_playtime` / native play sessions,
@@ -836,7 +843,7 @@ export const RomMPlaySection: FC<RomMPlaySectionProps> = ({ appId }) => { // NOS
 
   const showRomMMenu = (e: Event) => {
     showContextMenu(
-      <Menu label="RomM Actions">
+      <Menu label="Options">
         <MenuItem
           key="refresh-artwork"
           onClick={() => {
@@ -881,6 +888,14 @@ export const RomMPlaySection: FC<RomMPlaySectionProps> = ({ appId }) => { // NOS
         >
           Choose artwork…
         </MenuItem>
+        <MenuItem
+          key="properties"
+          onClick={() => {
+            SteamClient.Apps.OpenAppSettingsDialog(appId, "general");
+          }}
+        >
+          Steam properties…
+        </MenuItem>
         <MenuSeparator key="sep" />
         <MenuItem key="delete-saves" tone="destructive" onClick={handleDeleteSaves}>
           Delete Local Saves
@@ -893,22 +908,6 @@ export const RomMPlaySection: FC<RomMPlaySectionProps> = ({ appId }) => { // NOS
           }}
         >
           Uninstall
-        </MenuItem>
-      </Menu>,
-      getEventTarget(e),
-    );
-  };
-
-  const showSteamMenu = (e: Event) => {
-    showContextMenu(
-      <Menu label="Steam">
-        <MenuItem
-          key="properties"
-          onClick={() => {
-            SteamClient.Apps.OpenAppSettingsDialog(appId, "general");
-          }}
-        >
-          Properties
         </MenuItem>
       </Menu>,
       getEventTarget(e),
@@ -952,68 +951,21 @@ export const RomMPlaySection: FC<RomMPlaySectionProps> = ({ appId }) => { // NOS
     infoItems.push(infoItem("space-required", "SPACE REQUIRED", formatBytes(detail.fsSizeBytes)));
   }
 
-  // Last Played
-  if (playtimeInfo.lastPlayed) {
+  // Last Played and Playtime: the Core page shows them in its header line.
+  if (playtimeInfo.lastPlayed && !nativeLook()) {
     infoItems.push(infoItem("last-played", "LAST PLAYED", playtimeInfo.lastPlayed));
   }
 
-  // Playtime
-  if (playtimeInfo.playtime) {
+  if (playtimeInfo.playtime && !nativeLook()) {
     infoItems.push(infoItem("playtime", "PLAYTIME", playtimeInfo.playtime));
   }
 
-  // Achievements badge (only when RA data available)
-  if (detail.raId) {
-    const hasEarned = detail.achievementEarned > 0;
+  // Achievements count (only when RA data available). The Core page shows it on
+  // the Overview's RetroAchievements card instead.
+  if (detail.raId && !nativeLook()) {
     const countLabel =
       detail.achievementTotal > 0 ? `${detail.achievementEarned}/${detail.achievementTotal}` : `${detail.achievementEarned}`;
-
-    // Generate sparkle dots at random fixed positions (only when earned > 0)
-    // Positions are deterministic per-index so they don't shift on re-render
-    const sparklePositions = [
-      { top: "5%", left: "80%" },
-      { top: "70%", left: "10%" },
-      { top: "15%", left: "35%" },
-      { top: "85%", left: "70%" },
-      { top: "45%", left: "90%" },
-    ];
-    const sparkleDurs = [2.4, 3.5, 2.8, 3.8, 3.1];
-    const sparkleDelays = [0, 0.9, 0.3, 1.6, 1.1];
-    const sparkleDots = hasEarned
-      ? sparklePositions.map((pos, i) => {
-          // Hoisted and annotated, not inlined into `style={{...}}`: an inline
-          // literal is excess-property checked against React's own
-          // CSSProperties, which rejects the `--*` keys outright.
-          const dotStyle: CSSPropertiesWithVars = {
-            "--romm-sparkle-top": pos.top,
-            "--romm-sparkle-left": pos.left,
-            "--romm-sparkle-delay": `${sparkleDelays[i]}s`,
-            "--romm-sparkle-dur": `${sparkleDurs[i]}s`,
-          };
-          return <span key={`sparkle-${pos.top}-${pos.left}`} className="romm-sparkle-dot" style={dotStyle} />;
-        })
-      : [];
-
-    infoItems.push(
-      // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- pointer-only shortcut into the ACHIEVEMENTS tab, which the tab bar's DialogButton already reaches from the focus ring; a role/tabIndex here would add a gamepad focus stop to the play row.
-      <div
-        key="achievements"
-        className="romm-info-item romm-cheevo-badge"
-        onClick={() => {
-          globalThis.dispatchEvent(new CustomEvent("romm_tab_switch", { detail: { tab: "achievements" } }));
-        }}
-      >
-        <div className={rc("romm-info-header")}>ACHIEVEMENTS</div>
-        <div className="romm-cheevo-badge-sparkle">
-          {/* Trophy icon with sparkle container */}
-          <span style={{ position: "relative", display: "inline-block" }}>
-            <span className={hasEarned ? "romm-cheevo-trophy" : "romm-cheevo-trophy-none"}>{"\uD83C\uDFC6"}</span>
-            {hasEarned ? <span className="romm-sparkle-container">{sparkleDots}</span> : null}
-          </span>
-          <span className="romm-cheevo-count">{countLabel}</span>
-        </div>
-      </div>,
-    );
+    infoItems.push(infoItem("achievements", "ACHIEVEMENTS", countLabel));
   }
 
   // Save Sync moved to dedicated tab — show legacy slot warning only
@@ -1049,12 +1001,21 @@ export const RomMPlaySection: FC<RomMPlaySectionProps> = ({ appId }) => { // NOS
     );
   }
 
-  if (nativeLook()) ensureNativeLookStyles();
+  if (nativeLook()) {
+    ensureNativeLookStyles();
+    ensureCorePageStyles();
+  }
+  const status = coreStatusLine(detail.activeCoreLabel, detail.installed);
   const playSectionRow = nativeLook() ? (
     <Focusable
       key="play-row"
       data-romm="true"
-      className={joinCls("romm-play-section-row", "romm-native-look", basicAppDetailsSectionStylerClasses?.PlaySection)}
+      className={joinCls(
+        "romm-play-section-row",
+        "romm-native-look",
+        "romm-core-playbar",
+        basicAppDetailsSectionStylerClasses?.PlaySection,
+      )}
       flow-children="row"
     >
       <Focusable className={basicAppDetailsSectionStylerClasses?.ActionRow} flow-children="row">
@@ -1068,14 +1029,15 @@ export const RomMPlaySection: FC<RomMPlaySectionProps> = ({ appId }) => { // NOS
         <DiscSelector appId={appId} />
         <ExeSelector appId={appId} />
         <VersionPicker appId={appId} />
+        {status ? <div className="romm-core-status">{status}</div> : null}
         <div className={playSectionClasses?.StatusAndStats}>
           <div className={playSectionClasses?.StatusNameContainer}>
             <div className={playSectionClasses?.GameStatsSection}>{infoItems}</div>
           </div>
         </div>
         <Focusable className={basicAppDetailsSectionStylerClasses?.AppButtons} flow-children="row">
-          <NativeMenuButton onClick={showRomMMenu} onFocus={scrollToTop} title="RomM Actions">
-            <FaGamepad size={22} />
+          <NativeMenuButton onClick={showRomMMenu} onFocus={scrollToTop} title="Options">
+            <FaCog size={22} />
           </NativeMenuButton>
           {detail.emulators.length > 1 ? (
             <NativeMenuButton key="core-btn" onClick={showCoreMenu} onFocus={scrollToTop} title="Emulator Core">
@@ -1088,9 +1050,6 @@ export const RomMPlaySection: FC<RomMPlaySectionProps> = ({ appId }) => { // NOS
             installed={detail.installed}
             onFocus={scrollToTop}
           />
-          <NativeMenuButton onClick={showSteamMenu} onFocus={scrollToTop} title="Steam Properties">
-            <FaCog size={22} />
-          </NativeMenuButton>
         </Focusable>
       </Focusable>
     </Focusable>
@@ -1140,9 +1099,8 @@ export const RomMPlaySection: FC<RomMPlaySectionProps> = ({ appId }) => { // NOS
           flexShrink: 0,
         }}
       >
-        {/* RomM actions button */}
-        <NativeMenuButton className="romm-gear-btn" onClick={showRomMMenu} onFocus={scrollToTop} title="RomM Actions">
-          <FaGamepad size={18} color={core.steel} />
+        <NativeMenuButton className="romm-gear-btn" onClick={showRomMMenu} onFocus={scrollToTop} title="Options">
+          <FaCog size={18} color={core.steel} />
         </NativeMenuButton>
         {/* Core selection button (only when multiple emulators to choose between) */}
         {detail.emulators.length > 1 ? (
@@ -1156,10 +1114,6 @@ export const RomMPlaySection: FC<RomMPlaySectionProps> = ({ appId }) => { // NOS
             <FaMicrochip size={18} color={detail.activeCoreIsDefault ? core.steel : core.crimson} />
           </NativeMenuButton>
         ) : null}
-        {/* Steam properties button */}
-        <NativeMenuButton className="romm-gear-btn" onClick={showSteamMenu} onFocus={scrollToTop} title="Steam Properties">
-          <FaCog size={18} color={core.steel} />
-        </NativeMenuButton>
       </div>
     </Focusable>
   );
@@ -1188,6 +1142,16 @@ export const RomMPlaySection: FC<RomMPlaySectionProps> = ({ appId }) => { // NOS
       ) : null}
       {detail.saveSyncBlocked && detail.saveSyncEnabled && !detail.savefilesInContentDir ? (
         <WarningCard key="save-sync-blocked-warning" title="Saves not syncing" message={detail.saveSyncBlocked} />
+      ) : null}
+      {nativeLook() ? (
+        <RomPageHeader
+          key="core-header"
+          name={detail.romName}
+          platformName={detail.platformName}
+          platformSlug={detail.platformSlug}
+          lastPlayed={playtimeInfo.lastPlayed}
+          playtime={playtimeInfo.playtime}
+        />
       ) : null}
       {playSectionRow}
     </Fragment>

@@ -2,7 +2,8 @@
  * RomMGameInfoPanel — the RomM panel injected below the PlaySection on game
  * detail pages.
  *
- * The shell around the GAME INFO / ACHIEVEMENTS / SAVES / BIOS panes: it owns
+ * The shell around the Overview / Achievements / Saves / Media / Details / BIOS
+ * panes: it owns
  * the panel's ROM identity, its event lane, the tab selection, and the
  * whole-panel replacements (version mismatch, corrupt-settings reset, pending
  * RetroDECK migration) that pre-empt all of them. It also hosts the tabs and
@@ -46,6 +47,7 @@ import {
 } from "../utils/gamePageExtensions";
 import { ExtensionOverviewCards, ExtensionTabPane } from "./GamePageExtensions";
 import { GameContentSection } from "./GameContentSection";
+import { RomOverviewCards } from "./RomOverviewCards";
 
 function pageLocale(): string {
   return globalThis.navigator.language || "en";
@@ -78,6 +80,7 @@ export const RomMGameInfoPanel: FC<RomMGameInfoPanelProps> = ({ appId }) => {
     error: false,
     activeTab: "info",
     raId: null,
+    achievements: null,
     slotConfirmed: false,
     activeSlot: "default",
     activeSlotKnown: false,
@@ -205,7 +208,7 @@ export const RomMGameInfoPanel: FC<RomMGameInfoPanelProps> = ({ appId }) => {
   const extensionTabs = visibleExtensions(extensions, "tab", ctx);
   const activeExtension = extensionTabs.find((e) => extensionTabKey(e.extension.id) === state.activeTab) ?? null;
   // An extension tab that unregistered or stopped being available leaves the
-  // user on GAME INFO, the tab every ROM has, instead of an empty body.
+  // user on the Overview, the tab every ROM has, instead of an empty body.
   const activeTab = state.activeTab.startsWith("ext:") && !activeExtension ? "info" : state.activeTab;
   const tabState = activeTab === state.activeTab ? state : { ...state, activeTab };
 
@@ -219,13 +222,24 @@ export const RomMGameInfoPanel: FC<RomMGameInfoPanelProps> = ({ appId }) => {
         hasBios={!!state.biosStatus}
         extensionTabs={extensionTabs.map((e) => ({
           id: extensionTabKey(e.extension.id),
-          label: extensionLabel(e.extension, ctx.locale).toLocaleUpperCase(ctx.locale),
+          label: extensionLabel(e.extension, ctx.locale),
           order: e.extension.order ?? DEFAULT_EXTENSION_ORDER,
         }))}
         onSelect={(tabId) => setState((prev) => ({ ...prev, activeTab: tabId }))}
       />
       <Focusable noFocusRing={true} className="romm-tab-content" style={{ paddingBottom: "48px" }}>
-        {activeTab === "info" ? <ExtensionOverviewCards key="ext-cards" entries={extensions} ctx={ctx} /> : null}
+        {activeTab === "info" ? (
+          <ExtensionOverviewCards key="ext-cards" entries={extensions} ctx={ctx}>
+            <RomOverviewCards
+              raId={state.raId}
+              achievements={state.achievements}
+              saveSyncEnabled={state.saveSyncEnabled}
+              saveStatus={state.saveStatus}
+              conflictCount={state.conflicts.length}
+              onOpenTab={(tabId) => setState((prev) => ({ ...prev, activeTab: tabId }))}
+            />
+          </ExtensionOverviewCards>
+        ) : null}
         {activeExtension ? <ExtensionTabPane key="ext-tab" entry={activeExtension} ctx={ctx} /> : null}
         {buildTabContent({ appId, binding: bindRomInState(romId, setState), state: tabState })}
         {activeTab === "info" && state.installed ? (
