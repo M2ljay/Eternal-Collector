@@ -212,6 +212,7 @@ class TestGetSettings:
         assert result["preferred_region"] == "auto"
         assert result["retroachievements_warning"] is True
         assert result["collector_home_shelf"] is True
+        assert result["installed_roms_collection"] is True
         assert result["ra_web_username"] == ""
         assert result["ra_web_api_key_masked"] == ""
 
@@ -567,6 +568,19 @@ class TestSaveCollectorHomeShelf:
         settings["collector_home_shelf"] = False
         service.save_collector_home_shelf(1)  # type: ignore[arg-type]
         assert settings["collector_home_shelf"] is True
+
+
+class TestSaveInstalledRomsCollection:
+    def test_disables(self, service, settings, settings_persister):
+        assert service.save_installed_roms_collection(False) == {"success": True}
+        assert settings["installed_roms_collection"] is False
+        assert service.get_settings()["installed_roms_collection"] is False
+        settings_persister.save_settings.assert_called_once_with()
+
+    def test_enables_and_coerces(self, service, settings):
+        settings["installed_roms_collection"] = False
+        service.save_installed_roms_collection(1)  # type: ignore[arg-type]
+        assert settings["installed_roms_collection"] is True
 
 
 class TestSetCollectionOwnerScope:

@@ -524,8 +524,9 @@ Applies on the next sync by renaming owned collections.
 ### Owned Steam collection
 
 A Steam collection the plugin made on this device, proven only by the **ownership record** — the `OwnedSteamCollection`
-aggregate (`owned_steam_collections`), keyed by Steam's collection id, one per source (`family` `platform` / `romm` +
-case-folded source name). Never inferred from a name: a collection without a record is the **user's**, and the plugin
+aggregate (`owned_steam_collections`), keyed by Steam's collection id, one per source (`family` `platform` / `romm` /
+`installed` + case-folded source name; `installed` is the single **installed collection** of the shortcuts whose ROM is
+on this device). Never inferred from a name: a collection without a record is the **user's**, and the plugin
 never renames, refills or deletes it. When a source's wanted name is held by a user's collection, the plugin's
 collection takes a suffixed name (`<name> (RomM)`) and the record keeps the user's name in `yielded_to`. Pre-record
 collections are brought under the record once (**adoption**), by name plus proof (the `RomM:` prefix, or RomM-only

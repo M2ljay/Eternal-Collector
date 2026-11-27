@@ -661,6 +661,11 @@ makes `ra_game_journals` a cascade parent: the repository UPSERTs it and never u
 a non-positive id, an empty title, notes over 4,000 characters, negative points, an empty pin time and a hardcore flag
 other than 0/1. Fresh tables: existing databases gain no rows until the user pins a goal or writes a note.
 
+`030_allow_installed_steam_collection.sql` (`user_version = 30`) widens the `family` `CHECK` of
+`owned_steam_collections` to admit `installed`, the record of the plugin's collection of locally installed ROMs
+([The installed collection](steam-non-steam-shortcuts.md#the-installed-collection)). SQLite cannot alter a `CHECK`, so
+the table is rebuilt and every row copied across unchanged; it is a leaf table, so nothing else is touched.
+
 ## The runtime Unit of Work
 
 The schema is read and written at runtime through a **Unit of Work** (UoW) — the atomic transaction boundary one

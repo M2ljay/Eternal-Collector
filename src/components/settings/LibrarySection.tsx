@@ -2,7 +2,7 @@
  * Library-wide sync preferences. Houses set-and-forget library toggles: the
  * preferred-region dropdown (ADR-0021 §3, which region wins when a game has
  * several dumps and the plugin must pick one to bind + name the shortcut after)
- * the collection toggles, and the RetroAchievements launch warning. Pure renderer: parent owns every
+ * the collection toggles (including the Installed ROMs collection), and the RetroAchievements launch warning. Pure renderer: parent owns every
  * value and the save/confirm flow.
  */
 
@@ -32,6 +32,8 @@ interface LibrarySectionProps {
   // The plugin's collections that took a suffixed name because one of the
   // user's own collections already had the name they wanted.
   yieldedCollections: OwnedSteamCollection[];
+  installedCollection: boolean;
+  onInstalledCollectionChange: (enabled: boolean) => void;
   raWarning: boolean;
   onRaWarningChange: (enabled: boolean) => void;
 }
@@ -81,6 +83,9 @@ export const NAME_STYLE_OPTIONS: { data: CollectionNameStyle; label: string }[] 
 export const NAME_STYLE_DESCRIPTION =
   'Classic keeps the names The Collector has always used. Clean names each collection after the console ("PlayStation 2") or the RomM collection, with no prefix or device name. Only collections The Collector made are renamed; if one of your own collections already has the name, The Collector\'s gets "(RomM)" added. Applies on the next sync.';
 
+export const INSTALLED_COLLECTION_DESCRIPTION =
+  'A Steam collection of the games whose files are on this PC, kept up to date as you download, uninstall or switch versions. Steam counts every RomM shortcut as installed, so use this one to filter (for example in a TabMaster "Installed" tab). Turning it off deletes only this collection.';
+
 export const LibrarySection: FC<LibrarySectionProps> = ({
   preferredRegion,
   libraryRegions,
@@ -92,6 +97,8 @@ export const LibrarySection: FC<LibrarySectionProps> = ({
   nameStyle,
   onNameStyleChange,
   yieldedCollections,
+  installedCollection,
+  onInstalledCollectionChange,
   raWarning,
   onRaWarningChange,
 }) => {
@@ -142,6 +149,14 @@ export const LibrarySection: FC<LibrarySectionProps> = ({
           </div>
         </PanelSectionRow>
       )}
+      <PanelSectionRow>
+        <ToggleField
+          label="Keep an Installed ROMs collection"
+          description={INSTALLED_COLLECTION_DESCRIPTION}
+          checked={installedCollection}
+          onChange={onInstalledCollectionChange}
+        />
+      </PanelSectionRow>
       <PanelSectionRow>
         <ToggleField
           label="Warn when RetroAchievements isn't working"

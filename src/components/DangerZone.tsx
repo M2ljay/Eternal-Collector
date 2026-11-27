@@ -32,7 +32,11 @@ import { LoadingRow } from "./LoadingRow";
 import { batchConfirmLaunchOptions } from "../utils/launchOptionsReconcile";
 import { getSyncProgress, onSyncProgressChange } from "../utils/syncProgress";
 import { scrollToTop } from "../utils/scrollHelpers";
-import { clearPlatformCollection, clearAllRomMCollections } from "../utils/collections";
+import {
+  clearPlatformCollection,
+  clearAllRomMCollections,
+  requestInstalledRomsCollectionUpdate,
+} from "../utils/collections";
 import { formatUninstallStatus } from "../utils/formatters";
 import type { RegistryPlatform } from "../types";
 import { detach } from "../utils/detach";
@@ -410,6 +414,7 @@ const ShortcutRemovalSection: FC<ShortcutRemovalSectionProps> = ({
           admission,
         );
         setUninstallStatus(formatUninstallStatus(result.removed_count ?? 0, (result.errors ?? []).length));
+        requestInstalledRomsCollectionUpdate();
       }
     } catch {
       setUninstallStatus("Failed to uninstall ROMs");

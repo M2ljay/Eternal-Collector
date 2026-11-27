@@ -26,6 +26,7 @@ import {
   saveCollectionPlatformGroups,
   saveRetroAchievementsWarning,
   saveCollectorHomeShelf,
+  saveInstalledRomsCollection,
   setCollectionNamingMode,
   setCollectionNameStyle,
   getOwnedSteamCollections,
@@ -66,6 +67,7 @@ import { ControllerSection } from "./settings/ControllerSection";
 import { AdvancedSection } from "./settings/AdvancedSection";
 import { LauncherBackendSection } from "./settings/LauncherBackendSection";
 import { CollectorSection } from "./settings/CollectorSection";
+import { reconcileInstalledRomsCollection } from "../utils/collections";
 import { setHomeShelfEnabled } from "../utils/consoleShelfStore";
 import { PluginUpdateSection } from "./settings/PluginUpdateSection";
 import { LibrarySection, AUTO_REGION, DEFAULT_REGION_LABEL } from "./settings/LibrarySection";
@@ -125,6 +127,7 @@ export const SettingsPage: FC<SettingsPageProps> = ({ onBack }) => {
   const [platformGroups, setPlatformGroups] = useState(false);
   const [raWarning, setRaWarning] = useState(true);
   const [homeShelf, setHomeShelf] = useState(true);
+  const [installedCollection, setInstalledCollection] = useState(true);
   const [raWebUsername, setRaWebUsername] = useState("");
   const [raWebConfigured, setRaWebConfigured] = useState(false);
   // Steam-collection naming mode (#1539): "merge" (default) or "by_label".
@@ -146,6 +149,7 @@ export const SettingsPage: FC<SettingsPageProps> = ({ onBack }) => {
         setPlatformGroups(!!s.collection_create_platform_groups);
         setRaWarning(s.retroachievements_warning ?? true);
         setHomeShelf(s.collector_home_shelf ?? true);
+        setInstalledCollection(s.installed_roms_collection ?? true);
         setRaWebUsername(s.ra_web_username ?? "");
         setRaWebConfigured(!!s.ra_web_api_key_masked);
         setNamingMode(s.collection_naming_mode ?? "merge");
@@ -534,6 +538,24 @@ export const SettingsPage: FC<SettingsPageProps> = ({ onBack }) => {
     );
   };
 
+  const handleInstalledCollectionChange = (value: boolean) => {
+    setInstalledCollection(value);
+    detach(
+      (async () => {
+        try {
+          const result = await saveInstalledRomsCollection(value);
+          if (!result.success) {
+            setInstalledCollection(!value);
+            return;
+          }
+          await reconcileInstalledRomsCollection();
+        } catch {
+          setInstalledCollection(!value);
+        }
+      })(),
+    );
+  };
+
   // --- RetroAchievements Web API (unlock timeline, goal checks) ---
   // RaWebApiModal verifies before it saves; a successful save means a stored key.
   const handleSaveRaWebApi = async (username: string, key: string) => {
@@ -714,6 +736,8 @@ export const SettingsPage: FC<SettingsPageProps> = ({ onBack }) => {
         nameStyle={nameStyle}
         onNameStyleChange={handleNameStyleChange}
         yieldedCollections={yieldedCollections}
+        installedCollection={installedCollection}
+        onInstalledCollectionChange={handleInstalledCollectionChange}
         raWarning={raWarning}
         onRaWarningChange={handleRaWarningChange}
       />

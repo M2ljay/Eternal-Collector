@@ -5,7 +5,8 @@ and ``finish_steam_collection_adoption`` take no argument;
 ``record_owned_steam_collection`` takes ``(collection_id, family, source_name,
 display_name, yielded_to)`` with ``yielded_to`` a string or ``None``;
 ``forget_owned_steam_collection`` takes one id; ``set_collection_name_style`` takes
-``"classic"`` or ``"clean"``. Failures use the canonical shape.
+``"classic"`` or ``"clean"``; ``get_installed_rom_app_ids`` takes no argument and
+``save_installed_roms_collection`` one boolean. Failures use the canonical shape.
 """
 
 from __future__ import annotations
@@ -91,3 +92,22 @@ async def test_name_style_rejects_unknown_values(harness):
     assert set(result) == {"success", "reason", "message"}
     assert result["reason"] == "invalid_style"
     assert harness.plugin.settings["collection_name_style"] == "classic"
+
+
+async def test_installed_collection_is_recordable_and_its_source_reads_over_real_sqlite(harness):
+    plugin = harness.plugin
+    assert await plugin.get_installed_rom_app_ids() == {"success": True, "enabled": True, "app_ids": []}
+    assert await plugin.record_owned_steam_collection(
+        "uc-inst", "installed", "Installed ROMs", "Installed ROMs", None
+    ) == {"success": True}
+    families = [r["family"] for r in (await plugin.get_owned_steam_collections())["collections"]]
+    assert families == ["installed"]
+
+
+async def test_the_installed_collection_toggle_round_trips(harness):
+    plugin = harness.plugin
+    assert await plugin.save_installed_roms_collection(False) == {"success": True}
+    assert (await plugin.get_installed_rom_app_ids())["enabled"] is False
+    assert (await plugin.get_settings())["installed_roms_collection"] is False
+    assert await plugin.save_installed_roms_collection(True) == {"success": True}
+    assert (await plugin.get_installed_rom_app_ids())["enabled"] is True

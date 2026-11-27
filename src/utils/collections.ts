@@ -11,6 +11,7 @@
 import {
   finishSteamCollectionAdoption,
   forgetOwnedSteamCollection,
+  getInstalledRomAppIds,
   getOwnedSteamCollections,
   logError,
   logInfo,
@@ -32,6 +33,9 @@ export async function getHostname(): Promise<string> {
   }
   return _hostname;
 }
+
+/** The source name of the one collection of ROMs installed on this device. */
+export const INSTALLED_COLLECTION_SOURCE = "Installed ROMs";
 
 /** The suffix a collection gets when the name it wants is already taken. */
 export const NAME_TAKEN_SUFFIX = "RomM";
@@ -69,10 +73,14 @@ function plainCollectionNames(): boolean {
   return navigator.userAgent.includes("Windows");
 }
 
-/** The name the plugin has always given a source on this OS. */
+/**
+ * The name the plugin has always given a source on this OS. The installed
+ * collection is named like a platform: no brackets, which mark a RomM collection.
+ */
 export function classicCollectionName(family: SteamCollectionFamily, source: string, hostname: string): string {
-  if (plainCollectionNames()) return family === "platform" ? source : `[${source}]`;
-  return family === "platform" ? `RomM: ${source} (${hostname})` : `RomM: [${source}] (${hostname})`;
+  const label = family === "romm" ? `[${source}]` : source;
+  if (plainCollectionNames()) return label;
+  return `RomM: ${label} (${hostname})`;
 }
 
 export function wantedCollectionName(
@@ -86,7 +94,7 @@ export function wantedCollectionName(
 
 /** Names this device may have used for a source before ownership was recorded. */
 function preRecordNames(family: SteamCollectionFamily, source: string, hostname: string): string[] {
-  const label = family === "platform" ? source : `[${source}]`;
+  const label = family === "romm" ? `[${source}]` : source;
   const names = [classicCollectionName(family, source, hostname), `RomM: ${label} (${hostname})`, `RomM: ${label}`];
   return names.filter((name, i) => names.findIndex((n) => n.toLowerCase() === name.toLowerCase()) === i);
 }
@@ -412,10 +420,16 @@ async function reconcileSource(
   }
 }
 
+/**
+ * Delete the recorded platform and RomM collections a sync no longer has a
+ * source for. The installed collection is not a sync source, so it never
+ * reads as stale here; its own reconcile and the setting decide its life.
+ */
 async function removeStaleOwned(ownership: Ownership, sources: Source[], signal?: AbortSignal): Promise<void> {
   const active = new Set(sources.map((s) => sourceKey(s.family, s.name)));
   for (const owned of [...ownership.byId.values()]) {
     if (signal?.aborted) return;
+    if (owned.family === "installed") continue;
     if (active.has(sourceKey(owned.family, owned.source_name))) continue;
     logInfo(`Removing stale collection "${owned.display_name}"`);
     await deleteOwned(ownership, owned, signal);
@@ -429,6 +443,20 @@ function sourcesOf(maps: CollectionMaps): Source[] {
   ];
 }
 
+let writeChain: Promise<void> = Promise.resolve();
+
+/**
+ * Run collection writes one at a time. Two passes that both read the record
+ * before either wrote it would each create a collection for the same source,
+ * and the one whose record lost would be left unrecorded — the user's, as far
+ * as every later run can tell.
+ */
+function serialized(work: () => Promise<void>): Promise<void> {
+  const run = writeChain.then(work, work);
+  writeChain = run.catch(() => undefined);
+  return run;
+}
+
 /**
  * Bring the plugin's Steam collections in line with one sync's maps.
  *
@@ -437,7 +465,11 @@ function sourcesOf(maps: CollectionMaps): Source[] {
  * run that was not cancelled. The one-time adoption of pre-record collections
  * is marked done only after such a run.
  */
-export async function reconcileSteamCollections(maps: CollectionMaps, signal?: AbortSignal): Promise<void> {
+export function reconcileSteamCollections(maps: CollectionMaps, signal?: AbortSignal): Promise<void> {
+  return serialized(() => reconcileFromMaps(maps, signal));
+}
+
+async function reconcileFromMaps(maps: CollectionMaps, signal?: AbortSignal): Promise<void> {
   try {
     if (typeof collectionStore === "undefined") {
       logWarn("collectionStore not available, skipping collections");
@@ -469,7 +501,11 @@ export async function reconcileSteamCollections(maps: CollectionMaps, signal?: A
 }
 
 /** Delete the plugin's own collection for one platform, if it has one. */
-export async function clearPlatformCollection(platformName: string, signal?: AbortSignal): Promise<void> {
+export function clearPlatformCollection(platformName: string, signal?: AbortSignal): Promise<void> {
+  return serialized(() => clearPlatform(platformName, signal));
+}
+
+async function clearPlatform(platformName: string, signal?: AbortSignal): Promise<void> {
   try {
     if (typeof collectionStore === "undefined") {
       logWarn("collectionStore not available, cannot clear platform collection");
@@ -489,7 +525,11 @@ export async function clearPlatformCollection(platformName: string, signal?: Abo
 }
 
 /** Delete every collection the plugin owns on this device. */
-export async function clearAllRomMCollections(signal?: AbortSignal): Promise<void> {
+export function clearAllRomMCollections(signal?: AbortSignal): Promise<void> {
+  return serialized(() => clearAll(signal));
+}
+
+async function clearAll(signal?: AbortSignal): Promise<void> {
   try {
     if (typeof collectionStore === "undefined") {
       logWarn("collectionStore not available, cannot clear collections");
@@ -505,4 +545,109 @@ export async function clearAllRomMCollections(signal?: AbortSignal): Promise<voi
   } catch (e) {
     logError(`Failed to clear collections: ${e}`);
   }
+}
+
+/** How long the startup reconcile waits for Steam to load its collections. */
+const STORE_WAIT_MS = 30_000;
+const STORE_POLL_MS = 1_000;
+
+/**
+ * At plugin start Steam may not have loaded its collections or shortcuts yet.
+ * A recorded collection that is merely not loaded would read as deleted and be
+ * made again, leaving the real one unrecorded, so wait (bounded) until the
+ * shortcuts are loaded and the recorded collection, if any, is live.
+ */
+async function waitForStore(recordedId: string | undefined, signal?: AbortSignal): Promise<void> {
+  const deadline = Date.now() + STORE_WAIT_MS;
+  while (Date.now() < deadline && !signal?.aborted) {
+    const shortcutsLoaded = collectionStore.deckDesktopApps !== undefined;
+    if (shortcutsLoaded && (!recordedId || liveById(recordedId))) return;
+    await new Promise((resolve) => setTimeout(resolve, STORE_POLL_MS));
+  }
+}
+
+export interface InstalledReconcileOptions {
+  /** Set by the plugin-start reconcile, when Steam's stores may still be loading. */
+  waitForSteam?: boolean;
+  signal?: AbortSignal;
+}
+
+async function reconcileInstalled(options: InstalledReconcileOptions): Promise<void> {
+  const { signal } = options;
+  try {
+    if (typeof collectionStore === "undefined") {
+      logWarn("collectionStore not available, skipping the installed collection");
+      return;
+    }
+    const answer = await getInstalledRomAppIds();
+    if (!answer.success) {
+      logWarn(`Installed collection left alone: installed ROMs could not be read (${answer.message ?? ""})`);
+      return;
+    }
+    const ownership = await loadOwnership();
+    if (!ownership || signal?.aborted) return;
+    const recorded = ownership.byKey.get(sourceKey("installed", INSTALLED_COLLECTION_SOURCE));
+    if (!answer.enabled) {
+      if (recorded) {
+        logInfo(`The installed collection is switched off, deleting "${recorded.display_name}"`);
+        await deleteOwned(ownership, recorded, signal);
+      }
+      return;
+    }
+    if (options.waitForSteam) await waitForStore(recorded?.collection_id, signal);
+    if (signal?.aborted) return;
+    const source: Source = { family: "installed", name: INSTALLED_COLLECTION_SOURCE, appIds: answer.app_ids };
+    await reconcileSource(ownership, source, new Set<string>(), signal);
+  } catch (e) {
+    logError(`Failed to update the installed collection: ${e}`);
+  }
+}
+
+/**
+ * Make the plugin's installed collection hold exactly the shortcuts whose ROM
+ * is installed on this device, or delete it (through the record) when the
+ * setting is off. Writes only the recorded collection, like every source.
+ */
+export function reconcileInstalledRomsCollection(options: InstalledReconcileOptions = {}): Promise<void> {
+  return serialized(() => reconcileInstalled(options));
+}
+
+const INSTALLED_UPDATE_DEBOUNCE_MS = 750;
+let installedUpdateTimer: ReturnType<typeof setTimeout> | null = null;
+
+/**
+ * Ask for an installed-collection reconcile soon. Several install changes in a
+ * row (a bulk uninstall, a cleanup run) collapse into one pass.
+ */
+export function requestInstalledRomsCollectionUpdate(): void {
+  if (installedUpdateTimer !== null) clearTimeout(installedUpdateTimer);
+  installedUpdateTimer = setTimeout(() => {
+    installedUpdateTimer = null;
+    void reconcileInstalledRomsCollection();
+  }, INSTALLED_UPDATE_DEBOUNCE_MS);
+}
+
+/**
+ * Follow the frontend's install-change events: an adoption, a version switch,
+ * a removed-game cleanup, an uninstall. Download completion is a backend event
+ * and is wired where it is received (src/index.tsx). Returns the stop function.
+ */
+export function watchInstalledRomsCollection(): () => void {
+  const onDataChanged = (event: WindowEventMap["romm_data_changed"]) => {
+    const { type } = event.detail;
+    if (type === "rom_adopted" || type === "version_switched" || type === "rom_pruned") {
+      requestInstalledRomsCollectionUpdate();
+    }
+  };
+  const onUninstalled = () => requestInstalledRomsCollectionUpdate();
+  globalThis.addEventListener("romm_data_changed", onDataChanged);
+  globalThis.addEventListener("romm_rom_uninstalled", onUninstalled);
+  return () => {
+    globalThis.removeEventListener("romm_data_changed", onDataChanged);
+    globalThis.removeEventListener("romm_rom_uninstalled", onUninstalled);
+    if (installedUpdateTimer !== null) {
+      clearTimeout(installedUpdateTimer);
+      installedUpdateTimer = null;
+    }
+  };
 }

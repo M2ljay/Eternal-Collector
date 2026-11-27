@@ -19,6 +19,7 @@ if TYPE_CHECKING:
     from services.protocols import DebugLogger, UnitOfWorkFactory
 
 NAME_STYLE_SETTING: Final = "collection_name_style"
+INSTALLED_COLLECTION_SETTING: Final = "installed_roms_collection"
 NAME_STYLES: Final[tuple[str, ...]] = ("classic", "clean")
 DEFAULT_NAME_STYLE: Final = "classic"
 
@@ -38,8 +39,9 @@ class SteamCollectionOwnershipServiceConfig:
     """Frozen wiring bundle handed to ``SteamCollectionOwnershipService.__init__``.
 
     Holds the SQLite Unit-of-Work factory (``owned_steam_collections`` and the
-    ``kv_config`` adoption marker), the live settings dict (the name style), and
-    the debug logger.
+    ``kv_config`` adoption marker, plus reads of ``roms`` and ``rom_installs`` for
+    the installed collection), the live settings dict (the name style and the
+    installed-collection toggle), and the debug logger.
     """
 
     uow_factory: UnitOfWorkFactory
@@ -65,6 +67,28 @@ class SteamCollectionOwnershipService:
             "name_style": name_style_of(self._settings),
             "adoption_done": adoption_done,
             "collections": records,
+        }
+
+    def get_installed_rom_app_ids(self) -> dict[str, Any]:
+        """The Steam app ids of the shortcuts whose ROM content is installed on this device.
+
+        A ROM counts when it has an install record (downloaded or adopted) and is
+        bound to a shortcut; an installed sibling the shortcut is not bound to does
+        not, because a version switch away from it leaves the shortcut launching an
+        uninstalled version. ``enabled`` is the "Keep an Installed ROMs collection"
+        setting, on unless switched off.
+        """
+        with self._uow_factory() as uow:
+            installed = {install.rom_id for install in uow.rom_installs.iter_all()}
+            app_ids = sorted(
+                rom.shortcut_app_id
+                for rom in uow.roms.iter_all()
+                if rom.rom_id in installed and rom.shortcut_app_id is not None
+            )
+        return {
+            "success": True,
+            "enabled": bool(self._settings.get(INSTALLED_COLLECTION_SETTING, True)),
+            "app_ids": app_ids,
         }
 
     def record_owned_steam_collection(

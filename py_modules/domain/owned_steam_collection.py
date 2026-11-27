@@ -5,10 +5,11 @@ make a collection called "PlayStation 2" just as the plugin can. This record is 
 only ownership proof the plugin accepts. A collection without a record is the
 user's, and the plugin never renames, refills or deletes it.
 
-Identity is Steam's collection id. Each source — one platform or one synced RomM
-collection, told apart by ``family`` and matched case-insensitively by
-``source_key`` — has at most one owned collection, so recording a source against a
-new collection id replaces the old record. ``display_name`` is the name the plugin
+Identity is Steam's collection id. Each source — one platform, one synced RomM
+collection, or the one collection of locally installed ROMs, told apart by
+``family`` and matched case-insensitively by ``source_key`` — has at most one owned
+collection, so recording a source against a new collection id replaces the old
+record. ``display_name`` is the name the plugin
 last gave the collection. ``yielded_to`` is set when the name the source wanted was
 already taken by a collection of the user's: the name of that collection, kept so
 the settings page can say why this one carries a suffix.
@@ -23,8 +24,8 @@ from typing import Final, Literal
 
 from domain._aggregate import cosmic_aggregate
 
-CollectionFamily = Literal["platform", "romm"]
-COLLECTION_FAMILIES: Final[tuple[str, ...]] = ("platform", "romm")
+CollectionFamily = Literal["platform", "romm", "installed"]
+COLLECTION_FAMILIES: Final[tuple[str, ...]] = ("platform", "romm", "installed")
 
 # kv_config key set once a completed sync has brought this device's pre-record
 # collections under the record. Absent means the one-time adoption is still due.

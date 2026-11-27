@@ -51,7 +51,12 @@ import {
   logInfo,
   waitForPruneRelease,
 } from "./api/backend";
-import { reconcileSteamCollections } from "./utils/collections";
+import {
+  reconcileInstalledRomsCollection,
+  reconcileSteamCollections,
+  requestInstalledRomsCollectionUpdate,
+  watchInstalledRomsCollection,
+} from "./utils/collections";
 import { setMigrationStatus } from "./utils/migrationStore";
 import { fetchSettingsResetState } from "./utils/settingsResetStore";
 import { resetSyncDelta, recordSyncRemoved, getSyncDelta } from "./utils/syncDeltaStore";
@@ -369,6 +374,7 @@ export default definePlugin(() => {
         } catch (e) {
           logError(`startup_reconcile: failed to reconcile launch options: ${e}`);
         }
+        await reconcileInstalledRomsCollection({ waitForSteam: true });
       }
     })(),
   );
@@ -454,6 +460,8 @@ export default definePlugin(() => {
     })(),
   );
 
+  const stopInstalledCollectionWatch = watchInstalledRomsCollection();
+
   const onSyncComplete = (data: {
     platform_app_ids: Record<string, number[]>;
     romm_collection_app_ids?: Record<string, number[]>;
@@ -533,8 +541,8 @@ export default definePlugin(() => {
       }
     };
 
-    const reconcileCollections = (signal: AbortSignal): Promise<void> =>
-      reconcileSteamCollections(
+    const reconcileCollections = async (signal: AbortSignal): Promise<void> => {
+      await reconcileSteamCollections(
         {
           platformAppIds: data.platform_app_ids,
           rommCollectionAppIds: data.romm_collection_app_ids ?? {},
@@ -542,6 +550,8 @@ export default definePlugin(() => {
         },
         signal,
       );
+      await reconcileInstalledRomsCollection({ signal });
+    };
 
     const reconcilePlaytime = async (signal: AbortSignal): Promise<void> => {
       try {
@@ -775,6 +785,7 @@ export default definePlugin(() => {
         resumable: data.resumable ?? prev?.resumable ?? false,
       });
       showToast(`Downloaded ${data.rom_name}`);
+      requestInstalledRomsCollectionUpdate();
 
       // The ROM is now installed — its shortcut's launch options must carry the
       // full launch command (was "" while uninstalled). The backend resolved
@@ -966,6 +977,7 @@ export default definePlugin(() => {
     alwaysRender: true,
     onDismount() {
       stopPluginUpdateWatch();
+      stopInstalledCollectionWatch();
       syncContinuationController.abort();
       stopNowPlayingPublisher();
       destroySessionManager();

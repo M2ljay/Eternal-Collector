@@ -199,6 +199,23 @@ gives The Collector's collection the plain name back.
 Clean names have no device name in them, so if you sync the same Steam account on more than one PC (or a Steam Deck),
 Steam Cloud shows these collections on the other machines too. Each machine only manages the collections it made itself.
 
+## Installed ROMs collection
+
+**Keep an Installed ROMs collection**, in the **Library** section of the settings page (on by default), keeps one Steam
+collection of the games whose files are actually on this PC (downloaded, or adopted from files you already had). Steam
+counts every non-Steam shortcut as installed, so its own Installed filter shows every RomM game; point a filter (for
+example a TabMaster "Installed" tab: installed Steam games, plus this collection) at this collection instead.
+
+It is named like a platform collection. On Windows, and with **Clean** names, it is `Installed ROMs`. With Classic names
+on Linux it is `RomM: Installed ROMs (htpc)`. If you already have a collection with that name, yours is left alone and
+The Collector's is `Installed ROMs (RomM)`, with a note under **Collection names**.
+
+The collection follows your installs: a download or an adoption adds the game, and an uninstall, a removed-game cleanup
+or switching to a version that is not downloaded takes it out. It is also checked in full after every sync and when the
+plugin starts. It stays in Steam even when nothing is installed, so a filter pointing at it keeps working. Turning the
+setting off deletes only this collection, and never one of yours. **Remove all** in the Danger Zone deletes it with the
+rest of The Collector's collections; it comes back, empty or not, on the next check while the setting is on.
+
 ## RetroAchievements warning
 
 **Warn when RetroAchievements isn't working**, in the **Library** section of the settings page (on by default), shows

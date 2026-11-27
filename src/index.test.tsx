@@ -86,8 +86,14 @@ vi.mock("./utils/syncManager", () => ({
 // Observe the one collection reconcile onSyncComplete hands its maps to; the
 // reconcile itself is covered in src/utils/collections.test.ts.
 const reconcileSteamCollections = vi.fn().mockResolvedValue(undefined);
+const reconcileInstalledRomsCollection = vi.fn().mockResolvedValue(undefined);
+const requestInstalledRomsCollectionUpdate = vi.fn();
+const stopInstalledCollectionWatch = vi.fn();
 vi.mock("./utils/collections", () => ({
   reconcileSteamCollections: (...args: unknown[]) => reconcileSteamCollections(...args),
+  reconcileInstalledRomsCollection: (...args: unknown[]) => reconcileInstalledRomsCollection(...args),
+  requestInstalledRomsCollectionUpdate: () => requestInstalledRomsCollectionUpdate(),
+  watchInstalledRomsCollection: () => stopInstalledCollectionWatch,
 }));
 
 // Observe the launch-options confirm-poll.
@@ -474,6 +480,25 @@ describe("index.tsx — download_complete launch-options sync", () => {
     plugin.onDismount();
   });
 
+  it("asks for an installed-collection update on download_complete", async () => {
+    requestInstalledRomsCollectionUpdate.mockClear();
+    const plugin = pluginFactory();
+    act(() => {
+      emitDeckyEvent<[DownloadCompleteEvent]>("download_complete", {
+        rom_id: 7,
+        rom_name: "Sonic",
+        platform_name: "Genesis",
+        file_path: "/games/sonic.md",
+        app_id: 7000,
+        launch_options: "x",
+      });
+    });
+    await flush();
+    expect(requestInstalledRomsCollectionUpdate).toHaveBeenCalledTimes(1);
+    plugin.onDismount();
+    expect(stopInstalledCollectionWatch).toHaveBeenCalled();
+  });
+
   it("no-ops gracefully when the downloaded rom has no bound appId (null)", async () => {
     const plugin = pluginFactory();
 
@@ -832,6 +857,15 @@ describe("index.tsx — startup launch-options reconcile (#1043)", () => {
     plugin.onDismount();
   });
 
+  it("reconciles the installed collection at plugin start, waiting for Steam's stores", async () => {
+    reconcileInstalledRomsCollection.mockClear();
+    vi.mocked(getInstalledRelaunchOptions).mockResolvedValue(relaunchOptions([]));
+    const plugin = pluginFactory();
+    await flush();
+    await vi.waitFor(() => expect(reconcileInstalledRomsCollection).toHaveBeenCalledWith({ waitForSteam: true }));
+    plugin.onDismount();
+  });
+
   it("never confirm-sets when there is nothing installed to reconcile", async () => {
     vi.mocked(getInstalledRelaunchOptions).mockResolvedValue(relaunchOptions([]));
     const plugin = pluginFactory();
@@ -977,6 +1011,7 @@ describe("index.tsx — sync_complete launch-options reconcile (#1151)", () => {
     const plugin = pluginFactory();
     await flush();
     vi.mocked(releasePruneConflictLease).mockClear();
+    reconcileInstalledRomsCollection.mockClear();
 
     act(() => {
       emitDeckyEvent<[SyncCompletePayload]>("sync_complete", {
@@ -993,7 +1028,12 @@ describe("index.tsx — sync_complete launch-options reconcile (#1151)", () => {
     );
     expect(releasePruneConflictLease).not.toHaveBeenCalledWith("sync-complete-lease");
 
+    expect(reconcileInstalledRomsCollection).not.toHaveBeenCalledWith({ signal: expect.any(AbortSignal) });
+
     finishCollections?.();
+    await vi.waitFor(() =>
+      expect(reconcileInstalledRomsCollection).toHaveBeenCalledWith({ signal: expect.any(AbortSignal) }),
+    );
     await vi.waitFor(() => expect(releasePruneConflictLease).toHaveBeenCalledWith("sync-complete-lease"));
     plugin.onDismount();
   });

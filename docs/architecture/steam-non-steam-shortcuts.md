@@ -346,7 +346,8 @@ Steam collections are managed entirely on the frontend via `collectionStore`, no
 field. `src/utils/collections.ts` owns them. The `sync_complete` event carries `platform_app_ids` and
 `romm_collection_app_ids` maps; `onSyncComplete` (`src/index.tsx`) hands both, with the run's `cancelled` flag, to
 `reconcileSteamCollections`, which makes one collection per source (each platform, each synced RomM collection) and runs
-a **stale-collection cleanup** for sources absent from the maps.
+a **stale-collection cleanup** for sources absent from the maps. One more owned collection, of the ROMs installed on
+this device, has its own reconcile ([The installed collection](#the-installed-collection)).
 
 ### Ownership is a record, never a name
 
@@ -439,7 +440,45 @@ skipped on cancel, and the one-time adoption is not marked done. Steam collectio
 behavior on a partial/cancelled run is to delete nothing.
 
 The Danger Zone's **Remove shortcuts** (one platform) and **Remove all** clear only recorded collections
-(`clearPlatformCollection` / `clearAllRomMCollections`), never one found by name.
+(`clearPlatformCollection` / `clearAllRomMCollections`), never one found by name. **Remove all** includes the
+[installed collection](#the-installed-collection), which its next reconcile makes again while its setting is on.
+
+### The installed collection
+
+Steam treats every non-Steam shortcut as installed, so its own Installed filter cannot tell a downloaded ROM from one
+that is only in the library. The plugin therefore keeps one more owned collection, family `installed`, source name
+`Installed ROMs` (`INSTALLED_COLLECTION_SOURCE` in `collections.ts`), holding exactly the shortcuts whose ROM content is
+on this device. It is not a sync source, so it is reconciled on its own by `reconcileInstalledRomsCollection`, through
+the same record, the same name picking and the same write paths as the platform collections:
+
+- **Members** come from `get_installed_rom_app_ids` (`services/steam_collections.py`): every ROM with an install record
+  (downloaded or adopted) that is bound to a shortcut. An installed sibling the shortcut is not bound to does not count:
+  after a version switch onto an uninstalled version, the shortcut launches nothing local.
+- **Name**: named like a platform, without brackets. On Windows and under Clean it is `Installed ROMs`; under Classic
+  elsewhere it is `RomM: Installed ROMs (<host>)`. A user's collection holding the name gets the `(RomM)` suffix and a
+  `yielded_to` note, as for any source.
+- **When**: at the end of every library sync (after the platform reconcile, inside the sync-completion lease, cancelled
+  or not, since the installed set does not depend on the sync's maps); at plugin start; and, debounced into one pass
+  (`requestInstalledRomsCollectionUpdate`), after a download completes (`download_complete`), an adoption
+  (`rom_adopted`), a version switch (`version_switched`), a removed-game cleanup (`rom_pruned`), a single uninstall
+  (`romm_rom_uninstalled`) and the Danger Zone's **Uninstall All**. Every pass is a full reconcile against the backend's
+  installed set, so a missed event is healed by the next one.
+- **Setting**: `installed_roms_collection` (**Keep an Installed ROMs collection**, on by default). Off, the reconcile
+  deletes the recorded installed collection and forgets it; with no record it does nothing. The stale cleanup of a sync
+  skips the `installed` family, so only the setting and the Danger Zone's **Remove all** ever delete it.
+- **Empty is kept**: with nothing installed the collection stays, empty, so a filter pointing at it keeps working.
+
+Every collection write (sync reconcile, installed reconcile, the Danger Zone clears) runs one at a time (`serialized` in
+`collections.ts`). Two passes that both read the record before either wrote it would each create a collection for the
+same source, and the one whose record lost would be left unrecorded, which every later run must treat as the user's.
+
+**Plugin start waits for Steam.** Right after Steam starts, `collectionStore` may not have loaded the user's collections
+or shortcuts yet, and a recorded collection that is merely not loaded reads exactly like one the user deleted. The
+startup pass therefore waits (polling, at most 30 seconds) until `collectionStore.deckDesktopApps` exists and the
+recorded collection, if any, is live; after that it treats a still-missing collection as deleted and makes a new one.
+
+The membership writes do not take a prune lease: they change only which collection lists a shortcut, never the shortcut,
+and the cleanup's own completion asks for a pass once its removals are done.
 
 ### Collection naming mode — `merge` vs `by_label` (#1539)
 

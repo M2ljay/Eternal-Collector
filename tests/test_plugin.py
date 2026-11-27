@@ -828,6 +828,9 @@ _MIGRATION_BLOCKED_WHITELIST: set[str] = {
     "record_owned_steam_collection",
     "forget_owned_steam_collection",
     "finish_steam_collection_adoption",
+    # The installed-ROMs collection: an offline read and a settings.json-only toggle.
+    "get_installed_rom_app_ids",
+    "save_installed_roms_collection",
     # Achievement goals, notes and the unlock timeline — SQLite journal rows, a
     # settings.json write for the RetroAchievements Web API key, and requests to
     # retroachievements.org; none touches RetroDECK state.

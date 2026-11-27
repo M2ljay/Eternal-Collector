@@ -99,6 +99,8 @@ describe("LibrarySection", () => {
         nameStyle="classic"
         onNameStyleChange={vi.fn()}
         yieldedCollections={[]}
+        installedCollection={true}
+        onInstalledCollectionChange={vi.fn()}
         raWarning={true}
         onRaWarningChange={vi.fn()}
       />,
@@ -122,6 +124,8 @@ describe("LibrarySection", () => {
         nameStyle="classic"
         onNameStyleChange={vi.fn()}
         yieldedCollections={[]}
+        installedCollection={true}
+        onInstalledCollectionChange={vi.fn()}
         raWarning={true}
         onRaWarningChange={vi.fn()}
       />,
@@ -143,6 +147,8 @@ describe("LibrarySection", () => {
         nameStyle="classic"
         onNameStyleChange={vi.fn()}
         yieldedCollections={[]}
+        installedCollection={true}
+        onInstalledCollectionChange={vi.fn()}
         raWarning={true}
         onRaWarningChange={vi.fn()}
       />,
@@ -166,6 +172,8 @@ describe("LibrarySection", () => {
         nameStyle="classic"
         onNameStyleChange={vi.fn()}
         yieldedCollections={[]}
+        installedCollection={true}
+        onInstalledCollectionChange={vi.fn()}
         raWarning={true}
         onRaWarningChange={vi.fn()}
       />,
@@ -187,6 +195,8 @@ describe("LibrarySection", () => {
         nameStyle="classic"
         onNameStyleChange={vi.fn()}
         yieldedCollections={[]}
+        installedCollection={true}
+        onInstalledCollectionChange={vi.fn()}
         raWarning={true}
         onRaWarningChange={vi.fn()}
       />,
@@ -212,6 +222,8 @@ describe("LibrarySection", () => {
         nameStyle="classic"
         onNameStyleChange={vi.fn()}
         yieldedCollections={[]}
+        installedCollection={true}
+        onInstalledCollectionChange={vi.fn()}
         raWarning={true}
         onRaWarningChange={vi.fn()}
       />,
@@ -237,6 +249,8 @@ describe("LibrarySection", () => {
         nameStyle="classic"
         onNameStyleChange={vi.fn()}
         yieldedCollections={[]}
+        installedCollection={true}
+        onInstalledCollectionChange={vi.fn()}
         raWarning={true}
         onRaWarningChange={vi.fn()}
       />,
@@ -261,6 +275,8 @@ describe("LibrarySection", () => {
         nameStyle="classic"
         onNameStyleChange={vi.fn()}
         yieldedCollections={[]}
+        installedCollection={true}
+        onInstalledCollectionChange={vi.fn()}
         raWarning={true}
         onRaWarningChange={vi.fn()}
       />,
@@ -285,6 +301,8 @@ describe("LibrarySection", () => {
         nameStyle="classic"
         onNameStyleChange={vi.fn()}
         yieldedCollections={[]}
+        installedCollection={true}
+        onInstalledCollectionChange={vi.fn()}
         raWarning={true}
         onRaWarningChange={vi.fn()}
       />,
@@ -311,6 +329,8 @@ describe("LibrarySection", () => {
         nameStyle="classic"
         onNameStyleChange={vi.fn()}
         yieldedCollections={[]}
+        installedCollection={true}
+        onInstalledCollectionChange={vi.fn()}
         raWarning={true}
         onRaWarningChange={vi.fn()}
       />,
@@ -337,6 +357,8 @@ describe("LibrarySection", () => {
         nameStyle="classic"
         onNameStyleChange={vi.fn()}
         yieldedCollections={[]}
+        installedCollection={true}
+        onInstalledCollectionChange={vi.fn()}
         raWarning={true}
         onRaWarningChange={onChange}
       />,
@@ -366,6 +388,8 @@ describe("LibrarySection", () => {
         nameStyle={nameStyle}
         onNameStyleChange={onNameStyleChange}
         yieldedCollections={yieldedCollections}
+        installedCollection={true}
+        onInstalledCollectionChange={vi.fn()}
         raWarning={true}
         onRaWarningChange={vi.fn()}
       />,
@@ -406,5 +430,31 @@ describe("LibrarySection", () => {
   it("shows no note when nothing yielded", () => {
     const { queryByTestId } = renderWithStyle("clean");
     expect(queryByTestId("yielded-collections")).toBeNull();
+  });
+
+  it("renders the installed-collection toggle and reports a change", () => {
+    const onChange = vi.fn();
+    const { container } = render(
+      <LibrarySection
+        preferredRegion={AUTO_REGION}
+        libraryRegions={[]}
+        onPreferredRegionChange={vi.fn()}
+        platformGroups={false}
+        onPlatformGroupsChange={vi.fn()}
+        namingMode="merge"
+        onNamingModeChange={vi.fn()}
+        nameStyle="classic"
+        onNameStyleChange={vi.fn()}
+        yieldedCollections={[]}
+        installedCollection={true}
+        onInstalledCollectionChange={onChange}
+        raWarning={true}
+        onRaWarningChange={vi.fn()}
+      />,
+    );
+    const toggle = container.querySelector<HTMLInputElement>('[data-label="Keep an Installed ROMs collection"] input')!;
+    expect(toggle.checked).toBe(true);
+    fireEvent.click(toggle);
+    expect(onChange).toHaveBeenCalledWith(false);
   });
 });

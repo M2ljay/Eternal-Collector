@@ -109,6 +109,7 @@ class SettingsService:
             "collection_owner_scope": self._settings.get("collection_owner_scope", "all"),
             "collection_naming_mode": self._settings.get("collection_naming_mode", "merge"),
             "collection_name_style": self._settings.get("collection_name_style", "classic"),
+            "installed_roms_collection": self._settings.get("installed_roms_collection", True),
             "preferred_region": self._settings.get("preferred_region", AUTO_REGION),
             "retroachievements_warning": self._settings.get("retroachievements_warning", True),
             "collector_home_shelf": self._settings.get("collector_home_shelf", True),
@@ -262,6 +263,12 @@ class SettingsService:
     def save_collector_home_shelf(self, enabled: bool) -> dict[str, Any]:
         """Persist whether The Collector's console shelf is shown on Steam's Home."""
         self._settings["collector_home_shelf"] = bool(enabled)
+        self._settings_persister.save_settings()
+        return {"success": True}
+
+    def save_installed_roms_collection(self, enabled: bool) -> dict[str, Any]:
+        """Persist whether the plugin keeps a Steam collection of the ROMs installed on this device."""
+        self._settings["installed_roms_collection"] = bool(enabled)
         self._settings_persister.save_settings()
         return {"success": True}
 

@@ -17,7 +17,11 @@ import {
   getAllNonSteamShortcutAppIds,
   getLiveRomMShortcutAppIds,
 } from "../utils/steamShortcuts";
-import { clearPlatformCollection, clearAllRomMCollections } from "../utils/collections";
+import {
+  clearPlatformCollection,
+  clearAllRomMCollections,
+  requestInstalledRomsCollectionUpdate,
+} from "../utils/collections";
 import { formatUninstallStatus } from "../utils/formatters";
 import { setSyncProgress } from "../utils/syncProgress";
 import { stubCollectionStore, stubAppStore } from "../test-utils/steamStubs";
@@ -35,6 +39,7 @@ vi.mock("../utils/steamShortcuts", () => ({
 vi.mock("../utils/collections", () => ({
   clearPlatformCollection: vi.fn(),
   clearAllRomMCollections: vi.fn(),
+  requestInstalledRomsCollectionUpdate: vi.fn(),
 }));
 vi.mock("../utils/formatters", () => ({
   formatUninstallStatus: vi.fn((removed: number, errors: number) => `Removed ${removed}, ${errors} errors`),
@@ -1137,6 +1142,7 @@ describe("DangerZone", () => {
       expect(vi.mocked(formatUninstallStatus)).toHaveBeenCalledWith(7, 0);
       // formatUninstallStatus mock returns "Removed 7, 0 errors"
       expect(container.textContent).toContain("Removed 7, 0 errors");
+      expect(vi.mocked(requestInstalledRomsCollectionUpdate)).toHaveBeenCalled();
     });
 
     it("surfaces 'Failed to uninstall ROMs' on rejection and still refreshes", async () => {

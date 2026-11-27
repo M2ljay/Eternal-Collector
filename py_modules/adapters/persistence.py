@@ -84,6 +84,10 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     # ``"clean"`` (the platform's or RomM collection's own name, no prefix, no
     # hostname). Applies on the next sync.
     "collection_name_style": "classic",
+    # Keep an owned Steam collection of the ROMs installed on this device, for
+    # filters that need installed ROMs apart from the other shortcuts (Steam
+    # counts every non-Steam shortcut as installed).
+    "installed_roms_collection": True,
     "preferred_region": "auto",
     # Warn once per launch when the emulator's RetroAchievements is off, signed
     # out, or (PCSX2) failed to log in.

@@ -708,6 +708,12 @@ class Plugin:
             None, self._steam_collection_service.forget_owned_steam_collection, collection_id
         )
 
+    async def get_installed_rom_app_ids(self):
+        return await self.loop.run_in_executor(None, self._steam_collection_service.get_installed_rom_app_ids)
+
+    async def save_installed_roms_collection(self, enabled):
+        return self._settings_service.save_installed_roms_collection(enabled)
+
     async def finish_steam_collection_adoption(self):
         return await self.loop.run_in_executor(None, self._steam_collection_service.finish_steam_collection_adoption)
 

@@ -1,5 +1,12 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { reconcileSteamCollections, clearPlatformCollection, clearAllRomMCollections } from "./collections";
+import {
+  reconcileSteamCollections,
+  clearPlatformCollection,
+  clearAllRomMCollections,
+  reconcileInstalledRomsCollection,
+  requestInstalledRomsCollectionUpdate,
+  watchInstalledRomsCollection,
+} from "./collections";
 import type { OwnedSteamCollection } from "../types";
 
 // The real module pulls in @decky/ui + the route patch; only RomM-shortcut
@@ -17,6 +24,9 @@ const backend = vi.hoisted(() => ({
   adoptionDone: false,
   readFails: false,
   recordFails: false,
+  installedEnabled: true,
+  installedAppIds: [] as number[],
+  installedReadFails: false,
 }));
 vi.mock("../api/backend", () => ({
   logInfo: vi.fn(),
@@ -35,7 +45,13 @@ vi.mock("../api/backend", () => ({
     ),
   ),
   recordOwnedSteamCollection: vi.fn(
-    (collection_id: string, family: "platform" | "romm", source_name: string, display_name: string, yielded_to) => {
+    (
+      collection_id: string,
+      family: "platform" | "romm" | "installed",
+      source_name: string,
+      display_name: string,
+      yielded_to,
+    ) => {
       if (backend.recordFails) return Promise.resolve({ success: false, reason: "x", message: "x" });
       backend.records = backend.records.filter(
         (r) =>
@@ -50,6 +66,13 @@ vi.mock("../api/backend", () => ({
     backend.records = backend.records.filter((r) => r.collection_id !== collection_id);
     return Promise.resolve({ success: true });
   }),
+  getInstalledRomAppIds: vi.fn(() =>
+    Promise.resolve(
+      backend.installedReadFails
+        ? { success: false, enabled: false, app_ids: [], reason: "boom", message: "boom" }
+        : { success: true, enabled: backend.installedEnabled, app_ids: [...backend.installedAppIds] },
+    ),
+  ),
   finishSteamCollectionAdoption: vi.fn(() => {
     backend.adoptionDone = true;
     return Promise.resolve({ success: true });
@@ -108,6 +131,7 @@ class FakeCollection {
 class FakeStore {
   collections: FakeCollection[] = [];
   deleteFails = false;
+  shortcutsLoaded = true;
   private next = 1;
 
   constructor(readonly renameable = true) {}
@@ -122,6 +146,9 @@ class FakeStore {
     vi.stubGlobal("collectionStore", {
       get userCollections() {
         return store.collections;
+      },
+      get deckDesktopApps() {
+        return store.shortcutsLoaded ? { apps: new Map() } : undefined;
       },
       NewUnsavedCollection: (name: string) => new FakeCollection(store, `uc-new-${store.next++}`, name, []),
     });
@@ -138,7 +165,12 @@ class FakeStore {
 
 let store: FakeStore;
 
-function own(collection: FakeCollection, family: "platform" | "romm", source: string, yieldedTo: string | null = null) {
+function own(
+  collection: FakeCollection,
+  family: "platform" | "romm" | "installed",
+  source: string,
+  yieldedTo: string | null = null,
+) {
   backend.records.push({
     collection_id: collection.id,
     family,
@@ -148,7 +180,7 @@ function own(collection: FakeCollection, family: "platform" | "romm", source: st
   });
 }
 
-function recordFor(family: "platform" | "romm", source: string): OwnedSteamCollection | undefined {
+function recordFor(family: "platform" | "romm" | "installed", source: string): OwnedSteamCollection | undefined {
   return backend.records.find((r) => r.family === family && r.source_name.toLowerCase() === source.toLowerCase());
 }
 
@@ -167,6 +199,9 @@ beforeEach(() => {
   backend.adoptionDone = true;
   backend.readFails = false;
   backend.recordFails = false;
+  backend.installedEnabled = true;
+  backend.installedAppIds = [];
+  backend.installedReadFails = false;
   rommAppIds.clear();
   [1, 2, 3, 4, 5].forEach((id) => rommAppIds.add(id));
   store = new FakeStore();
@@ -529,3 +564,249 @@ describe("clearPlatformCollection / clearAllRomMCollections", () => {
     expect(backend.records).toEqual([]);
   });
 });
+
+describe("reconcileInstalledRomsCollection", () => {
+  it("is named like a platform: plain on Windows", async () => {
+    vi.spyOn(navigator, "userAgent", "get").mockReturnValue(WINDOWS_UA);
+    backend.installedAppIds = [1, 2];
+
+    await reconcileInstalledRomsCollection();
+
+    expect(store.names()).toEqual(["Installed ROMs"]);
+    expect(appIdsOf(store.named("Installed ROMs"))).toEqual([1, 2]);
+    expect(recordFor("installed", "Installed ROMs")?.collection_id).toBe(store.named("Installed ROMs")?.id);
+  });
+
+  it("follows the name style off Windows", async () => {
+    await reconcileInstalledRomsCollection();
+    expect(store.names()).toEqual(["RomM: Installed ROMs (test)"]);
+
+    backend.nameStyle = "clean";
+    await reconcileInstalledRomsCollection();
+    expect(store.names()).toEqual(["Installed ROMs"]);
+    expect(backend.records).toHaveLength(1);
+  });
+
+  it("refills its recorded collection to exactly the installed set", async () => {
+    backend.nameStyle = "clean";
+    const owned = store.add("Installed ROMs", [1, 2, 3]);
+    own(owned, "installed", "Installed ROMs");
+    backend.installedAppIds = [2, 4];
+
+    await reconcileInstalledRomsCollection();
+
+    expect(store.collections).toHaveLength(1);
+    expect(appIdsOf(owned)).toEqual([2, 4]);
+  });
+
+  it("keeps the collection, empty, when nothing is installed", async () => {
+    backend.nameStyle = "clean";
+    const owned = store.add("Installed ROMs", [1]);
+    own(owned, "installed", "Installed ROMs");
+
+    await reconcileInstalledRomsCollection();
+
+    expect(appIdsOf(owned)).toEqual([]);
+    expect(owned.Delete).not.toHaveBeenCalled();
+  });
+
+  it("never touches the user's own collection of that name; its own gets the (RomM) suffix", async () => {
+    backend.nameStyle = "clean";
+    const users = store.add("Installed ROMs", [42]);
+    backend.installedAppIds = [1];
+
+    await reconcileInstalledRomsCollection();
+
+    expect(appIdsOf(users)).toEqual([42]);
+    expect(users.Save).not.toHaveBeenCalled();
+    expect(appIdsOf(store.named("Installed ROMs (RomM)"))).toEqual([1]);
+    expect(recordFor("installed", "Installed ROMs")).toMatchObject({
+      display_name: "Installed ROMs (RomM)",
+      yielded_to: "Installed ROMs",
+    });
+  });
+
+  it("switched off, deletes only its recorded collection and forgets it", async () => {
+    backend.nameStyle = "clean";
+    const owned = store.add("Installed ROMs (RomM)", [1]);
+    own(owned, "installed", "Installed ROMs", "Installed ROMs");
+    const users = store.add("Installed ROMs", [1]);
+    backend.installedEnabled = false;
+
+    await reconcileInstalledRomsCollection();
+
+    expect(owned.Delete).toHaveBeenCalledTimes(1);
+    expect(users.Delete).not.toHaveBeenCalled();
+    expect(store.names()).toEqual(["Installed ROMs"]);
+    expect(backend.records).toEqual([]);
+  });
+
+  it("switched off with no record, creates and deletes nothing", async () => {
+    backend.nameStyle = "clean";
+    const users = store.add("Installed ROMs", [1]);
+    backend.installedEnabled = false;
+
+    await reconcileInstalledRomsCollection();
+
+    expect(users.Delete).not.toHaveBeenCalled();
+    expect(store.names()).toEqual(["Installed ROMs"]);
+  });
+
+  it("touches nothing when the record or the installed set cannot be read", async () => {
+    backend.readFails = true;
+    await reconcileInstalledRomsCollection();
+    backend.readFails = false;
+    backend.installedReadFails = true;
+    await reconcileInstalledRomsCollection();
+
+    expect(store.collections).toEqual([]);
+    expect(backend.records).toEqual([]);
+  });
+
+  it("a sync's stale cleanup leaves the installed collection alone", async () => {
+    backend.nameStyle = "clean";
+    const owned = store.add("Installed ROMs", [1]);
+    own(owned, "installed", "Installed ROMs");
+
+    await sync({ "Nintendo 64": [1] });
+
+    expect(owned.Delete).not.toHaveBeenCalled();
+    expect(recordFor("installed", "Installed ROMs")).toBeDefined();
+  });
+
+  it("Remove all clears the installed collection with the rest of the plugin's own", async () => {
+    const owned = store.add("Installed ROMs", [1]);
+    own(owned, "installed", "Installed ROMs");
+
+    await clearAllRomMCollections();
+
+    expect(owned.Delete).toHaveBeenCalled();
+    expect(backend.records).toEqual([]);
+  });
+
+  it("concurrent passes make one collection, not two", async () => {
+    backend.nameStyle = "clean";
+    backend.installedAppIds = [1];
+
+    await Promise.all([reconcileInstalledRomsCollection(), reconcileInstalledRomsCollection()]);
+
+    expect(store.names()).toEqual(["Installed ROMs"]);
+    expect(backend.records).toHaveLength(1);
+  });
+
+  describe("at plugin start", () => {
+    beforeEach(() => {
+      vi.useFakeTimers();
+    });
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it("waits for a recorded collection Steam has not loaded yet instead of making another", async () => {
+      backend.nameStyle = "clean";
+      backend.installedAppIds = [1];
+      backend.records.push({
+        collection_id: "uc-late",
+        family: "installed",
+        source_name: "Installed ROMs",
+        display_name: "Installed ROMs",
+        yielded_to: null,
+      });
+      store.shortcutsLoaded = false;
+
+      const done = reconcileInstalledRomsCollection({ waitForSteam: true });
+      await vi.advanceTimersByTimeAsync(3_000);
+      store.shortcutsLoaded = true;
+      const late = store.add("Installed ROMs", [], "uc-late");
+      await vi.advanceTimersByTimeAsync(1_000);
+      await done;
+
+      expect(store.collections).toEqual([late]);
+      expect(appIdsOf(late)).toEqual([1]);
+      expect(recordFor("installed", "Installed ROMs")?.collection_id).toBe("uc-late");
+    });
+
+    it("gives up waiting after a bound and recreates a collection the user deleted", async () => {
+      backend.nameStyle = "clean";
+      backend.records.push({
+        collection_id: "uc-gone",
+        family: "installed",
+        source_name: "Installed ROMs",
+        display_name: "Installed ROMs",
+        yielded_to: null,
+      });
+
+      const done = reconcileInstalledRomsCollection({ waitForSteam: true });
+      await vi.advanceTimersByTimeAsync(31_000);
+      await done;
+
+      expect(store.names()).toEqual(["Installed ROMs"]);
+      expect(recordFor("installed", "Installed ROMs")?.collection_id).toBe(store.named("Installed ROMs")?.id);
+    });
+  });
+});
+
+describe("installed-collection triggers", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    backend.nameStyle = "clean";
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("collapses a burst of requests into one reconcile", async () => {
+    backend.installedAppIds = [1];
+    const { getInstalledRomAppIds } = await import("../api/backend");
+    vi.mocked(getInstalledRomAppIds).mockClear();
+    requestInstalledRomsCollectionUpdate();
+    requestInstalledRomsCollectionUpdate();
+    requestInstalledRomsCollectionUpdate();
+    await vi.advanceTimersByTimeAsync(1_000);
+
+    expect(vi.mocked(getInstalledRomAppIds)).toHaveBeenCalledTimes(1);
+    expect(appIdsOf(store.named("Installed ROMs"))).toEqual([1]);
+  });
+
+  it.each([
+    [
+      "an adoption",
+      () => new CustomEvent("romm_data_changed", { detail: { type: "rom_adopted" as const, rom_id: 1 } }),
+    ],
+    [
+      "a version switch",
+      () =>
+        new CustomEvent("romm_data_changed", { detail: { type: "version_switched" as const, app_id: 1, rom_id: 2 } }),
+    ],
+    [
+      "a removed-game cleanup",
+      () =>
+        new CustomEvent("romm_data_changed", { detail: { type: "rom_pruned" as const, app_ids: [1], rom_ids: [1] } }),
+    ],
+    ["an uninstall", () => new CustomEvent("romm_rom_uninstalled", { detail: { rom_id: 1 } })],
+  ])("reconciles after %s", async (_label, event) => {
+    backend.installedAppIds = [3];
+    const stop = watchInstalledRomsCollection();
+    globalThis.dispatchEvent(event());
+    await vi.advanceTimersByTimeAsync(1_000);
+    stop();
+
+    expect(appIdsOf(store.named("Installed ROMs"))).toEqual([3]);
+  });
+
+  it("ignores changes that do not move an install, and stops listening when stopped", async () => {
+    const stop = watchInstalledRomsCollection();
+    globalThis.dispatchEvent(new CustomEvent("romm_data_changed", { detail: { type: "metadata", rom_id: 1 } }));
+    await vi.advanceTimersByTimeAsync(1_000);
+    expect(store.collections).toEqual([]);
+
+    stop();
+    globalThis.dispatchEvent(new CustomEvent("romm_rom_uninstalled", { detail: { rom_id: 1 } }));
+    await vi.advanceTimersByTimeAsync(1_000);
+    expect(store.collections).toEqual([]);
+  });
+});
+
+function appIdsOf(c: FakeCollection | undefined): number[] | undefined {
+  return c?.allApps.map((a) => a.appid);
+}

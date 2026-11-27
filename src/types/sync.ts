@@ -56,8 +56,11 @@ export type CollectionNamingMode = "merge" | "by_label";
  */
 export type CollectionNameStyle = "classic" | "clean";
 
-/** Which kind of source an owned Steam collection was made for. */
-export type SteamCollectionFamily = "platform" | "romm";
+/**
+ * Which kind of source an owned Steam collection was made for: one platform, one
+ * synced RomM collection, or the single collection of ROMs installed on this device.
+ */
+export type SteamCollectionFamily = "platform" | "romm" | "installed";
 
 /**
  * The record that a Steam collection was made by the plugin on this device —
@@ -77,6 +80,15 @@ export interface OwnedSteamCollectionsAnswer {
   name_style: CollectionNameStyle;
   adoption_done: boolean;
   collections: OwnedSteamCollection[];
+  reason?: string;
+  message?: string;
+}
+
+/** The shortcuts whose ROM content is installed on this device, and whether their collection is kept. */
+export interface InstalledRomAppIdsAnswer {
+  success: boolean;
+  enabled: boolean;
+  app_ids: number[];
   reason?: string;
   message?: string;
 }

@@ -6,6 +6,8 @@ import pytest
 from fakes.fake_unit_of_work import FakeUnitOfWork, FakeUnitOfWorkFactory
 
 from domain.owned_steam_collection import ADOPTION_DONE_KEY, OwnedSteamCollection
+from domain.rom import Rom
+from domain.rom_install import RomInstall
 from services.steam_collections import (
     SteamCollectionOwnershipService,
     SteamCollectionOwnershipServiceConfig,
@@ -78,6 +80,55 @@ class TestGet:
                 "yielded_to": None,
             }
         ]
+
+
+def _rom(rom_id: int, *, bound: bool = True) -> Rom:
+    return Rom(
+        rom_id=rom_id,
+        platform_slug="snes",
+        name=f"Game {rom_id}",
+        fs_name=f"g{rom_id}",
+        shortcut_app_id=(5000 + rom_id) if bound else None,
+        last_synced_at="2026-01-01T00:00:00",
+    )
+
+
+def _install(rom_id: int) -> RomInstall:
+    return RomInstall.mark_installed(
+        rom_id=rom_id,
+        file_path=f"/roms/snes/g{rom_id}.sfc",
+        rom_dir=None,
+        platform_slug="snes",
+        system="snes",
+        installed_at="2026-11-27T10:00:00+00:00",
+    )
+
+
+class TestInstalledRomAppIds:
+    def test_empty_library_is_enabled_with_nothing_installed(self, service):
+        assert service.get_installed_rom_app_ids() == {"success": True, "enabled": True, "app_ids": []}
+
+    def test_only_installed_and_bound_roms_count(self, service, uow):
+        with uow:
+            for rom in (_rom(1), _rom(2), _rom(3, bound=False), _rom(4)):
+                uow.roms.save(rom)
+            uow.rom_installs.save(_install(4))
+            uow.rom_installs.save(_install(1))
+            uow.rom_installs.save(_install(3))  # an installed sibling the shortcut is not bound to
+
+        assert service.get_installed_rom_app_ids()["app_ids"] == [5001, 5004]
+
+    def test_reports_the_setting(self, service, settings):
+        settings["installed_roms_collection"] = False
+        assert service.get_installed_rom_app_ids()["enabled"] is False
+
+    def test_the_installed_family_can_be_recorded(self, service, uow):
+        assert service.record_owned_steam_collection("uc-9", "installed", "Installed ROMs", "Installed ROMs", None) == {
+            "success": True
+        }
+        record = uow.owned_steam_collections.get("uc-9")
+        assert record is not None
+        assert record.family == "installed"
 
 
 class TestRecord:

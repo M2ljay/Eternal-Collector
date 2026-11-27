@@ -158,6 +158,8 @@ vi.mock("@decky/ui", () => ({
 
 // scrollToTop is a no-op in jsdom; mock for cleanliness.
 vi.mock("../utils/scrollHelpers", () => ({ scrollToTop: vi.fn() }));
+const reconcileInstalledRomsCollection = vi.hoisted(() => vi.fn(() => Promise.resolve()));
+vi.mock("../utils/collections", () => ({ reconcileInstalledRomsCollection }));
 
 // Mock the saveSortMigrationStore — own listener list + state so tests can
 // drive the subscribe/unsubscribe + state-change flow deterministically.
@@ -1675,6 +1677,49 @@ describe("SettingsPage", () => {
       });
       expect(capturedCollector[capturedCollector.length - 1]?.homeShelf).toBe(true);
       expect(getConsoleShelfState().enabled).toBe(true);
+    });
+
+    it("hydrates the Installed ROMs collection toggle from getSettings, defaulting to on", async () => {
+      render(<SettingsPage onBack={vi.fn()} />);
+      await flushAsync();
+      expect(capturedLibrary[capturedLibrary.length - 1]?.installedCollection).toBe(true);
+    });
+
+    it("hydrates the Installed ROMs collection toggle off", async () => {
+      vi.mocked(backend.getSettings).mockResolvedValue({ ...defaultSettings(), installed_roms_collection: false });
+      render(<SettingsPage onBack={vi.fn()} />);
+      await flushAsync();
+      expect(capturedLibrary[capturedLibrary.length - 1]?.installedCollection).toBe(false);
+    });
+
+    it("switching the Installed ROMs collection persists it, then reconciles the collection", async () => {
+      reconcileInstalledRomsCollection.mockClear();
+      vi.mocked(backend.saveInstalledRomsCollection).mockResolvedValue({ success: true });
+      render(<SettingsPage onBack={vi.fn()} />);
+      await flushAsync();
+      await act(async () => {
+        capturedLibrary[capturedLibrary.length - 1]?.onInstalledCollectionChange(false);
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+      expect(vi.mocked(backend.saveInstalledRomsCollection)).toHaveBeenCalledWith(false);
+      expect(capturedLibrary[capturedLibrary.length - 1]?.installedCollection).toBe(false);
+      expect(reconcileInstalledRomsCollection).toHaveBeenCalledTimes(1);
+    });
+
+    it("reverts the Installed ROMs collection toggle and leaves Steam alone when the save fails", async () => {
+      reconcileInstalledRomsCollection.mockClear();
+      vi.mocked(backend.saveInstalledRomsCollection).mockRejectedValue(new Error("boom"));
+      render(<SettingsPage onBack={vi.fn()} />);
+      await flushAsync();
+      await act(async () => {
+        capturedLibrary[capturedLibrary.length - 1]?.onInstalledCollectionChange(false);
+        await Promise.resolve();
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+      expect(capturedLibrary[capturedLibrary.length - 1]?.installedCollection).toBe(true);
+      expect(reconcileInstalledRomsCollection).not.toHaveBeenCalled();
     });
 
     it("hydrates the RetroAchievements Web API row from the masked settings", async () => {

@@ -13,6 +13,7 @@ import type {
   CollectionNamingMode,
   CollectionNameStyle,
   OwnedSteamCollectionsAnswer,
+  InstalledRomAppIdsAnswer,
   SteamCollectionFamily,
   RegistryPlatform,
   FirmwareStatus,
@@ -426,6 +427,8 @@ export const forgetOwnedSteamCollection = callable<[string], { success: boolean;
 export const finishSteamCollectionAdoption = callable<[], { success: boolean; reason?: string; message?: string }>(
   "finish_steam_collection_adoption",
 );
+export const getInstalledRomAppIds = callable<[], InstalledRomAppIdsAnswer>("get_installed_rom_app_ids");
+export const saveInstalledRomsCollection = callable<[boolean], { success: boolean }>("save_installed_roms_collection");
 export const getRegistryPlatforms = callable<[], { platforms: RegistryPlatform[] }>("get_registry_platforms");
 export const removePlatformShortcuts = callable<
   [string],
