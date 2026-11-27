@@ -72,6 +72,26 @@ export function findNativeOverviewIndex(children: any[]): number {
   return -1;
 }
 
+/**
+ * The element put in place of Steam's overview panel. It carries the native
+ * panel's class so it takes part in InnerContainer's flex layout and scroll
+ * system the way the native panel does. Under the Windows look it is also the
+ * Core page (`utils/corePageStyles.ts`), with the still-starfield layer first.
+ */
+export function rommPageWrapper(appId: number, panelClass: string, corePage: boolean) {
+  return (
+    <div
+      key="romm-play-section"
+      className={corePage ? `${panelClass} ${CORE_PAGE_CLASS}`.trim() : panelClass}
+      data-romm="true"
+    >
+      {corePage ? <div className="romm-core-stars" aria-hidden="true" /> : null}
+      <RomMPlaySection key="romm-play-section" appId={appId} />
+      <RomMGameInfoPanel key="romm-info-panel" appId={appId} />
+    </div>
+  );
+}
+
 export function registerRomMAppId(appId: number) {
   rommAppIds.add(appId);
 }
@@ -146,28 +166,8 @@ export function registerGameDetailPatch() {
               if (!alreadyHasPlayBtn) {
                 const nativeOverviewIdx = findNativeOverviewIndex(children);
 
-                const rommPlaySection = <RomMPlaySection key="romm-play-section" appId={appId} />;
-
-                const rommInfoPanel = <RomMGameInfoPanel key="romm-info-panel" appId={appId} />;
-
-                // Wrap in a container with the native AppDetailsOverviewPanel
-                // CSS class so it participates in InnerContainer's flex layout
-                // and scroll system the same way the native panel does.
                 const panelClass = overviewPanelClass(children, nativeOverviewIdx);
-                // On Windows the wrapper is also the Core page (corePageStyles.ts): black,
-                // with a still starfield behind the content while Core UI is on.
-                const core = nativeLook();
-                const rommWrapper = (
-                  <div
-                    key="romm-play-section"
-                    className={core ? `${panelClass} ${CORE_PAGE_CLASS}`.trim() : panelClass}
-                    data-romm="true"
-                  >
-                    {core ? <div className="romm-core-stars" aria-hidden="true" /> : null}
-                    {rommPlaySection}
-                    {rommInfoPanel}
-                  </div>
-                );
+                const rommWrapper = rommPageWrapper(appId, panelClass, nativeLook());
 
                 if (nativeOverviewIdx >= 0) {
                   detach(

@@ -72,3 +72,32 @@ describe("gameDetailPatch insertion point", () => {
     expect(m.overviewPanelClass([{ props: {} }], -1)).toBe("");
   });
 });
+
+describe("rommPageWrapper", () => {
+  afterEach(() => {
+    for (const id of [
+      "@decky/ui",
+      "../utils/deckyUiInternals",
+      "../api/backend",
+      "../components/RomMPlaySection",
+      "../components/RomMGameInfoPanel",
+    ])
+      vi.doUnmock(id);
+  });
+
+  type Wrapper = { props: { className: string; children: ({ props: { className?: string } } | null)[] } };
+
+  it("is the Core page, with the still-starfield layer first, under the Windows look", async () => {
+    const { rommPageWrapper } = await loadWith(undefined);
+    const wrapper = rommPageWrapper(7, "panel", true) as unknown as Wrapper;
+    expect(wrapper.props.className).toBe("panel romm-core-page");
+    expect(wrapper.props.children[0]?.props.className).toBe("romm-core-stars");
+  });
+
+  it("keeps the native panel's class alone elsewhere", async () => {
+    const { rommPageWrapper } = await loadWith(undefined);
+    const wrapper = rommPageWrapper(7, "panel", false) as unknown as Wrapper;
+    expect(wrapper.props.className).toBe("panel");
+    expect(wrapper.props.children[0]).toBeNull();
+  });
+});
