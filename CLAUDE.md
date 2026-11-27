@@ -471,6 +471,16 @@ record** — test + prompt-only —
   (`TestRanking`, `TestLetterbox`), `tests/services/test_case_art.py` (`TestSaveCaseArt`) and
   `src/utils/caseArt.test.ts`. A new cover read or write in `ArtworkService` that bypasses the seam is prompt-only
   ([Game case covers](docs/architecture/steam-non-steam-shortcuts.md#game-case-covers))
+- **Another plugin can never break the ROM game page or reach a path through The Collector: every registered game page
+  extension renders inside its own error boundary with the context of the ROM the panel shows at that render (a throwing
+  `isAvailable` counts as unavailable), and the mods bridge (`window.__eternalCollectorMods`) only wraps the game-mods
+  callables — a source is a Downloads entry name the bridge refuses if it holds a separator or a colon, a target an id,
+  an entry a listed name — with no callable of its own and no wrapper that throws** — test + prompt-only —
+  `src/components/GamePageExtensions.test.tsx` (throwing extension hidden and logged, version switch reaches the
+  context), `src/utils/gamePageExtensions.test.ts`, `src/utils/collectorModsBridge.test.ts` (callable mapping, paths
+  refused before the backend, rejections become `bridge_error`). A new render site for an extension outside
+  `src/components/GamePageExtensions.tsx`, or a new bridge method, is prompt-only
+  ([Forge bridge](docs/architecture/game-mods.md#forge-bridge))
 - **Every module the plugin imports at module level uses only standard-library modules Decky's frozen Windows Python
   ships, or the plugin's own fallback copy** — test — `tests/runtime/test_frozen_runtime.py` against
   `tests/runtime/decky_frozen_stdlib.txt` (a lazily imported Windows-only module is covered only once it is listed in

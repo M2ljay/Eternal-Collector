@@ -44,6 +44,7 @@ function basePanelState(): PanelState {
     romId: 7,
     romName: "Game",
     platformName: "SNES",
+    platformSlug: "snes",
     installed: false,
     installedRom: null,
     metadata: null,

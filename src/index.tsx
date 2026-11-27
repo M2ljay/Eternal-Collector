@@ -20,6 +20,7 @@ import {
   unregisterGameDetailPatch,
   registerRomMAppId,
   unregisterRomMAppId,
+  isRomMAppId,
 } from "./patches/gameDetailPatch";
 import {
   registerMetadataPatches,
@@ -64,6 +65,8 @@ import { setSaveSortMigrationStatus } from "./utils/saveSortMigrationStore";
 import { setVersionError, setServerRetryProgress } from "./utils/connectionState";
 import { initSessionManager, destroySessionManager } from "./utils/sessionManager";
 import { startNowPlayingPublisher } from "./utils/nowPlayingPublisher";
+import { installGamePageRegistry } from "./utils/gamePageExtensions";
+import { installCollectorModsBridge } from "./utils/collectorModsBridge";
 import { findOutermostScrollParent } from "./utils/scrollHelpers";
 import { detach } from "./utils/detach";
 import type {
@@ -443,6 +446,8 @@ export default definePlugin(() => {
 
   // Before the session manager starts: its reload adoption re-announces running games.
   const stopNowPlayingPublisher = startNowPlayingPublisher();
+  const uninstallGamePageRegistry = installGamePageRegistry();
+  const uninstallCollectorModsBridge = installCollectorModsBridge({ isRomApp: isRomMAppId });
 
   // Register device and initialize session manager for save sync (if enabled)
   detach(
@@ -980,6 +985,8 @@ export default definePlugin(() => {
       stopInstalledCollectionWatch();
       syncContinuationController.abort();
       stopNowPlayingPublisher();
+      uninstallCollectorModsBridge();
+      uninstallGamePageRegistry();
       destroySessionManager();
       unregisterLaunchInterceptor();
       unregisterGameDetailPatch();

@@ -5,7 +5,10 @@
  * The shell around the GAME INFO / ACHIEVEMENTS / SAVES / BIOS panes: it owns
  * the panel's ROM identity, its event lane, the tab selection, and the
  * whole-panel replacements (version mismatch, corrupt-settings reset, pending
- * RetroDECK migration) that pre-empt all of them.
+ * RetroDECK migration) that pre-empt all of them. It also hosts the tabs and
+ * Overview cards other plugins register (`utils/gamePageExtensions.ts`), handing
+ * each the context of the ROM the panel shows at that render — so a version
+ * switch reaches them through the same state write that re-keys the panes.
  *
  * The panel body itself takes no ROM-level actions — download, play, uninstall,
  * version and core selection live in the RomMPlaySection gear menu. The panes
@@ -15,7 +18,7 @@
  * CSS classes prefixed with `romm-panel-` are injected separately by styleInjector.
  */
 
-import { useState, useEffect, useRef, FC } from "react";
+import { useState, useEffect, useRef, useMemo, useCallback, FC } from "react";
 import { Focusable } from "@decky/ui";
 import { refreshMigrationState, logError } from "../api/backend";
 import { AchievementsTab } from "./AchievementsTab";
@@ -33,6 +36,19 @@ import { VersionErrorCard, useVersionError } from "./VersionErrorCard";
 import { MigrationBlockedCard } from "./MigrationBlockedCard";
 import { SettingsResetCard } from "./SettingsResetCard";
 import { detach } from "../utils/detach";
+import {
+  extensionLabel,
+  extensionTabKey,
+  useGamePageExtensions,
+  visibleExtensions,
+  DEFAULT_EXTENSION_ORDER,
+  type RomPageContext,
+} from "../utils/gamePageExtensions";
+import { ExtensionOverviewCards, ExtensionTabPane } from "./GamePageExtensions";
+
+function pageLocale(): string {
+  return globalThis.navigator.language || "en";
+}
 
 interface RomMGameInfoPanelProps {
   appId: number;
@@ -47,6 +63,7 @@ export const RomMGameInfoPanel: FC<RomMGameInfoPanelProps> = ({ appId }) => {
     romId: null,
     romName: "",
     platformName: "",
+    platformSlug: "",
     installed: false,
     installedRom: null,
     metadata: null,
@@ -117,6 +134,28 @@ export const RomMGameInfoPanel: FC<RomMGameInfoPanelProps> = ({ appId }) => {
 
   useSaveSlotsLoad(state, slotsLoadedRef, readSeqs, setState);
 
+  const extensions = useGamePageExtensions();
+  const openExtensionTab = useCallback(
+    (extensionId: string) => setState((prev) => ({ ...prev, activeTab: extensionTabKey(extensionId) })),
+    [],
+  );
+  const extensionCtx = useMemo<RomPageContext | null>(
+    () =>
+      state.romId
+        ? {
+            appId,
+            romId: state.romId,
+            name: state.romName,
+            platformSlug: state.platformSlug,
+            platformName: state.platformName,
+            installed: state.installed,
+            locale: pageLocale(),
+            openTab: openExtensionTab,
+          }
+        : null,
+    [appId, state.romId, state.romName, state.platformSlug, state.platformName, state.installed, openExtensionTab],
+  );
+
   // --- Version mismatch — replace entire panel with polished error card ---
   if (versionError) {
     return (
@@ -156,24 +195,38 @@ export const RomMGameInfoPanel: FC<RomMGameInfoPanelProps> = ({ appId }) => {
   }
 
   // --- Error / not found state ---
-  if (state.error || !state.romId) {
+  if (state.error || !state.romId || !extensionCtx) {
     return null;
   }
 
   const romId = state.romId;
+  const ctx = extensionCtx;
+  const extensionTabs = visibleExtensions(extensions, "tab", ctx);
+  const activeExtension = extensionTabs.find((e) => extensionTabKey(e.extension.id) === state.activeTab) ?? null;
+  // An extension tab that unregistered or stopped being available leaves the
+  // user on GAME INFO, the tab every ROM has, instead of an empty body.
+  const activeTab = state.activeTab.startsWith("ext:") && !activeExtension ? "info" : state.activeTab;
+  const tabState = activeTab === state.activeTab ? state : { ...state, activeTab };
 
   return (
     <div data-romm="true">
       {saveSortPending ? <SaveSortWarning key="save-sort-warning" /> : null}
       <PanelTabBar
-        activeTab={state.activeTab}
+        activeTab={activeTab}
         hasAchievements={!!state.raId}
         hasSaves={state.saveSyncEnabled}
         hasBios={!!state.biosStatus}
+        extensionTabs={extensionTabs.map((e) => ({
+          id: extensionTabKey(e.extension.id),
+          label: extensionLabel(e.extension, ctx.locale).toLocaleUpperCase(ctx.locale),
+          order: e.extension.order ?? DEFAULT_EXTENSION_ORDER,
+        }))}
         onSelect={(tabId) => setState((prev) => ({ ...prev, activeTab: tabId }))}
       />
       <Focusable noFocusRing={true} className="romm-tab-content" style={{ paddingBottom: "48px" }}>
-        {buildTabContent({ appId, binding: bindRomInState(romId, setState), state })}
+        {activeTab === "info" ? <ExtensionOverviewCards key="ext-cards" entries={extensions} ctx={ctx} /> : null}
+        {activeExtension ? <ExtensionTabPane key="ext-tab" entry={activeExtension} ctx={ctx} /> : null}
+        {buildTabContent({ appId, binding: bindRomInState(romId, setState), state: tabState })}
         {/* Mounted for every ROM and rendering nothing until their tab is active.
             For achievements that is load-bearing: the list is fetched by the tab
             itself, and unmounting it on a tab switch would re-fetch (and re-spinner)
@@ -184,13 +237,13 @@ export const RomMGameInfoPanel: FC<RomMGameInfoPanelProps> = ({ appId }) => {
           key={`achievements-${romId}`}
           romId={romId}
           raId={state.raId}
-          isActive={state.activeTab === "achievements"}
+          isActive={activeTab === "achievements"}
         />
         <BiosTab
           biosStatus={state.biosStatus}
           biosLevel={state.biosLevel}
           coreInfo={state.coreInfo}
-          isActive={state.activeTab === "bios"}
+          isActive={activeTab === "bios"}
         />
       </Focusable>
     </div>

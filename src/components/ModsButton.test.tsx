@@ -1,8 +1,9 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import { render, fireEvent } from "@testing-library/react";
+import { render, fireEvent, act } from "@testing-library/react";
 import { ModsButton } from "./ModsButton";
 import { showModsModal } from "./ModsModal";
 import { nativeLook } from "../utils/nativeLook";
+import { _resetGamePageExtensionsForTests, registerGamePageExtension } from "../utils/gamePageExtensions";
 
 vi.mock("./ModsModal", () => ({ showModsModal: vi.fn() }));
 vi.mock("../utils/nativeLook", () => ({
@@ -15,6 +16,7 @@ vi.mock("../utils/nativeLook", () => ({
 }));
 
 beforeEach(() => {
+  _resetGamePageExtensionsForTests();
   vi.mocked(showModsModal).mockClear();
   vi.mocked(nativeLook).mockReturnValue(true);
 });
@@ -38,5 +40,23 @@ describe("ModsButton", () => {
     vi.mocked(nativeLook).mockReturnValue(false);
     const { queryByTitle } = render(<ModsButton romId={5} romName="x" installed onFocus={() => {}} />);
     expect(queryByTitle("Mods")).toBeNull();
+  });
+
+  it("hides while Forge's Mods tab is registered and comes back when it unregisters", () => {
+    const { queryByTitle } = render(<ModsButton romId={5} romName="x" installed onFocus={() => {}} />);
+    expect(queryByTitle("Mods")).not.toBeNull();
+    let unregister: () => void = () => {};
+    act(() => {
+      unregister = registerGamePageExtension({ id: "forge.mods", kind: "tab", label: "Mods", render: () => null });
+    });
+    expect(queryByTitle("Mods")).toBeNull();
+    act(() => unregister());
+    expect(queryByTitle("Mods")).not.toBeNull();
+  });
+
+  it("stays when only another plugin's extension is registered", () => {
+    registerGamePageExtension({ id: "other.tab", kind: "tab", label: "Other", render: () => null });
+    const { queryByTitle } = render(<ModsButton romId={5} romName="x" installed onFocus={() => {}} />);
+    expect(queryByTitle("Mods")).not.toBeNull();
   });
 });

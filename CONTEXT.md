@@ -399,6 +399,15 @@ the emulator's folder and the game's identifier were both read exactly; otherwis
 **mod backup** is where the Mods panel moves what an install replaces or a removal takes away, and the ini before a
 setting edit: `romm-mod-backups\<stamp>\<target>` inside the emulator's own data folder. Nothing in the feature deletes.
 
+### Game page extension / mods bridge
+
+A **game page extension** is a tab or an Overview card another Decky plugin registers on the ROM game page through the
+**game page registry** (`window.__eternalGamePage`, `src/utils/gamePageExtensions.ts`); The Collector renders it with
+the current ROM's context, each in its own error boundary. The **mods bridge** (`window.__eternalCollectorMods`,
+`src/utils/collectorModsBridge.ts`) lets such a plugin — Forge — install into a ROM's mod targets by Steam appId through
+The Collector's game-mods callables, naming a source only by its Downloads entry name. Together they are the **Forge
+bridge**.
+
 ### Fork build / release channel / kept build
 
 A **fork build** is a Windows build of this fork, versioned `X.Y.Z-win.N`; `N` counts fork builds of one upstream

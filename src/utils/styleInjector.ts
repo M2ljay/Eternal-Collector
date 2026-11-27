@@ -627,6 +627,12 @@ export function hideNativePlaySection(playSectionClass: string) {
 .romm-tab-content {
   padding: 16px 2.8vw;
   background: ${tint(core.gunmetal, 0.6)};
+}
+.romm-ext-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 16px;
 }`;
     sp.window.document.head.appendChild(tabStyle);
   }

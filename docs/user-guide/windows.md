@@ -191,6 +191,18 @@ Close the emulator first: the plugin refuses while it is running. It copies the 
 that one line. If the ini has anything unusual in it (a section or key twice, a line it doesn't understand) the button
 is not offered — change the setting in the emulator instead.
 
+### With Forge
+
+When the Forge plugin is installed, a ROM's game page gets a **MODS** tab beside GAME INFO, ACHIEVEMENTS, SAVES and
+BIOS, and a Mods card at the top of GAME INFO (how many mods are active, any updates waiting, and a way into the tab).
+Forge finds and downloads mods; The Collector still does every install, into the folders in the table above, with the
+same preview, backups and **Turn On** setting. The puzzle-piece Mods button is hidden while Forge's tab is there; remove
+or disable Forge and the button comes back.
+
+Forge saves what it downloads into `%USERPROFILE%\Downloads`, the same folder **Install from Downloads** lists, so a mod
+Forge fetched can also be installed from the panel and the other way round. If Forge's tab or card ever fails to draw,
+it is left out and the rest of the page works as usual.
+
 ## Updates
 
 This build updates itself from the fork's own releases; it is not on the Decky store. When a newer build is published

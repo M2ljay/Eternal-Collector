@@ -49,6 +49,7 @@ vi.mock("./patches/gameDetailPatch", () => ({
   unregisterGameDetailPatch: vi.fn(),
   registerRomMAppId: vi.fn(),
   unregisterRomMAppId: vi.fn(),
+  isRomMAppId: vi.fn(() => false),
 }));
 vi.mock("./patches/homeShelfPatch", () => ({
   registerHomeShelfPatch: vi.fn(),
@@ -447,6 +448,18 @@ describe("index.tsx — The Collector", () => {
     expect(unregisterHomeShelfPatch).toHaveBeenCalled();
     expect(routerHook.removeRoute).toHaveBeenCalledWith("/the-collector/console/:slug");
     expect(deckyEventListenerCount("save_status_updated")).toBe(0);
+  });
+
+  it("publishes the game page registry and the mods bridge, and withdraws both on dismount", () => {
+    const g = globalThis as unknown as Record<string, { version: number } | undefined>;
+    const plugin = pluginFactory();
+
+    expect(g.__eternalGamePage?.version).toBe(1);
+    expect(g.__eternalCollectorMods?.version).toBe(1);
+
+    plugin.onDismount();
+    expect(g.__eternalGamePage).toBeUndefined();
+    expect(g.__eternalCollectorMods).toBeUndefined();
   });
 });
 

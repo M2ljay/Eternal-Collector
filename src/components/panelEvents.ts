@@ -246,6 +246,7 @@ async function handleVersionSwitched(
       ...prev,
       romId: newRomId,
       romName: cached.rom_name || prev.romName,
+      platformSlug: cached.platform_slug || prev.platformSlug,
       installed: cached.installed ?? false,
       // Cleared rather than overwritten: `refreshInstalledRomInBackground`
       // writes only on a truthy answer, so a failed or empty read would leave

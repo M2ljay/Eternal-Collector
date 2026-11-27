@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import re
+from pathlib import Path
+
 import pytest
 
 from domain.disc_ids import GAMECUBE, N3DS, PS2, PSP, WII, DiscCode
@@ -9,6 +12,7 @@ from domain.game_mods import (
     AZAHAR,
     DOLPHIN,
     DOLPHIN_HIRES_TEXTURES,
+    IDENTIFIER_FAMILIES,
     PCSX2,
     PCSX2_LOAD_TEXTURE_REPLACEMENTS,
     PPSSPP,
@@ -506,3 +510,12 @@ def test_backup_dir():
     assert backup_dir("C:\\D\\User", "20261124-1-ab", "textures") == (
         "C:\\D\\User\\romm-mod-backups\\20261124-1-ab\\textures"
     )
+
+
+def test_forge_bridge_identifier_families_mirror_the_domain():
+    """The mods bridge reports ``family`` from a copy of ``IDENTIFIER_FAMILIES`` in the frontend; keep them equal."""
+    source = (Path(__file__).resolve().parents[2] / "src" / "utils" / "collectorModsBridge.ts").read_text("utf-8")
+    block = re.search(r"const IDENTIFIER_FAMILIES[^{]*\{(?P<body>[^}]*)\}", source)
+    assert block is not None
+    mirrored = dict(re.findall(r'(\w+):\s*"([^"]+)"', block.group("body")))
+    assert mirrored == IDENTIFIER_FAMILIES
