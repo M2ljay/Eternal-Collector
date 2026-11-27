@@ -7,7 +7,7 @@
  */
 
 import type { FC } from "react";
-import { FaPuzzlePiece } from "react-icons/fa";
+import { PuzzleIcon } from "./icons";
 import { nativeLook, NativeMenuButton } from "../utils/nativeLook";
 import { showModsModal } from "./ModsModal";
 import { FORGE_MODS_EXTENSION_ID, hasGamePageExtension, useGamePageExtensions } from "../utils/gamePageExtensions";
@@ -24,7 +24,7 @@ export const ModsButton: FC<ModsButtonProps> = ({ romId, romName, installed, onF
   if (!nativeLook() || !installed || !romId || hasGamePageExtension(extensions, FORGE_MODS_EXTENSION_ID)) return null;
   return (
     <NativeMenuButton onClick={() => showModsModal(romId, romName)} onFocus={onFocus} title="Mods">
-      <FaPuzzlePiece size={22} />
+      <PuzzleIcon size={22} />
     </NativeMenuButton>
   );
 };

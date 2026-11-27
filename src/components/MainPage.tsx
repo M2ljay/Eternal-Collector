@@ -12,7 +12,7 @@ import {
   ConfirmModal,
   showModal,
 } from "@decky/ui";
-import { FaCheckCircle, FaTimesCircle, FaExclamationTriangle } from "react-icons/fa";
+import { CheckCircleIcon, CrossCircleIcon, WarningIcon } from "./icons";
 import {
   cancelSync,
   getSettings,
@@ -126,7 +126,7 @@ export const ConnectionIndicator: FC<{
   if (connected === "backend_failed") {
     return (
       <>
-        <FaExclamationTriangle style={{ color: core.warning, fontSize: "14px" }} />
+        <WarningIcon style={{ color: core.warning, fontSize: "14px" }} />
         <span style={{ fontSize: "12px" }}>Backend error</span>
       </>
     );
@@ -142,14 +142,14 @@ export const ConnectionIndicator: FC<{
   if (connected) {
     return (
       <>
-        <FaCheckCircle style={{ color: core.success, fontSize: "14px" }} />
+        <CheckCircleIcon style={{ color: core.success, fontSize: "14px" }} />
         <span style={{ fontSize: "12px" }}>Connected</span>
       </>
     );
   }
   return (
     <>
-      <FaTimesCircle style={{ color: core.crimsonText, fontSize: "14px" }} />
+      <CrossCircleIcon style={{ color: core.crimsonText, fontSize: "14px" }} />
       <span style={{ fontSize: "12px" }}>{connectionFailureLabel(failure)}</span>
     </>
   );

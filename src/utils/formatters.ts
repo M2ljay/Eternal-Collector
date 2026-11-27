@@ -1,5 +1,8 @@
 import type { EntryKind } from "../types";
 
+/** Short English month names, January first. */
+export const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"] as const;
+
 /** Format a Unix timestamp (seconds) as a coarse human-readable date.
  *  Returns "Never" for zero/negative, "Today"/"Yesterday"/"Xd ago" for recent,
  *  and "DD. Mon." (or "DD. Mon. YYYY" if not the current year) for older. */
@@ -14,9 +17,8 @@ export function formatLastPlayed(timestamp: number): string {
   if (diffDays === 1) return "Yesterday";
   if (diffDays < 7) return `${diffDays} days ago`;
 
-  const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
   const day = date.getDate();
-  const month = months[date.getMonth()];
+  const month = MONTHS[date.getMonth()];
   const year = date.getFullYear();
   if (year === now.getFullYear()) return `${day}. ${month}.`;
   return `${day}. ${month}. ${year}`;
@@ -39,6 +41,27 @@ export function formatPlaytime(minutes: number): string {
   const remainingMin = minutes % 60;
   if (remainingMin === 0) return hours === 1 ? "1 Hour" : `${hours} Hours`;
   return `${hours}h ${remainingMin}m`;
+}
+
+/** A byte count, or "unknown" when there is none (a size of 0 is not a real answer here). */
+export function formatSizeOrUnknown(bytes: number | null): string {
+  if (bytes == null || bytes === 0) return "unknown";
+  return formatBytes(bytes);
+}
+
+/**
+ * An ISO-8601 time as "just now" / "5m ago" / "3h ago" / "12 Mar". `none` is the
+ * answer for no time at all, `invalid` for one that does not parse.
+ */
+export function formatRelativeTime(isoStr: string | null, none: string, invalid: string): string {
+  if (!isoStr) return none;
+  const date = new Date(isoStr);
+  if (Number.isNaN(date.getTime())) return invalid;
+  const diffMin = Math.floor((Date.now() - date.getTime()) / 60000);
+  if (diffMin < 1) return "just now";
+  if (diffMin < 60) return `${diffMin}m ago`;
+  if (diffMin < 1440) return `${Math.floor(diffMin / 60)}h ago`;
+  return `${date.getDate()} ${MONTHS[date.getMonth()]}`;
 }
 
 export function formatTimestamp(iso: string | null): string {

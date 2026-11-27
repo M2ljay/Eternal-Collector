@@ -174,10 +174,6 @@ export function hideNativePlaySection(playSectionClass: string) {
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.romm-info-muted .romm-info-value {
-  color: ${core.hint};
-  font-style: italic;
-}
 .romm-status-dot {
   display: inline-block;
   width: 8px;
@@ -188,9 +184,6 @@ export function hideNativePlaySection(playSectionClass: string) {
 @keyframes romm-pulse {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.3; }
-}
-.romm-status-dot-pulse {
-  animation: romm-pulse 1.5s ease-in-out infinite;
 }`;
     sp.window.document.head.appendChild(infoStyle);
   }
@@ -266,58 +259,6 @@ export function hideNativePlaySection(playSectionClass: string) {
   color: ${core.hint};
   border: 1px solid ${core.gunmetalRaised};
 }
-.romm-panel-status-row {
-  display: flex;
-  gap: 12px;
-  align-items: center;
-}
-.romm-panel-status-badge {
-  font-size: 11px;
-  padding: 3px 10px;
-  border-radius: 3px;
-  font-weight: 600;
-}
-.romm-panel-status-installed {
-  background: ${tint(core.success, 0.2)};
-  color: ${core.success};
-}
-.romm-panel-status-not-installed {
-  background: ${tint(core.neutral, 0.15)};
-  color: ${core.hint};
-}
-.romm-panel-platform-badge {
-  font-size: 11px;
-  padding: 3px 10px;
-  border-radius: 3px;
-  font-weight: 600;
-  background: ${core.gunmetalRaised};
-  color: ${core.steel};
-}
-.romm-panel-actions-row {
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-.romm-panel-action-btn {
-  font-size: 12px;
-  padding: 6px 14px;
-  border-radius: 3px;
-  background: ${core.gunmetal};
-  color: ${core.text};
-  border: 1px solid ${core.gunmetalRaised};
-  cursor: pointer;
-}
-.romm-panel-action-btn:hover, .romm-panel-action-btn.gpfocus {
-  background: ${core.gunmetalRaised};
-  filter: brightness(1.1);
-}
-.romm-panel-action-destructive {
-  color: ${core.crimsonText};
-  border-color: ${tint(core.crimson, 0.3)};
-}
-.romm-panel-action-destructive:hover, .romm-panel-action-destructive.gpfocus {
-  background: ${tint(core.crimson, 0.15)};
-}
 .romm-panel-muted {
   color: ${core.hint};
   font-size: 13px;
@@ -327,12 +268,6 @@ export function hideNativePlaySection(playSectionClass: string) {
   color: ${core.hint};
   font-size: 13px;
   padding: 8px 0;
-}
-.romm-panel-status-action-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
 }
 .romm-panel-status-inline {
   display: flex;
@@ -356,25 +291,6 @@ export function hideNativePlaySection(playSectionClass: string) {
   font-size: 12px;
   color: ${core.text};
   font-weight: 500;
-}
-.romm-panel-file-path {
-  font-size: 11px;
-  color: ${core.hint};
-  font-family: monospace;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  max-width: 100%;
-}
-.romm-panel-file-detail {
-  font-size: 11px;
-  color: ${core.hint};
-  white-space: nowrap;
-}
-.romm-panel-file-conflict {
-  font-size: 11px;
-  color: ${core.crimsonText};
-  font-weight: 600;
 }
 /* Slot panel (collapsible) */
 .romm-slot-panel {
@@ -558,7 +474,7 @@ export function hideNativePlaySection(playSectionClass: string) {
    the element because Steam repaints a destructive-tone MenuItem red when it
    takes gamepad focus: it flips the row's TEXT to stay legible, but an inline
    icon colour survives that repaint and the red trash disappears into the red
-   row. The icon sets no colour prop, so it is fill:currentColor and these rules
+   row. The icon sets no colour prop, so it is stroke:currentColor and these rules
    own both states.
 
    The -row modifier gates the focused colour to the menu row ONLY. The
@@ -744,13 +660,6 @@ export function hideNativePlaySection(playSectionClass: string) {
 .romm-cheevo-points-locked {
   color: ${core.hint};
   background: ${core.gunmetal};
-}
-.romm-cheevo-earned-label {
-  font-size: 10px;
-  color: ${core.success};
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.3px;
 }
 .romm-cheevo-section-title {
   font-size: 10px;

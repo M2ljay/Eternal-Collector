@@ -18,7 +18,7 @@
 import { useState, useEffect, useRef, FC, ReactNode } from "react";
 import { addEventListener, removeEventListener } from "@decky/api";
 import { Menu, MenuItem, showContextMenu, DialogButton } from "@decky/ui";
-import { FaCompactDisc, FaChevronDown } from "react-icons/fa";
+import { DiscIcon, ChevronDownIcon } from "./icons";
 import { getCachedGameDetail, getDiscSelection, selectDisc, logError, logWarn } from "../api/backend";
 import type { DiscSelection } from "../api/backend";
 import { setLaunchOptionsConfirmed } from "../utils/steamShortcuts";
@@ -54,8 +54,8 @@ const DiscStack: FC<{ size: number; color: string }> = ({ size, color }) => {
   const step = Math.round(size * 0.3);
   return (
     <span style={{ position: "relative", display: "inline-block", width: size + step, height: size + step, color }}>
-      <FaCompactDisc size={size} style={{ position: "absolute", left: step, top: step, opacity: 0.55 }} />
-      <FaCompactDisc size={size} style={{ position: "absolute", left: 0, top: 0, opacity: 1 }} />
+      <DiscIcon size={size} style={{ position: "absolute", left: step, top: step, opacity: 0.55 }} />
+      <DiscIcon size={size} style={{ position: "absolute", left: 0, top: 0, opacity: 1 }} />
     </span>
   );
 };
@@ -63,7 +63,7 @@ const DiscStack: FC<{ size: number; color: string }> = ({ size, color }) => {
 /** One CD + its number — the "Disc N" face. */
 const DiscWithNumber: FC<{ size: number; color: string; num: string }> = ({ size, color, num }) => (
   <span style={{ display: "inline-flex", alignItems: "center", gap: "4px", color }}>
-    <FaCompactDisc size={size} />
+    <DiscIcon size={size} />
     <span style={{ fontWeight: 600, fontSize: `${Math.round(size * 0.6)}px` }}>{num}</span>
   </span>
 );
@@ -192,7 +192,7 @@ export const DiscSelector: FC<DiscSelectorProps> = ({ appId }) => {
   // Options: the m3u "all discs" default (when present) followed by each disc.
   const options: { data: DiscOptionData; icon: ReactNode; text: string }[] = [];
   if (isM3u) options.push({ data: null, icon: <DiscStack size={16} color={DISC_GREY} />, text: dflt.label });
-  for (const disc of discs) options.push({ data: disc.filename, icon: <FaCompactDisc size={16} />, text: disc.label });
+  for (const disc of discs) options.push({ data: disc.filename, icon: <DiscIcon size={16} />, text: disc.label });
 
   // A custom compact trigger + showContextMenu for the anchored list. Steam's
   // <Dropdown> renders full-width and clips a custom icon face, so we own the
@@ -232,7 +232,7 @@ export const DiscSelector: FC<DiscSelectorProps> = ({ appId }) => {
       ) : (
         <DiscWithNumber size={22} color={isPinned ? DISC_ACCENT : DISC_GREY} num={activeNum} />
       )}
-      <FaChevronDown size={10} color={core.steel} />
+      <ChevronDownIcon size={10} color={core.steel} />
     </DialogButton>
   );
 };

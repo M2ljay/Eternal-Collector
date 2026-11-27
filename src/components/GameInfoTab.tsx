@@ -15,6 +15,7 @@
 import { FC, type ReactElement } from "react";
 import type { InstalledRom, RomMetadata } from "../types";
 import { infoRow, section } from "./panelSection";
+import { MONTHS } from "../utils/formatters";
 
 interface GameInfoTabProps {
   /** The RomM game name (distinct from the Steam shortcut hero title, which can differ). */
@@ -32,8 +33,7 @@ interface GameInfoTabProps {
 function formatReleaseDate(timestamp: number | null): string | null {
   if (!timestamp || timestamp <= 0) return null;
   const date = new Date(timestamp * 1000);
-  const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-  return `${date.getDate()} ${months[date.getMonth()]} ${date.getFullYear()}`;
+  return `${date.getDate()} ${MONTHS[date.getMonth()]} ${date.getFullYear()}`;
 }
 
 /** The rows a RomM metadata record contributes, in display order. */

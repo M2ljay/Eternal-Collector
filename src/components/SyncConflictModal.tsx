@@ -3,7 +3,7 @@ import { showToast } from "../utils/toast";
 import { ModalRoot, DialogButton, showModal } from "@decky/ui";
 import { resolveSyncConflict, logError } from "../api/backend";
 import type { SyncConflict } from "../types";
-import { formatBytes, formatTimestamp } from "../utils/formatters";
+import { formatSizeOrUnknown, formatTimestamp } from "../utils/formatters";
 import { core, tint } from "../theme/coreTokens";
 
 type SyncConflictAction = "keep_local" | "use_server";
@@ -18,10 +18,6 @@ interface SyncConflictModalProps {
 }
 
 /** "unknown" when bytes is null or 0 — otherwise the shared byte formatter output. */
-function formatSize(bytes: number | null): string {
-  if (bytes == null || bytes === 0) return "unknown";
-  return formatBytes(bytes);
-}
 
 /**
  * Controlled modal: parent owns isLoading + errorMessage. Three actions:
@@ -86,7 +82,7 @@ const SyncConflictModal: FC<SyncConflictModalProps> = ({
             Your local save
           </div>
           <div style={{ fontSize: "12px", color: core.steel, marginBottom: "2px" }}>
-            {formatSize(conflict.local_size)} · modified {formatTimestamp(conflict.local_mtime)}
+            {formatSizeOrUnknown(conflict.local_size)} · modified {formatTimestamp(conflict.local_mtime)}
           </div>
           <div style={{ marginTop: "8px" }}>
             <DialogButton onClick={() => handleResolve("keep_local")} disabled={isLoading}>
@@ -109,7 +105,7 @@ const SyncConflictModal: FC<SyncConflictModalProps> = ({
             Server save (id={conflict.server_save_id})
           </div>
           <div style={{ fontSize: "12px", color: core.steel, marginBottom: "2px" }}>
-            {formatSize(conflict.server_size)} · uploaded {formatTimestamp(conflict.server_updated_at)}
+            {formatSizeOrUnknown(conflict.server_size)} · uploaded {formatTimestamp(conflict.server_updated_at)}
           </div>
           <div style={{ marginTop: "8px" }}>
             <DialogButton onClick={() => handleResolve("use_server")} disabled={isLoading}>

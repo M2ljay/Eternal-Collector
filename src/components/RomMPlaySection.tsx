@@ -15,7 +15,7 @@ import { showToast } from "../utils/toast";
 import { ConfirmModal, Focusable, Menu, MenuItem, MenuSeparator, showContextMenu, showModal } from "@decky/ui";
 import { basicAppDetailsSectionStylerClasses, playSectionClasses } from "../utils/deckyUiInternals";
 import { ensureNativeLookStyles, joinCls, nativeLook, NativeMenuButton, rc } from "../utils/nativeLook";
-import { FaCog, FaMicrochip, FaExclamationTriangle } from "react-icons/fa";
+import { CogIcon, ChipIcon, WarningIcon } from "./icons";
 import { CustomPlayButton } from "./CustomPlayButton";
 import { DiscSelector } from "./DiscSelector";
 import { ExeSelector } from "./ExeSelector";
@@ -932,7 +932,7 @@ export const RomMPlaySection: FC<RomMPlaySectionProps> = ({ appId }) => { // NOS
     infoItems.push(
       <div key="offline-indicator" className={rc("romm-info-item")}>
         <div className={rc("romm-info-header")}>
-          <FaExclamationTriangle size={12} color={core.warning} />
+          <WarningIcon size={12} color={core.warning} />
         </div>
         <div className={rc("romm-info-value")} style={{ color: core.warning }}>
           RomM offline
@@ -1037,11 +1037,11 @@ export const RomMPlaySection: FC<RomMPlaySectionProps> = ({ appId }) => { // NOS
         </div>
         <Focusable className={basicAppDetailsSectionStylerClasses?.AppButtons} flow-children="row">
           <NativeMenuButton onClick={showRomMMenu} onFocus={scrollToTop} title="Options">
-            <FaCog size={22} />
+            <CogIcon size={22} />
           </NativeMenuButton>
           {detail.emulators.length > 1 ? (
             <NativeMenuButton key="core-btn" onClick={showCoreMenu} onFocus={scrollToTop} title="Emulator Core">
-              <FaMicrochip size={22} />
+              <ChipIcon size={22} />
             </NativeMenuButton>
           ) : null}
           <ModsButton
@@ -1100,7 +1100,7 @@ export const RomMPlaySection: FC<RomMPlaySectionProps> = ({ appId }) => { // NOS
         }}
       >
         <NativeMenuButton className="romm-gear-btn" onClick={showRomMMenu} onFocus={scrollToTop} title="Options">
-          <FaCog size={18} color={core.steel} />
+          <CogIcon size={18} color={core.steel} />
         </NativeMenuButton>
         {/* Core selection button (only when multiple emulators to choose between) */}
         {detail.emulators.length > 1 ? (
@@ -1111,7 +1111,7 @@ export const RomMPlaySection: FC<RomMPlaySectionProps> = ({ appId }) => { // NOS
             onFocus={scrollToTop}
             title="Emulator Core"
           >
-            <FaMicrochip size={18} color={detail.activeCoreIsDefault ? core.steel : core.crimson} />
+            <ChipIcon size={18} color={detail.activeCoreIsDefault ? core.steel : core.crimson} />
           </NativeMenuButton>
         ) : null}
       </div>

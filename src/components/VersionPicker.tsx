@@ -31,7 +31,7 @@ import { useState, useEffect, useRef, FC, ReactNode } from "react";
 import { addEventListener, removeEventListener } from "@decky/api";
 import { showToast } from "../utils/toast";
 import { Menu, MenuItem, showContextMenu, DialogButton } from "@decky/ui";
-import { FaChevronDown, FaCompactDisc, FaLayerGroup, FaTrash } from "react-icons/fa";
+import { ChevronDownIcon, DiscIcon, LayersIcon, TrashIcon } from "./icons";
 import {
   getVersionList,
   switchVersion,
@@ -108,7 +108,7 @@ const REMOVE_LOCAL_DATA_LABEL = "Remove local data";
  * background stays dark).
  */
 const RemoveLocalDataIcon: FC<{ onMenuRow?: boolean; style?: React.CSSProperties }> = ({ onMenuRow, style }) => (
-  <FaTrash
+  <TrashIcon
     size={14}
     role="img"
     aria-label={REMOVE_LOCAL_DATA_LABEL}
@@ -251,7 +251,7 @@ export const VersionPicker: FC<VersionPickerProps> = ({ appId }) => {
   // menu open — is deliberate: showContextMenu renders a static element, so a
   // cover fetched after the menu opened would not appear until it reopened;
   // loading now means covers are ready by the first open, and cache-first keeps
-  // repeat renders cheap. Rows still without art keep the FaCompactDisc fallback.
+  // repeat renders cheap. Rows still without art keep the DiscIcon fallback.
   // The `cancelled` guard drops an in-flight setState if the panel unmounts (or
   // the list changes) mid-fetch, matching the panel's fetch-helper pattern.
   useEffect(() => {
@@ -494,7 +494,7 @@ export const VersionPicker: FC<VersionPickerProps> = ({ appId }) => {
         />
       );
     }
-    return <FaCompactDisc size={20} color={NEUTRAL_GREY} style={{ flexShrink: 0 }} />;
+    return <DiscIcon size={20} color={NEUTRAL_GREY} style={{ flexShrink: 0 }} />;
   };
 
   const rowAvailabilityHint = (v: VersionInfo): ReactNode => {
@@ -566,11 +566,11 @@ export const VersionPicker: FC<VersionPickerProps> = ({ appId }) => {
       title="Version"
       style={switching ? { opacity: 0.55 } : {}}
     >
-      <FaLayerGroup size={20} color={activeIsDefault ? NEUTRAL_GREY : ACTIVE_ACCENT} />
+      <LayersIcon size={20} color={activeIsDefault ? NEUTRAL_GREY : ACTIVE_ACCENT} />
       {switching ? (
         <span className="romm-throbber" style={{ width: "14px", height: "14px" }} />
       ) : (
-        <FaChevronDown size={10} color={core.steel} />
+        <ChevronDownIcon size={10} color={core.steel} />
       )}
     </DialogButton>
   );

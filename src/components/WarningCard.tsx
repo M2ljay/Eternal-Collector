@@ -1,5 +1,5 @@
 import { FC } from "react";
-import { FaExclamationTriangle } from "react-icons/fa";
+import { WarningIcon } from "./icons";
 import { core, tint } from "../theme/coreTokens";
 
 interface WarningCardProps {
@@ -27,7 +27,7 @@ export const WarningCard: FC<WarningCardProps> = ({ title, message, compact = fa
         margin: compact ? "8px 4px" : "24px 2.8vw",
       }}
     >
-      <FaExclamationTriangle style={{ color: core.warning, fontSize: compact ? "28px" : "42px" }} />
+      <WarningIcon style={{ color: core.warning, fontSize: compact ? "28px" : "42px" }} />
       <div
         style={{
           fontSize: compact ? "15px" : "19px",

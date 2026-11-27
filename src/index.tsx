@@ -1,7 +1,7 @@
 import { definePlugin, addEventListener, removeEventListener, routerHook, toaster } from "@decky/api";
 import { showToast, PLUGIN_NAME, PLUGIN_DISPLAY_NAME } from "./utils/toast";
 import { useState, useRef, useEffect, FC, type ReactNode } from "react";
-import { FaGamepad } from "react-icons/fa";
+import { GamepadIcon } from "./components/icons";
 import { MainPage } from "./components/MainPage";
 import { SettingsPage } from "./components/SettingsPage";
 import { LibraryPage } from "./components/LibraryPage";
@@ -977,7 +977,7 @@ export default definePlugin(() => {
   return {
     name: PLUGIN_NAME,
     titleView: <div style={{ flex: 0.9 }}>{PLUGIN_DISPLAY_NAME}</div>,
-    icon: <FaGamepad />,
+    icon: <GamepadIcon />,
     content: <QAMPanel />,
     alwaysRender: true,
     onDismount() {

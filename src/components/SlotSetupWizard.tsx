@@ -22,7 +22,7 @@ import {
   setServerRetryProgress,
   settleServerLoad,
 } from "../utils/connectionState";
-import { formatBytes } from "../utils/formatters";
+import { formatBytes, formatSizeOrUnknown } from "../utils/formatters";
 import type { SaveSetupInfo, SlotMigrationConflict } from "../types";
 import { detach } from "../utils/detach";
 import { ConnectingIndicator } from "./saves/ConnectingIndicator";
@@ -109,10 +109,6 @@ const CustomSlotModal: FC<{
 };
 
 /** "unknown" for a null/zero byte count; otherwise the shared byte formatter. */
-function formatSize(bytes: number | null): string {
-  if (bytes == null || bytes === 0) return "unknown";
-  return formatBytes(bytes);
-}
 
 /** Informed confirmation for a legacy migration whose target already has a
  *  differing local save (#1498). Both sides are shown with size + timestamp —
@@ -158,7 +154,7 @@ const LegacyMigrationConflictModal: FC<{
                   Your local save
                 </div>
                 <div style={{ fontSize: "11px", color: core.steel }}>
-                  {formatSize(c.local_size)} · modified {formatTimestamp(c.local_mtime)}
+                  {formatSizeOrUnknown(c.local_size)} · modified {formatTimestamp(c.local_mtime)}
                 </div>
               </div>
               <div
@@ -174,7 +170,7 @@ const LegacyMigrationConflictModal: FC<{
                   Legacy save on server
                 </div>
                 <div style={{ fontSize: "11px", color: core.steel }}>
-                  {formatSize(c.server_size)} · saved {formatTimestamp(c.server_updated_at)}
+                  {formatSizeOrUnknown(c.server_size)} · saved {formatTimestamp(c.server_updated_at)}
                 </div>
               </div>
             </div>

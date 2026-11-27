@@ -24,7 +24,7 @@
 import { useState, useEffect, useRef, FC } from "react";
 import { addEventListener, removeEventListener } from "@decky/api";
 import { Menu, MenuItem, showContextMenu, DialogButton } from "@decky/ui";
-import { FaWindows, FaChevronDown } from "react-icons/fa";
+import { WindowsIcon, ChevronDownIcon } from "./icons";
 import { getCachedGameDetail, getWindowsExecutables, selectExecutable, logError, logWarn } from "../api/backend";
 import type { WindowsExecutablesAnswer } from "../api/backend";
 import { setLaunchOptionsConfirmed } from "../utils/steamShortcuts";
@@ -184,7 +184,7 @@ export const ExeSelector: FC<ExeSelectorProps> = ({ appId }) => {
                   color: active ? EXE_ACCENT : undefined,
                 }}
               >
-                <FaWindows size={16} />
+                <WindowsIcon size={16} />
                 <span>{exe.filename}</span>
                 {active ? <span style={{ marginLeft: "6px", fontWeight: 700 }}>✓</span> : null}
               </span>
@@ -198,8 +198,8 @@ export const ExeSelector: FC<ExeSelectorProps> = ({ appId }) => {
 
   return (
     <DialogButton className="romm-disc-btn" onClick={openMenu} aria-label="Executable" title="Executable">
-      <FaWindows size={22} color={isPinned ? EXE_ACCENT : EXE_GREY} />
-      <FaChevronDown size={10} color={core.steel} />
+      <WindowsIcon size={22} color={isPinned ? EXE_ACCENT : EXE_GREY} />
+      <ChevronDownIcon size={10} color={core.steel} />
     </DialogButton>
   );
 };

@@ -362,7 +362,7 @@ describe("VersionPicker — vanished retained rows (#1570)", () => {
     // An inline colour would survive Steam's repaint of the focused destructive
     // row and leave a red icon on a red row, so the element must carry none.
     expect(rowTrash.style.color).toBe("");
-    expect(rowTrash.getAttribute("fill")).toBe("currentColor");
+    expect(rowTrash.getAttribute("stroke")).toBe("currentColor");
     expect(rowTrash.classList.contains("romm-vanished-trash")).toBe(true);
     expect(rowTrash.classList.contains("romm-vanished-trash-row")).toBe(true);
   });

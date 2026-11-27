@@ -12,6 +12,7 @@
 
 import type { FC } from "react";
 import { consoleFamily, core, familyTones } from "../theme/coreTokens";
+import { CartridgeIcon, GamepadIcon } from "./icons";
 
 interface RomPageHeaderProps {
   name: string;
@@ -22,36 +23,6 @@ interface RomPageHeaderProps {
   /** Already formatted ("12 hours"); empty when none recorded. */
   playtime: string;
 }
-
-const GamepadIcon = () => (
-  <svg
-    aria-hidden="true"
-    width="20"
-    height="20"
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="1.8"
-  >
-    <path d="M7 8H17A4 4 0 0 1 21 12L20 17A2 2 0 0 1 16.5 18L15 16H9L7.5 18A2 2 0 0 1 4 17L3 12A4 4 0 0 1 7 8Z" />
-    <path d="M7 12H10M8.5 10.5V13.5" />
-  </svg>
-);
-
-const CartridgeIcon = () => (
-  <svg
-    aria-hidden="true"
-    width="20"
-    height="20"
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="1.8"
-  >
-    <path d="M6 3H18V21H16V19H8V21H6Z" />
-    <rect x="9" y="6" width="6" height="6" />
-  </svg>
-);
 
 /** "Last played 3 days ago · 12 hours played", or whichever half is known. */
 export function playLine(lastPlayed: string, playtime: string): string {
@@ -74,12 +45,12 @@ export const RomPageHeader: FC<RomPageHeaderProps> = ({ name, platformName, plat
             data-core-family={family}
             style={{ background: familyTones[family], color: core.black }}
           >
-            <GamepadIcon />
+            <GamepadIcon size={20} />
             {platformName}
           </span>
         ) : null}
         <span className="romm-core-chip">
-          <CartridgeIcon />
+          <CartridgeIcon size={20} />
           The Collector
         </span>
         {line ? <span className="romm-core-play-line">{line}</span> : null}
