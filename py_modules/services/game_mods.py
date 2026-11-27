@@ -21,13 +21,16 @@ from typing import TYPE_CHECKING, Any
 
 from domain.game_mods import (
     AZAHAR,
+    CEMU,
     DOLPHIN,
     EMULATOR_LABELS,
     IDENTIFIER_FAMILIES,
     PCSX2,
     PPSSPP,
     RETROARCH,
+    SCOPE_FILE,
     SCOPE_PATCH,
+    SCOPE_TOGGLE,
     SETTING_ON,
     SETTING_UNKNOWN,
     SOURCE_UNSUPPORTED_ARCHIVE,
@@ -38,6 +41,7 @@ from domain.game_mods import (
     OmittedTarget,
     PlanCheck,
     PlanRefusal,
+    ToggleSource,
     azahar_home,
     backup_dir,
     check_against_disk,
@@ -45,6 +49,7 @@ from domain.game_mods import (
     dolphin_home,
     enable_setting,
     identify_mod_emulator,
+    ini_value,
     join_path,
     patch_file_names,
     path_dirname,
@@ -62,6 +67,38 @@ from domain.game_mods import (
     standalone_targets,
 )
 from domain.launcher_backend import EMUDECK_BACKEND_ID
+from domain.mod_targets import (
+    TOGGLE_AZAHAR_CHEATS,
+    TOGGLE_DOLPHIN_ACTION_REPLAY,
+    TOGGLE_DOLPHIN_GECKO,
+    TOGGLE_PCSX2_PATCHES,
+    azahar_cheat_targets,
+    cemu_home,
+    cemu_targets,
+    dolphin_code_targets,
+    not_offered,
+    pcsx2_patch_targets,
+    pcsx2_pnach_matches,
+    retroarch_cheat_dir,
+    retroarch_cheat_target,
+)
+from domain.mod_toggles import (
+    DOLPHIN_ACTION_REPLAY,
+    DOLPHIN_GECKO,
+    ORIGIN_BUILTIN,
+    PCSX2_CHEATS,
+    PCSX2_PATCHES,
+    ToggleEntry,
+    ToggleList,
+    azahar_cheats,
+    azahar_set_cheat,
+    dolphin_codes,
+    dolphin_set_code,
+    pcsx2_enabled,
+    pcsx2_entries,
+    pcsx2_set_enabled,
+    pnach_groups,
+)
 from domain.standalone_saves import emulator_executable
 from lib.list_result import ErrorCode
 
@@ -71,6 +108,7 @@ if TYPE_CHECKING:
 
     from domain.disc_ids import DiscCode
     from domain.game_mods import SettingSpec
+    from domain.shortcut_data import EmulatorInvocation
     from services.protocols import (
         ActiveCoreReader,
         Clock,
@@ -78,6 +116,7 @@ if TYPE_CHECKING:
         DiscCodeReader,
         GameModStore,
         LaunchCommandRenderer,
+        Ps2ElfCrcReader,
         UnitOfWorkFactory,
         UuidGen,
     )
@@ -85,7 +124,9 @@ if TYPE_CHECKING:
 _LIST_LIMIT = 200
 _SOURCE_LIMIT = 100
 _PREVIEW_ROWS = 200
+_SCAN_LIMIT = 2000
 _NO_FOLDER = "No known mod folder for this emulator."
+_ACCEPTS = {SCOPE_PATCH: "patch", SCOPE_FILE: "cheat_file", SCOPE_TOGGLE: "none"}
 
 
 @dataclass(frozen=True)
@@ -96,8 +137,9 @@ class GameModsServiceConfig:
     UUID source for backup-folder names), the Unit-of-Work factory (the ROM and
     its install), the per-ROM active-emulator seam and the active backend's
     renderer (together: the exact command the game launches with), the active
-    backend's id, the disc/cartridge identifier reader, and the mod-folder
-    filesystem seam — ``None`` where the platform has none.
+    backend's id, the disc/cartridge identifier reader, the mod-folder
+    filesystem seam — ``None`` where the platform has none — and the reader of
+    a PS2 image's boot ELF CRC (PCSX2 names patches and cheats by it).
     """
 
     loop: asyncio.AbstractEventLoop
@@ -111,6 +153,7 @@ class GameModsServiceConfig:
     active_backend_id: Callable[[], str]
     disc_codes: DiscCodeReader
     mod_store: GameModStore | None
+    elf_crcs: Ps2ElfCrcReader
 
 
 @dataclass(frozen=True)
@@ -145,6 +188,7 @@ class GameModsService:
         self._active_backend_id = config.active_backend_id
         self._disc_codes = config.disc_codes
         self._store = config.mod_store
+        self._elf_crcs = config.elf_crcs
         self._write_lock = asyncio.Lock()
 
     # -- callables ---------------------------------------------------------------
@@ -195,6 +239,25 @@ class GameModsService:
         async with self._write_lock:
             return await self._loop.run_in_executor(None, self._enable_setting_io, rom_id, target_id)
 
+    async def list_mod_builtins(self, rom_id: int, target_id: str) -> dict[str, Any]:
+        """List the entries a built-in-toggle target has (codes, cheats, patches) with whether each is on.
+
+        ``editable`` is false, with ``reason``, when the files are laid out in
+        a way a switch could be misread; each entry's ``can_toggle`` says
+        whether that one can be switched.
+        """
+        return await self._loop.run_in_executor(None, self._list_builtins_io, rom_id, target_id)
+
+    async def set_mod_builtin(self, rom_id: int, target_id: str, entry_id: str, enabled: bool) -> dict[str, Any]:
+        """Switch one entry of a built-in-toggle target on or off.
+
+        Edits only the lines that carry that entry's state in the one file the
+        target names, after copying the file to a backup; refused while the
+        emulator is running and when the file changed since it was read.
+        """
+        async with self._write_lock:
+            return await self._loop.run_in_executor(None, self._set_builtin_io, rom_id, target_id, entry_id, enabled)
+
     async def open_mod_folder(self, rom_id: int, target_id: str) -> dict[str, Any]:
         """Open *target_id*'s folder (or, before anything is installed, the folder it will be made in)."""
         return await self._loop.run_in_executor(None, self._open_folder_io, rom_id, target_id)
@@ -219,25 +282,61 @@ class GameModsService:
         emulator_id = identify_mod_emulator(exe)
         if exe is None or emulator_id is None:
             return _Context(None, exe, None, None, (), (), _NO_FOLDER)
+        if emulator_id not in IDENTIFIER_FAMILIES and emulator_id not in (RETROARCH, CEMU):
+            label = EMULATOR_LABELS[emulator_id]
+            return _Context(
+                emulator_id, exe, None, None, (), not_offered(emulator_id), f"Nothing is offered for {label}."
+            )
         home = self._home(emulator_id, exe)
         if home.data_root is None:
-            return _Context(emulator_id, exe, home, None, (), (), f"{_NO_FOLDER} {home.reason}.")
+            return _Context(emulator_id, exe, home, None, (), not_offered(emulator_id), f"{_NO_FOLDER} {home.reason}.")
+        if emulator_id == CEMU:
+            return _Context(emulator_id, exe, home, None, cemu_targets(home), not_offered(CEMU), None)
         if emulator_id == RETROARCH:
-            core_so = emulator.core_so if emulator is not None else None
-            info = join_path(home.data_root, "info", f"{core_so}.info") if core_so else None
-            fullpath = core_needs_fullpath(self._load_text(info)) if info else None
-            target, omitted = soft_patch_target(
-                home, install.file_path, single_file=install.rom_dir is None, needs_fullpath=fullpath
-            )
-            note = None if target is not None else _NO_FOLDER
-            targets = (target,) if target is not None else ()
-            return _Context(emulator_id, exe, home, None, targets, (omitted,) if omitted else (), note)
+            return self._retroarch_context(home, emulator, install.file_path, install.rom_dir is None)
         code = self._disc_codes.read_disc_code(install.file_path, IDENTIFIER_FAMILIES[emulator_id])
         targets, omitted = standalone_targets(home, code)
-        if not targets:
+        if not targets or code is None:
             note = f"{_NO_FOLDER} The game's ID could not be read from its file, and mod folders are named by it."
             return _Context(emulator_id, exe, home, None, (), omitted, note)
-        return _Context(emulator_id, exe, home, _code_text(code), targets, omitted, None)
+        extra, extra_omitted = self._extra_targets(home, code, install.file_path)
+        return _Context(emulator_id, exe, home, code.code, targets + extra, omitted + extra_omitted, None)
+
+    def _retroarch_context(
+        self, home: EmulatorHome, emulator: EmulatorInvocation | None, rom_path: str, single_file: bool
+    ) -> _Context:
+        data_root = home.data_root or ""
+        core_so = emulator.core_so if emulator is not None else None
+        info_text = self._load_text(join_path(data_root, "info", f"{core_so}.info")) if core_so else None
+        fullpath = core_needs_fullpath(info_text) if core_so else None
+        patch, patch_omitted = soft_patch_target(home, rom_path, single_file=single_file, needs_fullpath=fullpath)
+        cheat_dir, reason = retroarch_cheat_dir(data_root, self._load_text(join_path(data_root, "retroarch.cfg")))
+        if cheat_dir is None:
+            cheat, cheat_omitted = None, OmittedTarget("Cheat file (.cht)", reason or _NO_FOLDER)
+        else:
+            core_name = ini_value(info_text, "", "corename")
+            core_name = core_name.strip().strip('"') if core_name else None
+            cheat, cheat_omitted = retroarch_cheat_target(cheat_dir, core_name, rom_path, single_file=single_file)
+        targets = tuple(t for t in (patch, cheat) if t is not None)
+        omitted = tuple(o for o in (patch_omitted, cheat_omitted) if o is not None)
+        exe = home.exe
+        return _Context(RETROARCH, exe, home, None, targets, omitted, None if targets else _NO_FOLDER)
+
+    def _extra_targets(
+        self, home: EmulatorHome, code: DiscCode, rom_path: str
+    ) -> tuple[tuple[ModTarget, ...], tuple[OmittedTarget, ...]]:
+        if home.emulator == DOLPHIN:
+            return (dolphin_code_targets(home, code), ())
+        if home.emulator == AZAHAR:
+            return (azahar_cheat_targets(home, code.code), ())
+        if home.emulator == PCSX2:
+            crc = self._elf_crcs.read_ps2_elf_crc(rom_path)
+            if crc.text is None:
+                reason = f"PCSX2 names these by the boot executable's CRC, which could not be read: {crc.reason}."
+                return ((), (OmittedTarget("Cheats and patches (.pnach)", reason),))
+            ini = self._load_text(join_path(home.data_root or "", "inis", "PCSX2.ini"))
+            return (pcsx2_patch_targets(home, ini, code.code, crc.text), ())
+        return ((), ())
 
     def _home(self, emulator_id: str, exe: str) -> EmulatorHome:
         store = self._require_store()
@@ -266,6 +365,12 @@ class GameModsService:
             )
         if emulator_id == AZAHAR:
             return azahar_home(exe, user_dir_exists=store.is_dir(join_path(exe_dir, "user")))
+        if emulator_id == CEMU:
+            return cemu_home(
+                exe,
+                portable_dir_exists=store.is_dir(join_path(exe_dir, "portable")),
+                settings_beside_exe=store.is_file(join_path(exe_dir, "settings.xml")),
+            )
         return retroarch_home(exe)
 
     def _load_text(self, path: str) -> str | None:
@@ -309,6 +414,10 @@ class GameModsService:
         exists = store.is_dir(target.path)
         if target.scope == SCOPE_PATCH and target.patch_stem is not None:
             installed, truncated = store.stat_names(target.path, patch_file_names(target.patch_stem)), False
+        elif target.scope == SCOPE_FILE and target.file_name is not None:
+            installed, truncated = store.stat_names(target.path, (target.file_name,)), False
+        elif target.scope == SCOPE_TOGGLE:
+            installed, truncated = [], False
         elif exists:
             installed, truncated = store.list_folder(target.path, _LIST_LIMIT)
         else:
@@ -324,7 +433,9 @@ class GameModsService:
             "installed": [_entry_view(e) for e in installed],
             "installed_truncated": truncated,
             "setting": self._setting_view(context, target.setting),
-            "accepts": "patch" if target.scope == SCOPE_PATCH else "archive_or_folder",
+            "accepts": _ACCEPTS.get(target.scope, "archive_or_folder"),
+            "kind": target.kind,
+            "file_name": target.file_name,
         }
 
     def _setting_view(self, context: _Context, spec: SettingSpec | None) -> dict[str, Any] | None:
@@ -491,11 +602,9 @@ class GameModsService:
         new_text = enable_setting(text, spec) if text is not None else None
         if text is None or new_text is None:
             return _failure("setting_unavailable", f"{path} could not be edited safely; change it in the emulator.")
-        exe_name = context.exe.replace("\\", "/").rsplit("/", 1)[-1].lower()
-        running = store.running_executable_names()
-        if running is not None and exe_name in running:
-            label = EMULATOR_LABELS.get(context.emulator or "", "The emulator")
-            return _failure("emulator_running", f"{label} is running. Close it first, then try again.")
+        running = self._running_refusal(context)
+        if running is not None:
+            return running
         name = spec.ini.rsplit("/", 1)[-1]
         backup = join_path(backup_dir(context.home.data_root, self._stamp(), "settings"), name)
         try:
@@ -520,6 +629,124 @@ class GameModsService:
             return _failure("open_failed", f"Could not open {folder}.")
         return {"success": True, "folder": folder}
 
+    # -- built-in toggles ----------------------------------------------------------
+
+    def _toggle_target(self, rom_id: int, target_id: str) -> tuple[_Context, ModTarget, ToggleSource] | dict[str, Any]:
+        found = self._target(rom_id, target_id)
+        if isinstance(found, dict):
+            return found
+        context, target = found
+        if target.toggle is None:
+            return _failure(ErrorCode.UNSUPPORTED.value, f"{target.label} has no entries to switch.")
+        return (context, target, target.toggle)
+
+    def _read(self, path: str) -> tuple[bool, str | None]:
+        """``(exists, text)``: a file that exists but cannot be read as text answers ``(True, None)``."""
+        store = self._require_store()
+        return (True, store.load_text(path)) if store.is_file(path) else (False, None)
+
+    def _toggle_state(self, source: ToggleSource) -> tuple[ToggleList, dict[str, bool]]:
+        """The entries and, for Dolphin, each code's shipped default (what ``set`` needs to write the right section)."""
+        store = self._require_store()
+        exists, written = self._read(source.write_file)
+        if exists and written is None:
+            return (ToggleList((), False, f"{source.write_file} could not be read as text."), {})
+        if source.format in (TOGGLE_DOLPHIN_GECKO, TOGGLE_DOLPHIN_ACTION_REPLAY):
+            section = DOLPHIN_GECKO if source.format == TOGGLE_DOLPHIN_GECKO else DOLPHIN_ACTION_REPLAY
+            shipped = [self._read(p)[1] for p in source.read_files]
+            user = [(_base(p), self._read(p)[1]) for p in source.user_files]
+            listing = dolphin_codes(section, shipped, user, _base(source.write_file))
+            defaults = {e.entry_id: e.enabled for e in dolphin_codes(section, shipped, [], "").entries}
+            return (listing, defaults)
+        if source.format == TOGGLE_AZAHAR_CHEATS:
+            return (azahar_cheats(written, _base(source.write_file)), {})
+        section = PCSX2_PATCHES if source.format == TOGGLE_PCSX2_PATCHES else PCSX2_CHEATS
+        files: list[tuple[str, str]] = []
+        if source.scan_dir is not None:
+            names = pcsx2_pnach_matches(store.list_file_names(source.scan_dir, _SCAN_LIMIT), source.scan_prefixes)
+            files = [(n, t) for n in names if (t := self._read(join_path(source.scan_dir, n))[1]) is not None]
+        if source.zip_file is not None and not any(pnach_groups(text)[1] for _n, text in files):
+            for member in source.zip_members:
+                text = store.read_zip_text(source.zip_file, member)
+                if text is not None:
+                    files.append((ORIGIN_BUILTIN, text))
+                    break
+        enabled = pcsx2_enabled(written, section)
+        if enabled is None:
+            reason = f"{source.write_file} has a line PCSX2's settings reader would not take; edit it in PCSX2."
+            return (pcsx2_entries(files, set(), editable=False, reason=reason), {})
+        return (pcsx2_entries(files, enabled, editable=True), {})
+
+    def _list_builtins_io(self, rom_id: int, target_id: str) -> dict[str, Any]:
+        found = self._toggle_target(rom_id, target_id)
+        if isinstance(found, dict):
+            return found
+        context, target, source = found
+        listing, _defaults = self._toggle_state(source)
+        return {
+            "success": True,
+            "target_id": target.target_id,
+            "file": source.write_file,
+            "editable": listing.editable,
+            "reason": listing.reason,
+            "entries": [_toggle_view(e) for e in listing.entries],
+            "setting": self._setting_view(context, target.setting),
+        }
+
+    def _set_builtin_io(self, rom_id: int, target_id: str, entry_id: str, enabled: bool) -> dict[str, Any]:
+        found = self._toggle_target(rom_id, target_id)
+        if isinstance(found, dict):
+            return found
+        context, target, source = found
+        listing, defaults = self._toggle_state(source)
+        entry = next((e for e in listing.entries if e.entry_id == entry_id), None)
+        if entry is None:
+            return _failure(ErrorCode.NOT_FOUND.value, f"{target.label} has no entry {entry_id!r}.")
+        if not listing.editable or not entry.can_toggle:
+            return _failure("not_editable", listing.reason or f"{entry.name!r} cannot be switched here.")
+        if entry.enabled == enabled:
+            return {"success": True, "file": source.write_file, "backup_path": None, "enabled": enabled}
+        running = self._running_refusal(context)
+        if running is not None:
+            return running
+        _exists, text = self._read(source.write_file)
+        new_text = _toggled_text(source.format, text, entry_id, enabled, defaults.get(entry_id, False))
+        if new_text is None:
+            return _failure(
+                "not_editable", f"{source.write_file} could not be edited safely; change it in the emulator."
+            )
+        return self._write_toggle(context, source.write_file, text, new_text, enabled)
+
+    def _running_refusal(self, context: _Context) -> dict[str, Any] | None:
+        if context.exe is None:
+            return None
+        exe_name = context.exe.replace("\\", "/").rsplit("/", 1)[-1].lower()
+        running = self._require_store().running_executable_names()
+        if running is not None and exe_name in running:
+            label = EMULATOR_LABELS.get(context.emulator or "", "The emulator")
+            return _failure("emulator_running", f"{label} is running. Close it first, then try again.")
+        return None
+
+    def _write_toggle(
+        self, context: _Context, path: str, text: str | None, new_text: str, enabled: bool
+    ) -> dict[str, Any]:
+        store = self._require_store()
+        if context.home is None or context.home.data_root is None:
+            return _failure(ErrorCode.UNSUPPORTED.value, _NO_FOLDER)
+        try:
+            if text is None:
+                if not store.create_text(path, new_text):
+                    return _failure("changed", f"{path} appeared while it was being edited; nothing was written.")
+                backup = None
+            else:
+                backup = join_path(backup_dir(context.home.data_root, self._stamp(), "settings"), _base(path))
+                if not store.replace_text(path, text, new_text, backup):
+                    return _failure("changed", f"{path} changed while it was being edited; nothing was written.")
+        except (OSError, ValueError) as exc:
+            return _failure("io_error", f"Could not update {path}: {exc}")
+        self._logger.info("mods: switched an entry %s in %s (backup %s)", "on" if enabled else "off", path, backup)
+        return {"success": True, "file": path, "backup_path": backup, "enabled": enabled}
+
 
 def _code_text(code: DiscCode | None) -> str | None:
     return code.code if code is not None else None
@@ -541,3 +768,30 @@ def _entry_view(entry: ModEntryInfo) -> dict[str, Any]:
         "modified": entry.modified,
         "partial": entry.partial,
     }
+
+
+def _base(path: str) -> str:
+    return path.replace("\\", "/").rsplit("/", 1)[-1]
+
+
+def _toggle_view(entry: ToggleEntry) -> dict[str, Any]:
+    return {
+        "entry_id": entry.entry_id,
+        "name": entry.name,
+        "description": entry.description,
+        "notes": list(entry.notes),
+        "enabled": entry.enabled,
+        "can_toggle": entry.can_toggle,
+        "origin": entry.origin,
+    }
+
+
+def _toggled_text(fmt: str, text: str | None, name: str, enabled: bool, default_enabled: bool) -> str | None:
+    if fmt == TOGGLE_DOLPHIN_GECKO:
+        return dolphin_set_code(text, DOLPHIN_GECKO, name, enabled, default_enabled)
+    if fmt == TOGGLE_DOLPHIN_ACTION_REPLAY:
+        return dolphin_set_code(text, DOLPHIN_ACTION_REPLAY, name, enabled, default_enabled)
+    if fmt == TOGGLE_AZAHAR_CHEATS:
+        return azahar_set_cheat(text, name, enabled) if text is not None else None
+    section = PCSX2_PATCHES if fmt == TOGGLE_PCSX2_PATCHES else PCSX2_CHEATS
+    return pcsx2_set_enabled(text, section, name, enabled)

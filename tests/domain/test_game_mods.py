@@ -10,20 +10,32 @@ import pytest
 from domain.disc_ids import GAMECUBE, N3DS, PS2, PSP, WII, DiscCode
 from domain.game_mods import (
     AZAHAR,
+    CEMU,
     DOLPHIN,
     DOLPHIN_HIRES_TEXTURES,
     IDENTIFIER_FAMILIES,
+    KIND_BUILTIN_TOGGLE,
+    KIND_CHEAT_FILE,
+    KIND_FILES,
+    KIND_GRAPHICS_MODS,
+    KIND_LAYERED_FS,
+    KIND_RIIVOLUTION,
     PCSX2,
     PCSX2_LOAD_TEXTURE_REPLACEMENTS,
     PPSSPP,
     PPSSPP_REPLACE_TEXTURES,
     RETROARCH,
+    RPCS3,
+    SCOPE_FILE,
     SCOPE_GAME,
     SCOPE_PATCH,
     SCOPE_SHARED,
+    SCOPE_TOGGLE,
     SETTING_OFF,
     SETTING_ON,
     SETTING_UNKNOWN,
+    SHADPS4,
+    SOURCE_CHEAT,
     SOURCE_FOLDER,
     SOURCE_PATCH,
     SOURCE_UNSUPPORTED_ARCHIVE,
@@ -33,6 +45,8 @@ from domain.game_mods import (
     TARGET_RIIVOLUTION,
     TARGET_SOFT_PATCH,
     TARGET_TEXTURES,
+    XEMU,
+    XENIA,
     EmulatorHome,
     InstallPlan,
     ModTarget,
@@ -84,7 +98,20 @@ class TestIdentifyModEmulator:
     def test_known(self, exe, expected):
         assert identify_mod_emulator(exe) == expected
 
-    @pytest.mark.parametrize("exe", [None, "", f"{_EMU}\\Cemu\\Cemu.exe", f"{_EMU}\\xemu\\xemu.exe"])
+    @pytest.mark.parametrize(
+        ("exe", "expected"),
+        [
+            (f"{_EMU}\\Cemu\\Cemu.exe", CEMU),
+            (f"{_EMU}\\RPCS3\\rpcs3.exe", RPCS3),
+            (f"{_EMU}\\xenia\\xenia_canary.exe", XENIA),
+            (f"{_EMU}\\shadps4\\shadPS4.exe", SHADPS4),
+            (f"{_EMU}\\xemu\\xemu.exe", XEMU),
+        ],
+    )
+    def test_newly_known(self, exe, expected):
+        assert identify_mod_emulator(exe) == expected
+
+    @pytest.mark.parametrize("exe", [None, "", f"{_EMU}\\Ryujinx\\Ryujinx.exe", f"{_EMU}\\mGBA\\mGBA.exe"])
     def test_unknown(self, exe):
         assert identify_mod_emulator(exe) is None
 
@@ -239,12 +266,13 @@ class TestStandaloneTargets:
         assert target.path == "C:\\P\\memstick\\PSP\\TEXTURES\\ULUS10041"
         assert target.setting is PPSSPP_REPLACE_TEXTURES
 
-    def test_pcsx2_omits_pnach(self):
+    def test_pcsx2_textures(self):
         home = EmulatorHome(PCSX2, "x", "C:\\P", folders={"textures": "C:\\P\\textures"})
-        (target,), (omitted,) = standalone_targets(home, DiscCode(PS2, "SLUS-20946"))
+        (target,), omitted = standalone_targets(home, DiscCode(PS2, "SLUS-20946"))
         assert target.path == "C:\\P\\textures\\SLUS-20946"
         assert target.required_prefix == "replacements"
-        assert "CRC" in omitted.reason
+        assert target.kind == KIND_FILES
+        assert omitted == ()
 
     def test_azahar(self):
         home = EmulatorHome(AZAHAR, "x", "C:\\A\\user")
@@ -519,3 +547,61 @@ def test_forge_bridge_identifier_families_mirror_the_domain():
     assert block is not None
     mirrored = dict(re.findall(r'(\w+):\s*"([^"]+)"', block.group("body")))
     assert mirrored == IDENTIFIER_FAMILIES
+
+
+class TestSingleFileTargets:
+    _CHEAT = ModTarget(
+        "cheats",
+        "Cheat file (.pnach)",
+        SCOPE_FILE,
+        "C:\\PCSX2\\cheats",
+        kind=KIND_CHEAT_FILE,
+        file_name="SLUS-20946_ABCD1234.pnach",
+        file_ext=".pnach",
+    )
+    _TOGGLE = ModTarget("patches", "Patches", SCOPE_TOGGLE, "C:\\PCSX2\\gamesettings", kind=KIND_BUILTIN_TOGGLE)
+
+    def test_cheat_sources(self):
+        assert source_kind("codes.pnach", is_dir=False) == SOURCE_CHEAT
+        assert source_kind("0004000000055D00.TXT", is_dir=False) == SOURCE_CHEAT
+        assert source_fits(self._CHEAT, SOURCE_CHEAT)
+        assert source_fits(self._CHEAT, SOURCE_ZIP)
+        assert not source_fits(self._CHEAT, SOURCE_FOLDER)
+        assert not source_fits(self._TOGGLE, SOURCE_ZIP)
+
+    def test_one_matching_file_is_renamed(self):
+        plan = plan_install(
+            self._CHEAT, [SourceEntry("pack/readme.md", False, 3), SourceEntry("pack/sotc.pnach", False, 9)]
+        )
+        assert isinstance(plan, InstallPlan)
+        assert [(w.source, w.dest) for w in plan.writes] == [("pack/sotc.pnach", "SLUS-20946_ABCD1234.pnach")]
+
+    @pytest.mark.parametrize(
+        "entries",
+        [
+            [SourceEntry("a.txt", False, 1)],
+            [SourceEntry("a.pnach", False, 1), SourceEntry("b.pnach", False, 1)],
+        ],
+    )
+    def test_not_exactly_one_file_is_refused(self, entries):
+        plan = plan_install(self._CHEAT, entries)
+        assert isinstance(plan, PlanRefusal)
+        assert plan.reason == "not_one_file"
+
+    def test_toggle_targets_are_never_installed(self):
+        plan = plan_install(self._TOGGLE, [SourceEntry("a.zip", False, 1)])
+        assert isinstance(plan, PlanRefusal)
+        assert plan.reason == "not_installable"
+
+    def test_removal_takes_only_the_named_file(self):
+        assert removable_name(self._CHEAT, "SLUS-20946_ABCD1234.pnach") == "SLUS-20946_ABCD1234.pnach"
+        assert removable_name(self._CHEAT, "other.pnach") is None
+        assert removable_name(self._CHEAT, None) is None
+        assert removable_name(self._TOGGLE, "anything") is None
+
+    def test_existing_targets_carry_their_kind(self):
+        home = EmulatorHome(DOLPHIN, "x", "C:\\D\\User", folders={"load": "C:\\D\\User\\Load"})
+        targets, _ = standalone_targets(home, DiscCode(WII, "RMGE01"))
+        assert [t.kind for t in targets] == [KIND_FILES, KIND_GRAPHICS_MODS, KIND_RIIVOLUTION]
+        azahar, _ = standalone_targets(EmulatorHome(AZAHAR, "x", "C:\\A\\user"), DiscCode(N3DS, "0004000000055D00"))
+        assert [t.kind for t in azahar] == [KIND_LAYERED_FS, KIND_FILES]

@@ -908,12 +908,14 @@ _MIGRATION_BLOCKED_WHITELIST: set[str] = {
     # Read-only exe-picker state query (the pin-write select_executable IS decorated).
     "get_windows_executables",
     # Mods panel reads: target listing, Downloads listing, an install preview
-    # that writes nothing, and opening a folder in the file manager. The three
-    # writes (install_mod, remove_mod, enable_mod_setting) ARE decorated.
+    # that writes nothing, opening a folder in the file manager, and listing a
+    # target's built-in entries. The four writes (install_mod, remove_mod,
+    # enable_mod_setting, set_mod_builtin) ARE decorated.
     "get_game_mods",
     "list_mod_sources",
     "preview_mod_install",
     "open_mod_folder",
+    "list_mod_builtins",
     # Read-only version-picker state query (the binding-move switch_version IS decorated).
     "get_version_list",
     "get_platforms",
@@ -1207,6 +1209,7 @@ class TestMainStartupOrdering:
                 rom_file_store=MagicMock(),
                 save_file_store=MagicMock(),
                 disc_codes=MagicMock(),
+                ps2_elf_crcs=MagicMock(),
                 path_probe=MagicMock(),
                 renderer_rss=FakeRendererRss(),
                 renderer_gc=FakeRendererGc(),

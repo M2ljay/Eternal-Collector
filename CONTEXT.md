@@ -399,6 +399,12 @@ the emulator's folder and the game's identifier were both read exactly; otherwis
 **mod backup** is where the Mods panel moves what an install replaces or a removal takes away, and the ini before a
 setting edit: `romm-mod-backups\<stamp>\<target>` inside the emulator's own data folder. Nothing in the feature deletes.
 
+A target's **kind** says what it offers: `files`, a **cheat file** (`cheatFile` — one file The Collector names for the
+game, such as Azahar's `<TitleID>.txt` or PCSX2's `<SERIAL>_<CRC>.pnach`), a **built-in toggle** (`builtinToggle` —
+codes, cheats or patches the emulator already has, switched on or off in its own per-game file, never installed or
+removed), `riivolution`, `graphicsMods` or `layeredFs`. The **PCSX2 CRC** is PCSX2's own checksum of a disc's boot
+executable (the XOR of its 32-bit words, not a CRC-32), read from the image and used in those names.
+
 ### Game page extension / mods bridge
 
 A **game page extension** is a tab or an Overview card another Decky plugin registers on the ROM game page through the

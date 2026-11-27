@@ -599,6 +599,7 @@ def wire_services(cfg: WiringConfig) -> dict[str, Any]:
             active_backend_id=launcher_backend_service.active_backend_id,
             disc_codes=cfg.adapters.disc_codes,
             mod_store=cfg.adapters.game_mods,
+            elf_crcs=cfg.adapters.ps2_elf_crcs,
         ),
     )
 

@@ -17,13 +17,17 @@ import {
   getCachedGameDetail,
   getGameMods,
   installMod,
+  listModBuiltins,
   listModSources,
   openModFolder,
   previewModInstall,
   removeMod,
+  setModBuiltin,
 } from "../api/backend";
 import type {
   GameModsAnswer,
+  ModBuiltinSetAnswer,
+  ModBuiltinsAnswer,
   GameModsInfo,
   ModEntry,
   ModFailure,
@@ -66,6 +70,10 @@ export interface CollectorModsBridge {
   readSetting(appId: number, targetId: string): Promise<ReadSettingAnswer>;
   enableSetting(appId: number, targetId: string): Promise<ModSettingAnswer>;
   openFolder(appId: number, targetId: string): Promise<ModOpenAnswer>;
+  /** v1 addition: the entries of a `builtinToggle` target (codes, cheats, patches) and whether each is on. */
+  listBuiltins(appId: number, targetId: string): Promise<ModBuiltinsAnswer>;
+  /** v1 addition: switch one listed entry, named by the `entry_id` `listBuiltins` answered. */
+  setBuiltin(appId: number, targetId: string, entryId: string, enabled: boolean): Promise<ModBuiltinSetAnswer>;
 }
 
 export interface CollectorModsBridgeDeps {
@@ -258,6 +266,20 @@ export function createCollectorModsBridge(deps: CollectorModsBridgeDeps): Collec
       withRom("openFolder", appId, async (romId): Promise<ModOpenAnswer> => {
         if (!validId(targetId)) return failure("invalid_argument", "targetId must be a string.");
         return openModFolder(romId, targetId);
+      }),
+
+    listBuiltins: (appId, targetId) =>
+      withRom("listBuiltins", appId, async (romId): Promise<ModBuiltinsAnswer> => {
+        if (!validId(targetId)) return failure("invalid_argument", "targetId must be a string.");
+        return listModBuiltins(romId, targetId);
+      }),
+
+    setBuiltin: (appId, targetId, entryId, enabled) =>
+      withRom("setBuiltin", appId, async (romId): Promise<ModBuiltinSetAnswer> => {
+        if (!validId(targetId)) return failure("invalid_argument", "targetId must be a string.");
+        if (!validId(entryId)) return failure("invalid_argument", "entryId must be an entry_id listBuiltins answered.");
+        if (typeof enabled !== "boolean") return failure("invalid_argument", "enabled must be true or false.");
+        return setModBuiltin(romId, targetId, entryId, enabled);
       }),
   };
   return Object.freeze(bridge);

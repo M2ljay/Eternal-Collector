@@ -1012,6 +1012,8 @@ class TestGameModsCallableDelegation:
             ("remove_mod", (7, "textures", None)),
             ("enable_mod_setting", (7, "textures")),
             ("open_mod_folder", (7, "textures")),
+            ("list_mod_builtins", (7, "gecko_codes")),
+            ("set_mod_builtin", (7, "gecko_codes", "Widescreen", True)),
         ],
     )
     @pytest.mark.asyncio
@@ -1022,14 +1024,16 @@ class TestGameModsCallableDelegation:
         getattr(mods_plugin._game_mods_service, method).assert_awaited_once_with(*args)
         assert result is answer
 
-    @pytest.mark.parametrize("method", ["install_mod", "remove_mod", "enable_mod_setting"])
+    @pytest.mark.parametrize("method", ["install_mod", "remove_mod", "enable_mod_setting", "set_mod_builtin"])
     def test_writes_carry_migration_and_prune_guards(self, method):
         from main import Plugin
 
         assert getattr(getattr(Plugin, method), "_migration_blocked", False) is True
         assert getattr(getattr(Plugin, method), "_prune_active_blocked", False) is True
 
-    @pytest.mark.parametrize("method", ["get_game_mods", "list_mod_sources", "preview_mod_install", "open_mod_folder"])
+    @pytest.mark.parametrize(
+        "method", ["get_game_mods", "list_mod_sources", "preview_mod_install", "open_mod_folder", "list_mod_builtins"]
+    )
     def test_reads_carry_no_guards(self, method):
         from main import Plugin
 

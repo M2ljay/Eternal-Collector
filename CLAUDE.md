@@ -481,6 +481,15 @@ record** — test + prompt-only —
   refused before the backend, rejections become `bridge_error`). A new render site for an extension outside
   `src/components/GamePageExtensions.tsx`, or a new bridge method, is prompt-only
   ([Forge bridge](docs/architecture/game-mods.md#forge-bridge))
+- **A built-in mod toggle (`set_mod_builtin`) writes only the one file its target's `ToggleSource.write_file` names,
+  changes only the lines carrying that entry's state, and takes the backup leg: the existing file is copied to
+  `romm-mod-backups\<stamp>\settings\` and replaced only if it still holds what was read (`replace_text`), a new file is
+  created only if still absent (`create_text`), and the edit is refused while the emulator runs or when
+  `domain/mod_toggles.py` calls the layout one the emulator could read differently** — test + prompt-only —
+  `tests/domain/test_mod_toggles.py` (per format: round trips, read-only layouts, refused names) and
+  `tests/services/test_game_mods.py` (`TestAzaharCheats`, `TestPcsx2Patches`, `TestDolphinCodes`: backup path, created
+  file, running and changed refusals). A new toggle format, or a write that bypasses `_write_toggle`, is prompt-only
+  ([Built-in toggles](docs/architecture/game-mods.md#built-in-toggles))
 - **Every module the plugin imports at module level uses only standard-library modules Decky's frozen Windows Python
   ships, or the plugin's own fallback copy** — test — `tests/runtime/test_frozen_runtime.py` against
   `tests/runtime/decky_frozen_stdlib.txt` (a lazily imported Windows-only module is covered only once it is listed in

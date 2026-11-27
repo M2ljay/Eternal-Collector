@@ -248,6 +248,64 @@ def parse_system_cnf_serial(data: bytes) -> str | None:
     return None
 
 
+_PS2_BOOT_PATH_RE = re.compile(r"^\s*BOOT2\s*=\s*cdrom0?:\\?([^;\s]+)(?:;\d+)?\s*$", re.IGNORECASE)
+_ISO_NAME_RE = re.compile(r"^[A-Z0-9_.\-]{1,64}$")
+
+PS2_ELF_MAX_BYTES = 64 * 1024 * 1024
+"""Largest boot ELF read for its CRC: PS2 main RAM is 32 MiB, so a real one is far below this."""
+ELF_MAGIC = b"\x7fELF"
+
+
+def parse_system_cnf_boot_path(data: bytes) -> tuple[str, ...] | None:
+    """The path components of the executable a PS2 ``SYSTEM.CNF`` boots (``cdrom0:\\SLUS_209.46;1`` → ``SLUS_209.46``).
+
+    Only ``BOOT2`` (a PS2 executable) counts. Components are upper-cased, as
+    ISO 9660 names are, and each must be a plain ISO name; anything else is
+    ``None``.
+    """
+    text = data[:4096].decode("ascii", errors="replace")
+    for line in text.splitlines():
+        match = _PS2_BOOT_PATH_RE.match(line)
+        if match is None:
+            continue
+        parts = tuple(p.upper() for p in match.group(1).split("\\") if p)
+        if parts and all(_ISO_NAME_RE.match(p) and p not in (".", "..") for p in parts):
+            return parts
+        return None
+    return None
+
+
+def ps2_elf_crc(elf: bytes) -> int:
+    """PCSX2's CRC of a boot ELF: the XOR of every little-endian 32-bit word, a trailing partial word ignored.
+
+    ``ElfObject::GetCRC`` / ``ReadAndGetCRC`` (``pcsx2/Elfheader.cpp``); not a
+    CRC-32. PCSX2 names per-game patches, cheats and game settings by it
+    (``Patch::GetPnachTemplate``: ``<SERIAL>_<CRC:08X>.pnach``).
+    """
+    words = len(elf) // 4
+    if words == 0:
+        return 0
+    value = int.from_bytes(elf[: words * 4], "little")
+    width = 1 << (words - 1).bit_length()
+    while width > 1:
+        width //= 2
+        value = (value >> (width * 32)) ^ (value & ((1 << (width * 32)) - 1))
+    return value
+
+
+@dataclass(frozen=True)
+class Ps2ElfCrc:
+    """The boot ELF CRC of a PS2 image, or why it could not be read (``crc`` ``None``, ``reason`` set)."""
+
+    crc: int | None
+    reason: str | None = None
+
+    @property
+    def text(self) -> str | None:
+        """The CRC as PCSX2 writes it in file names (``{:08X}``)."""
+        return f"{self.crc:08X}" if self.crc is not None else None
+
+
 # -- Nintendo 3DS ---------------------------------------------------------------
 #
 # Layouts per 3dbrew (NCSD, NCCH, CIA, Title metadata). The NCSD and NCCH

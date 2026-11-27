@@ -39,6 +39,8 @@ function target(overrides: Partial<ModTarget> = {}): ModTarget {
       can_enable: true,
     },
     accepts: "archive_or_folder",
+    kind: "files",
+    file_name: null,
     ...overrides,
   };
 }
@@ -200,6 +202,23 @@ describe("collector mods bridge", () => {
     expect(backend.enableModSetting).toHaveBeenCalledWith(ROM_ID, "textures");
     await bridge.openFolder(APP_ID, "textures");
     expect(backend.openModFolder).toHaveBeenCalledWith(ROM_ID, "textures");
+  });
+
+  it("maps listBuiltins and setBuiltin onto their callables by entry id", async () => {
+    await bridge.listBuiltins(APP_ID, "gecko_codes");
+    expect(backend.listModBuiltins).toHaveBeenCalledWith(ROM_ID, "gecko_codes");
+    await bridge.setBuiltin(APP_ID, "gecko_codes", "Widescreen 16:9", true);
+    expect(backend.setModBuiltin).toHaveBeenCalledWith(ROM_ID, "gecko_codes", "Widescreen 16:9", true);
+  });
+
+  it("refuses setBuiltin without an entry id or a boolean, before the backend", async () => {
+    await expect(bridge.setBuiltin(APP_ID, "gecko_codes", "", true)).resolves.toMatchObject({
+      reason: "invalid_argument",
+    });
+    await expect(bridge.setBuiltin(APP_ID, "gecko_codes", "x", "yes" as never)).resolves.toMatchObject({
+      reason: "invalid_argument",
+    });
+    expect(backend.setModBuiltin).not.toHaveBeenCalled();
   });
 
   it("turns a rejected callable into a bridge_error failure instead of throwing", async () => {

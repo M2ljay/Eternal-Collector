@@ -1,8 +1,9 @@
 /**
  * The Mods panel for one game (EmuDeck on Windows): where its mods go under the
  * emulator it launches with, what is installed there, and installing from the
- * Downloads folder, removing, turning on the emulator's texture setting and
- * opening the folder.
+ * Downloads folder (a cheat file is renamed to the name the emulator looks
+ * for), removing, switching the codes and patches the emulator already has,
+ * turning on the emulator's setting and opening the folder.
  *
  * Nothing here holds a path the backend did not just report. Every write goes
  * through a confirmation that states what will happen, and the backend never
@@ -10,7 +11,7 @@
  * location the confirmation and the result toast both name.
  */
 
-import { FC, useCallback, useEffect, useState } from "react";
+import { FC, useCallback, useEffect, useState, type ReactNode } from "react";
 import { ConfirmModal, DialogButton, Focusable, ModalRoot, showModal } from "@decky/ui";
 import {
   enableModSetting,
@@ -27,6 +28,7 @@ import { showToast } from "../utils/toast";
 import { detach } from "../utils/detach";
 import type { GameModsAnswer, ModEntry, ModFailure, ModInstallPreview, ModSource, ModTarget } from "../types";
 import { core } from "../theme/coreTokens";
+import { ModBuiltinsSection } from "./ModBuiltinsSection";
 
 const LABEL = { fontSize: "12px", color: core.hint } as const;
 const BODY = { fontSize: "13px", color: core.text } as const;
@@ -77,7 +79,8 @@ function settingHint(target: ModTarget, emulator: string): string | null {
   if (setting.state === "unknown") {
     return `Couldn't read whether ${setting.label} is on in ${emulator} (${setting.file}).`;
   }
-  return `Texture packs are off in ${emulator} (${setting.label}).`;
+  if (target.kind === "files") return `Texture packs are off in ${emulator} (${setting.label}).`;
+  return `${setting.label} is off in ${emulator}; these have no effect until it is on.`;
 }
 
 interface ModsModalProps {
@@ -253,6 +256,11 @@ export const ModsModal: FC<ModsModalProps> = ({ romId, gameName, closeModal }) =
             target={target}
             hint={settingHint(target, emulatorLabel)}
             busy={busy}
+            builtins={
+              target.kind === "builtinToggle" ? (
+                <ModBuiltinsSection romId={romId} target={target} emulatorLabel={emulatorLabel} />
+              ) : null
+            }
             onRemove={(entry) => detach(handleRemove(target, entry))}
             onEnable={() => detach(handleEnable(target))}
             onOpen={() => detach(handleOpen(target))}
@@ -285,18 +293,29 @@ interface TargetSectionProps {
   target: ModTarget;
   hint: string | null;
   busy: boolean;
+  builtins: ReactNode;
   onRemove: (entry: ModEntry | null) => void;
   onEnable: () => void;
   onOpen: () => void;
   onBrowse: () => void;
 }
 
-const TargetSection: FC<TargetSectionProps> = ({ target, hint, busy, onRemove, onEnable, onOpen, onBrowse }) => (
+const TargetSection: FC<TargetSectionProps> = ({
+  target,
+  hint,
+  busy,
+  builtins,
+  onRemove,
+  onEnable,
+  onOpen,
+  onBrowse,
+}) => (
   <div style={SECTION}>
     <div style={{ fontSize: "14px", fontWeight: "bold", color: core.white }}>{target.label}</div>
     <div style={PATH}>
       {target.scope === "patch" ? `Beside the ROM: ${target.path}` : target.path}
       {target.scope === "shared" ? " (shared by every game)" : ""}
+      {target.file_name ? ` — as ${target.file_name}` : ""}
     </div>
     {target.notes.map((note) => (
       <div key={note} style={LABEL}>
@@ -313,9 +332,12 @@ const TargetSection: FC<TargetSectionProps> = ({ target, hint, busy, onRemove, o
         ) : null}
       </Focusable>
     ) : null}
-    <div style={{ ...LABEL, marginTop: "8px" }}>
-      {target.installed.length ? "Installed here:" : "Nothing installed here yet."}
-    </div>
+    {builtins}
+    {target.scope === "toggle" ? null : (
+      <div style={{ ...LABEL, marginTop: "8px" }}>
+        {target.installed.length ? "Installed here:" : "Nothing installed here yet."}
+      </div>
+    )}
     {target.installed.map((entry) => (
       <Focusable
         key={entry.name}
@@ -336,9 +358,11 @@ const TargetSection: FC<TargetSectionProps> = ({ target, hint, busy, onRemove, o
     ))}
     {target.installed_truncated ? <div style={LABEL}>More entries are in the folder than are listed.</div> : null}
     <Focusable flow-children="row" style={{ display: "flex", gap: "8px", marginTop: "8px" }}>
-      <DialogButton disabled={busy} onClick={onBrowse}>
-        Install from Downloads
-      </DialogButton>
+      {target.accepts === "none" ? null : (
+        <DialogButton disabled={busy} onClick={onBrowse}>
+          Install from Downloads
+        </DialogButton>
+      )}
       <DialogButton disabled={busy} onClick={onOpen}>
         Open Folder
       </DialogButton>
@@ -351,6 +375,15 @@ const TargetSection: FC<TargetSectionProps> = ({ target, hint, busy, onRemove, o
   </div>
 );
 
+function sourceKindsText(target: ModTarget): string {
+  if (target.accepts === "patch") return ".ips / .bps / .ups files, or a .zip holding one";
+  if (target.accepts === "cheat_file") {
+    const ext = target.file_name?.slice(target.file_name.lastIndexOf(".")) ?? "";
+    return `a ${ext} file, or a .zip holding exactly one; it is saved as ${target.file_name ?? "the game's cheat file"}`;
+  }
+  return ".zip files and folders";
+}
+
 interface SourcesViewProps {
   view: Extract<View, { kind: "sources" }>;
   busy: boolean;
@@ -359,8 +392,7 @@ interface SourcesViewProps {
 }
 
 const SourcesView: FC<SourcesViewProps> = ({ view, busy, onPick, onBack }) => {
-  const kinds =
-    view.target.accepts === "patch" ? ".ips / .bps / .ups files, or a .zip holding one" : ".zip files and folders";
+  const kinds = sourceKindsText(view.target);
   return (
     <Focusable flow-children="column" style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
       <div style={BODY}>

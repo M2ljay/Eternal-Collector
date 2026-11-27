@@ -84,6 +84,33 @@ class GameModFilesAdapter:
         entries.sort(key=lambda e: e.modified, reverse=True)
         return (entries[:limit], len(entries) > limit)
 
+    def list_file_names(self, folder: str, limit: int) -> list[str]:
+        try:
+            names = sorted(os.listdir(folder), key=str.lower)
+        except OSError:
+            return []
+        out = []
+        for name in names:
+            try:
+                st = os.lstat(os.path.join(folder, name))
+            except OSError:
+                continue
+            if stat.S_ISREG(st.st_mode):
+                out.append(name)
+                if len(out) >= limit:
+                    break
+        return out
+
+    def read_zip_text(self, zip_path: str, member: str) -> str | None:
+        try:
+            with zipfile.ZipFile(zip_path) as zf:
+                info = zf.getinfo(member)
+                if info.file_size > _MAX_TEXT_BYTES:
+                    return None
+                return zf.read(info).decode("utf-8-sig")
+        except (OSError, KeyError, zipfile.BadZipFile, UnicodeDecodeError):
+            return None
+
     def source_path(self, name: str) -> str | None:
         path = _child(self._downloads, name)
         if path is None or os.path.islink(path) or not os.path.lexists(path):
@@ -197,6 +224,15 @@ class GameModFilesAdapter:
         with open(tmp, "wb") as f:
             f.write(bom + new_text.encode("utf-8"))
         os.replace(tmp, path)
+        return True
+
+    def create_text(self, path: str, new_text: str) -> bool:
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        try:
+            with open(path, "xb") as f:
+                f.write(new_text.encode("utf-8"))
+        except FileExistsError:
+            return False
         return True
 
     def open_folder(self, path: str) -> bool:

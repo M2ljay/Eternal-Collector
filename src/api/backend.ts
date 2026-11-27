@@ -77,6 +77,8 @@ import type {
   ModRemoveAnswer,
   ModSettingAnswer,
   ModOpenAnswer,
+  ModBuiltinsAnswer,
+  ModBuiltinSetAnswer,
 } from "../types";
 
 export interface BackendResult {
@@ -830,6 +832,8 @@ export const installMod = callable<[number, string, string, string], ModInstallA
 export const removeMod = callable<[number, string, string | null], ModRemoveAnswer>("remove_mod");
 export const enableModSetting = callable<[number, string], ModSettingAnswer>("enable_mod_setting");
 export const openModFolder = callable<[number, string], ModOpenAnswer>("open_mod_folder");
+export const listModBuiltins = callable<[number, string], ModBuiltinsAnswer>("list_mod_builtins");
+export const setModBuiltin = callable<[number, string, string, boolean], ModBuiltinSetAnswer>("set_mod_builtin");
 
 /**
  * One version (RomM sibling) of a game in the version picker (#1297, ADR-0021).

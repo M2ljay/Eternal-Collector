@@ -19,14 +19,17 @@ from adapters.disc_images import ChdReader, ChdSource, CsoSource, DiscImageError
 from domain.disc_ids import (
     CIA_TMD_READ_SIZE,
     DISC_HEADER_PREFIX,
+    ELF_MAGIC,
     ISO_SECTOR_SIZE,
     N3DS,
     N3DS_HEADER_SIZE,
     NINTENDO_OPTICAL,
     PRIMARY_VOLUME_DESCRIPTOR_LBA,
     PS2,
+    PS2_ELF_MAX_BYTES,
     PSP,
     DiscCode,
+    Ps2ElfCrc,
     cia_tmd_offset,
     find_directory_entry,
     ncch_program_id,
@@ -34,8 +37,10 @@ from domain.disc_ids import (
     parse_nintendo_disc_header,
     parse_param_sfo_disc_id,
     parse_primary_volume_descriptor,
+    parse_system_cnf_boot_path,
     parse_system_cnf_serial,
     parse_umd_data,
+    ps2_elf_crc,
     tmd_title_id,
 )
 
@@ -71,6 +76,7 @@ class DiscCodeReaderAdapter:
         self._zstd = zstd_decompress
         self._cache: dict[tuple[str, int, int, str], DiscCode | None] = {}
         self._problems: dict[tuple[str, str], tuple[str, str]] = {}
+        self._elf_crcs: dict[tuple[str, int, int], Ps2ElfCrc] = {}
 
     def read_disc_code(self, path: str, family: str) -> DiscCode | None:
         """The identifier of the image at *path*, read as a *family* disc, or ``None``.
@@ -106,6 +112,44 @@ class DiscCodeReaderAdapter:
         else:
             self._problems[(path, family)] = problem
         return code
+
+    def read_ps2_elf_crc(self, path: str) -> Ps2ElfCrc:
+        """PCSX2's CRC of the boot ELF ``SYSTEM.CNF`` names in the PS2 image at *path* (ISO, CSO or CHD).
+
+        Reads the whole ELF through the same sector sources the serial is read
+        with. Any other format, a CHD codec this build cannot decode, or an
+        image whose ``BOOT2`` file is missing or not an ELF answers the reason.
+        """
+        try:
+            st = os.stat(path)
+        except OSError as exc:
+            return Ps2ElfCrc(None, f"the game file could not be read: {exc.strerror or exc}")
+        key = (path, st.st_size, st.st_mtime_ns)
+        if key not in self._elf_crcs:
+            self._elf_crcs[key] = self._read_ps2_elf_crc(path)
+        return self._elf_crcs[key]
+
+    def _read_ps2_elf_crc(self, path: str) -> Ps2ElfCrc:
+        ext = os.path.splitext(path)[1].lower()
+        if ext not in (".iso", ".cso", ".chd"):
+            return Ps2ElfCrc(None, f"PCSX2 game files of type {ext or 'none'} are not read here")
+        try:
+            with open(path, "rb") as f:
+                source = self._sector_source(f, ext)
+                if source is None:
+                    return Ps2ElfCrc(None, f"{ext} images are not read here")
+                cnf = _read_iso_file(source, ("SYSTEM.CNF",), _MAX_ID_FILE_BYTES)
+                boot = parse_system_cnf_boot_path(cnf) if cnf is not None else None
+                if boot is None:
+                    return Ps2ElfCrc(None, "the disc's SYSTEM.CNF names no PS2 boot executable")
+                elf = _read_iso_file(source, boot, PS2_ELF_MAX_BYTES)
+        except OSError as exc:
+            return Ps2ElfCrc(None, f"the game file could not be read: {exc.strerror or exc}")
+        except (DiscImageError, struct.error) as exc:
+            return Ps2ElfCrc(None, f"the image could not be decoded: {exc}")
+        if elf is None or not elf.startswith(ELF_MAGIC):
+            return Ps2ElfCrc(None, "the boot executable SYSTEM.CNF names is missing or not an ELF")
+        return Ps2ElfCrc(ps2_elf_crc(elf))
 
     def disc_code_problem(self, path: str, family: str) -> tuple[str, str] | None:
         """Why the last :meth:`read_disc_code` of *path* as *family* found no identifier, or ``None``."""

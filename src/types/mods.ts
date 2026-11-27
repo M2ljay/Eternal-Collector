@@ -26,7 +26,10 @@ export interface ModSetting {
   can_enable: boolean;
 }
 
-export type ModScope = "game" | "shared" | "patch";
+export type ModScope = "game" | "shared" | "patch" | "file" | "toggle";
+
+/** What a target offers: files to install, one cheat file, entries to switch, or a named kind of folder. */
+export type ModKind = "files" | "cheatFile" | "builtinToggle" | "riivolution" | "graphicsMods" | "layeredFs";
 
 export interface ModTarget {
   target_id: string;
@@ -39,7 +42,10 @@ export interface ModTarget {
   installed: ModEntry[];
   installed_truncated: boolean;
   setting: ModSetting | null;
-  accepts: "patch" | "archive_or_folder";
+  accepts: "patch" | "archive_or_folder" | "cheat_file" | "none";
+  kind: ModKind;
+  /** The one file a `cheatFile` target writes (named by The Collector); null for other kinds. */
+  file_name: string | null;
 }
 
 export interface ModEmulator {
@@ -65,7 +71,7 @@ export interface GameModsInfo {
 
 export type GameModsAnswer = GameModsInfo | ModFailure;
 
-export type ModSourceKind = "zip" | "folder" | "patch" | "unsupported_archive";
+export type ModSourceKind = "zip" | "folder" | "patch" | "cheat" | "unsupported_archive";
 
 export interface ModSource extends ModEntry {
   kind: ModSourceKind;
@@ -98,3 +104,30 @@ export type ModRemoveAnswer = { success: true; removed: string; backup_folder: s
 export type ModSettingAnswer = { success: true; file: string; backup_path: string } | ModFailure;
 
 export type ModOpenAnswer = { success: true; folder: string } | ModFailure;
+
+/** One entry of a `builtinToggle` target: a code, cheat or patch the emulator already has. */
+export interface ModBuiltinEntry {
+  entry_id: string;
+  name: string;
+  description: string;
+  notes: string[];
+  enabled: boolean;
+  can_toggle: boolean;
+  /** "built-in", "user", or the file it was read from. */
+  origin: string;
+}
+
+export type ModBuiltinsAnswer =
+  | {
+      success: true;
+      target_id: string;
+      file: string;
+      editable: boolean;
+      reason: string | null;
+      entries: ModBuiltinEntry[];
+      setting: ModSetting | null;
+    }
+  | ModFailure;
+
+export type ModBuiltinSetAnswer =
+  { success: true; file: string; backup_path: string | null; enabled: boolean } | ModFailure;

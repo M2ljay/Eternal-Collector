@@ -9,12 +9,15 @@ there, and installs, removes and switches on what the emulator needs. User-facin
 | Layer   | Module                                            | Owns                                                                                                   |
 | ------- | ------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
 | Domain  | `domain/game_mods.py`                             | Emulator identification, portable-layout rules, mod targets, ini switch read/edit, install planning    |
-| Domain  | `domain/disc_ids.py`                              | Game identifiers, now including the 3DS title ID (NCSD → NCCH program ID, NCCH, CIA → TMD title ID)    |
+| Domain  | `domain/mod_targets.py`                           | Cheat-file, built-in-toggle and graphic-pack targets; Cemu's home; what other emulators do not offer   |
+| Domain  | `domain/mod_toggles.py`                           | Reading and switching Dolphin codes, PCSX2 patches and cheats, Azahar cheats                           |
+| Domain  | `domain/disc_ids.py`                              | Game identifiers, the 3DS title ID, and the PS2 boot ELF path and PCSX2 CRC                            |
 | Adapter | `adapters/game_mod_files.py` (`GameModStore`)     | Listing, Downloads, zip/folder reading, the install itself, moves to backup, the ini rewrite, Explorer |
-| Adapter | `adapters/disc_code_reader.py` (`DiscCodeReader`) | Reading the identifier out of the game file (shared with standalone save sync)                         |
+| Adapter | `adapters/disc_code_reader.py` (`DiscCodeReader`) | Reading the identifier and the PS2 boot ELF (`Ps2ElfCrcReader`) out of the game file                   |
 | Adapter | `adapters/game_process_windows.py`                | `running_executable_names()` for the "emulator is running" refusal                                     |
-| Service | `services/game_mods.py` (`GameModsService`)       | The seven callables; resolution on every call; the write lock                                          |
+| Service | `services/game_mods.py` (`GameModsService`)       | The nine callables; resolution on every call; the write lock                                           |
 | UI      | `src/components/ModsButton.tsx`, `ModsModal.tsx`  | The button (native look + installed only) and the panel                                                |
+| UI      | `src/components/ModBuiltinsSection.tsx`           | A built-in-toggle target's entries with On/Off switches, in the panel                                  |
 | UI      | `src/utils/gamePageExtensions.ts`                 | The game page registry (Forge bridge, below)                                                           |
 | UI      | `src/utils/collectorModsBridge.ts`                | The mods bridge (Forge bridge, below)                                                                  |
 | UI      | `src/components/GamePageExtensions.tsx`           | Rendering registered tabs and cards, each in its own error boundary                                    |
@@ -29,7 +32,8 @@ installed entry by the **name the backend listed**. No path ever comes from the 
 
 1. The emulator is the executable in the command the game launches with: `ActiveCoreReader.active_emulator_for_rom`
    rendered by the active backend's `LaunchCommandRenderer.resolve_invocation` — the same bake seam the Steam shortcut
-   is written from. Its file name identifies Dolphin, PPSSPP, PCSX2, Azahar/Citra/Lime3DS or RetroArch.
+   is written from. Its file name identifies Dolphin, PPSSPP, PCSX2, Azahar/Citra/Lime3DS, RetroArch, Cemu, RPCS3, Xenia
+   Canary, shadPS4 or xemu.
 2. The emulator's data folder is read from its own portable markers beside the executable (`portable.txt`,
    `installed.txt`, `portable.ini`, a `user` folder) and, where the emulator lets the user move a mod root, from its own
    settings file (Dolphin `[General] LoadPath`, PCSX2 `[Folders] Textures`). A layout these rules do not cover answers
@@ -42,8 +46,91 @@ RetroArch's soft patch is the exception that needs no identifier: `<content base
 core's `.info` says `needs_fullpath = "true"` (RetroArch never patches such content). The vendored atlas records which
 patch formats a RetroArch build attempts only for RetroDECK, so the target carries an "unverified" note.
 
-PCSX2 `.pnach` patches and cheats are named `<SERIAL>_<CRC>.pnach` (atlas `mods.json`, `PCSX2`), and the ELF CRC is not
-read, so they are listed as omitted rather than offered.
+## Target kinds
+
+Every target carries a `kind` saying what it offers, and a `scope` saying how it is written:
+
+| Kind            | Scope            | Targets                                                                                                  |
+| --------------- | ---------------- | -------------------------------------------------------------------------------------------------------- |
+| `files`         | `game` / `patch` | Texture packs (Dolphin, PPSSPP, PCSX2, Azahar), RetroArch's soft patch                                   |
+| `cheatFile`     | `file`           | One cheat file named for the game: Azahar, PCSX2, RetroArch                                              |
+| `builtinToggle` | `toggle`         | Entries the emulator already has: Dolphin Gecko / Action Replay, PCSX2 patches and cheats, Azahar cheats |
+| `riivolution`   | `shared`         | Dolphin `Load\Riivolution` (Wii)                                                                         |
+| `graphicsMods`  | `shared`         | Dolphin `Load\GraphicMods`, Cemu `graphicPacks`                                                          |
+| `layeredFs`     | `game`           | Azahar `load\mods\<TitleID>`                                                                             |
+
+A `file` target writes exactly one file, `file_name`, which The Collector names; the source is a single file with the
+target's extension (`file_ext`) or a `.zip` holding exactly one, and it is renamed on the way in. A `toggle` target is
+never installed into or removed from (`plan_install` refuses it, `removable_name` answers nothing); its entries are read
+and switched through `list_mod_builtins` / `set_mod_builtin`.
+
+## Cheat files
+
+Each name below comes from the emulator's own source:
+
+- **Azahar:** `<user>\cheats\<TitleID:016X>.txt` (`CheatEngine::LoadCheatFile`).
+- **PCSX2:** `<cheats>\<SERIAL>_<CRC:08X>.pnach` (`Patch::GetPnachFilename`); the cheats folder is `[Folders] Cheats` of
+  `inis\PCSX2.ini`, `cheats` by default. The target carries PCSX2's `[EmuCore] EnableCheats` switch (off by default).
+- **RetroArch:** `<cheat_database_path>\<core library name>\<content stem>.cht`
+  (`cheat_manager_get_game_specific_filename`), loaded when the game starts. The cheat folder is read from
+  `retroarch.cfg` (`:\` is RetroArch's own folder; absent means `<RetroArch>\cheats`); the core name is the core info's
+  `corename`, which is what RetroArch's cores report as their library name. Offered only for one content file outside an
+  archive. Whether a cheat in it is applied without opening the menu depends on _Auto-Apply Cheats During Game Load_,
+  which is not checked.
+
+### The PCSX2 CRC
+
+PCSX2 names a game's patches, cheats and game settings by its serial and the CRC of the boot executable. That CRC is not
+a CRC-32: it is the XOR of every little-endian 32-bit word of the ELF, a trailing partial word ignored
+(`ElfObject::GetCRC` / `ReadAndGetCRC`, `pcsx2/Elfheader.cpp`). `DiscCodeReaderAdapter.read_ps2_elf_crc` reads
+`SYSTEM.CNF`, takes the `BOOT2` path (`cdrom0:\SLUS_209.46;1`, sub-folders allowed), reads that file through the same
+ISO 9660 walk the serial is read with — ISO, CSO and CHD (zlib, LZMA, zstd where the runtime has it) — checks the ELF
+magic, and folds the words (`domain.disc_ids.ps2_elf_crc`). Answers are cached per file (path, size, mtime). Any other
+format, a CHD codec this runtime cannot decode, or a missing or non-ELF boot file gives no PCSX2 cheat or patch target,
+and the panel lists them as not offered with the reason.
+
+## Built-in toggles
+
+`list_mod_builtins` answers the entries with `enabled` and `can_toggle`, plus `editable` and a `reason` when no switch
+may be written; `set_mod_builtin` switches one entry named by the `entry_id` the list gave. Each format is read the way
+its emulator reads it and an edit changes only the lines that carry that one entry's state (`domain/mod_toggles.py`):
+
+- **Dolphin Gecko / Action Replay.** Codes come from the shipped `Sys\GameSettings` inis beside the executable, then the
+  user's `User\GameSettings` inis, in Dolphin's load order (`G.ini`, `GAL.ini`, `GALE01.ini`, `GALE01r<rev>.ini`;
+  `ConfigLoaders::GetGameIniFilenames`). A code whose state differs from its shipped default is listed as `$name` in the
+  user's `[Gecko_Enabled]` / `[Gecko_Disabled]` (or `ActionReplay_…`), as `SaveCodes` writes it; a switch writes only
+  `User\GameSettings\<ID6>.ini`, creating it when absent. Read-only when an ini repeats a section, or when another user
+  ini (`GAL.ini`, a revision ini) also switches codes — Dolphin merges them, so a switch in one could be overridden. The
+  targets carry Dolphin's `[Core] EnableCheats` switch (off by default).
+- **PCSX2 patches and cheats.** Patches are the labelled `[name]` groups of `<patches>\<SERIAL>_<CRC>*.pnach` and
+  `<CRC>*.pnach`, then the member of the shipped `resources\patches.zip` — skipped when a file on disk has an unlabelled
+  patch, as `EnumeratePnachFiles` does. Cheats are the same names in the cheats folder. A group is on when
+  `Enable =
+  <name>` is in `[Patches]` / `[Cheats]` of `<gamesettings>\<SERIAL>_<CRC>.ini` (a string list: the key
+  repeats; `INISettingsInterface`); a switch adds or removes that one line, creating the file when absent. Unlabelled
+  patches are always applied, so they are listed and cannot be switched. A settings file with any other repeated key, or
+  a line that is not a section, comment or `key = value`, is read-only.
+- **Azahar cheats.** The `[name]` blocks of the game's cheat file; a cheat is on when a `*citra_enabled` line follows
+  its header (`GatewayCheat::LoadFile` / `ToString`). Read-only when a code line comes before the first header, a header
+  has no code lines (Azahar drops it and carries its state to the next cheat) or a name repeats.
+
+Every switch is refused while the emulator's executable is running (`emulator_running`), is written only if the file
+still holds what was read (`changed` otherwise), and copies the existing file to
+`romm-mod-backups\<stamp>\settings\<file name>` first; a file that did not exist is created only if it still does not.
+
+## Emulators with no target, and what is not offered
+
+| Emulator     | Offered                                | Not offered, and why                                                                                                                                                                                     |
+| ------------ | -------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Cemu         | `graphicPacks` in the user data folder | Turning a pack on: Cemu does it per game in `settings.xml`, and which packs belong to a game is in each pack's `rules.txt` by Wii U title ID, which is not read from Wii U images here                   |
+| RPCS3        | —                                      | Game patches: the patch list and the enabled patches are YAML (`patches\patch.yml`, `patch_config.yml`) keyed by the executable's PPU hash, and there is no YAML reader here that could edit them safely |
+| Xenia Canary | —                                      | Patches: files are named by the Xbox 360 title ID inside `default.xex`, which is not read from disc images                                                                                               |
+| shadPS4      | —                                      | Cheats and patches: kept per download source (XML patches indexed by `files.json`, cheat files) keyed by the game's serial; neither is edited here                                                       |
+| xemu         | —                                      | xemu has no mod, cheat or patch folder                                                                                                                                                                   |
+
+Cemu's user data folder is `<exe folder>\portable` when that folder exists, else the exe folder when `settings.xml` sits
+beside it (installs from before 2.0-89), else `%APPDATA%\Cemu`, which is not read (`CemuApp::DeterminePaths`). The
+others answer `success` with no targets, a note and the omitted entries; their data folders are not read.
 
 ## Install
 
@@ -84,9 +171,10 @@ on, PCSX2 `LoadTextureReplacements` off.
 
 ## Gating
 
-`install_mod`, `remove_mod` and `enable_mod_setting` carry `@migration_blocked` and `@prune_active_blocked` (a soft
-patch sits beside a ROM the removed-game cleanup may be claiming) and share one `asyncio.Lock`. The reads
-(`get_game_mods`, `list_mod_sources`, `preview_mod_install`, `open_mod_folder`) are not gated.
+`install_mod`, `remove_mod`, `enable_mod_setting` and `set_mod_builtin` carry `@migration_blocked` and
+`@prune_active_blocked` (a soft patch sits beside a ROM the removed-game cleanup may be claiming) and share one
+`asyncio.Lock`. The reads (`get_game_mods`, `list_mod_sources`, `preview_mod_install`, `open_mod_folder`,
+`list_mod_builtins`) are not gated.
 
 ## Forge bridge
 
@@ -170,11 +258,14 @@ window.__eternalCollectorMods = {
   readSetting(appId, targetId): Promise<{ success: true; target_id; setting: ModSetting | null } | Failure>,
   enableSetting(appId, targetId): Promise<ModSettingAnswer>,        // enable_mod_setting
   openFolder(appId, targetId): Promise<ModOpenAnswer>,              // open_mod_folder
+  // v1 additions (win.29):
+  listBuiltins(appId, targetId): Promise<ModBuiltinsAnswer>,        // list_mod_builtins
+  setBuiltin(appId, targetId, entryId, enabled: boolean): Promise<ModBuiltinSetAnswer>, // set_mod_builtin
 };
 ```
 
 The shapes are the Mods panel's (`src/types/mods.ts`). The bridge adds no callable: it maps the Steam appId to the ROM
-through `get_cached_game_detail` and calls the seven callables above, so every rule on this page holds unchanged —
+through `get_cached_game_detail` and calls the nine callables above, so every rule on this page holds unchanged —
 resolution on every call, the fingerprint check, the gating, the write lock and the backup folder.
 
 - **Failures** keep `{success: false, reason, message}`, and no wrapper throws. The bridge's own reasons:
@@ -188,6 +279,12 @@ resolution on every call, the fingerprint check, the gating, the write lock and 
   game file (`GALE01`).
 - **`listSources` without a target id** lists for the game's first target.
 - **`listInstalled` and `readSetting`** are read from `get_game_mods` (each target's `installed` and `setting`).
+- **v1 additions.** A target's `kind` and `file_name` are new fields of `getTargets`' answer, and `accepts` gains
+  `cheat_file` and `none`. A cheat file installs through `preview` / `install` like any source: Forge passes the
+  Downloads entry name and The Collector writes it as the target's `file_name`. `listBuiltins` / `setBuiltin` work on
+  `builtinToggle` targets only (`unsupported` otherwise); `setBuiltin` takes the `entry_id` `listBuiltins` answered and
+  is refused with `not_editable`, `emulator_running`, `changed` or `not_found` as described under
+  [Built-in toggles](#built-in-toggles).
 
 ### Where Forge puts a download
 
@@ -201,8 +298,8 @@ entry names are deliberately single names with no separator.
 ### What Forge may and may not do
 
 - **May:** draw a Mods tab and an Overview card on ROM pages; read targets, sources, installed entries and the setting;
-  preview and install; remove an entry the backend listed (or the whole game folder with `null`); turn on the emulator's
-  setting; open a mod folder.
+  preview and install (cheat files included); remove an entry the backend listed (or the whole game folder with `null`);
+  turn on the emulator's setting; list and switch a built-in-toggle target's entries; open a mod folder.
 - **Must:** show the preview before installing and pass its `fingerprint`; confirm a removal with the user, naming what
   moves, before calling `remove` (the Mods panel does the same); handle every failure answer.
 - **May not:** pass a path anywhere; write into an emulator folder itself; delete anything (removal moves to

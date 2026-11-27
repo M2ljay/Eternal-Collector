@@ -290,3 +290,31 @@ class TestOpenAndProcesses:
     def test_running_names_pass_through(self, store):
         assert store.running_executable_names() == frozenset({"x.exe"})
         assert store.downloads_folder().endswith("Downloads")
+
+
+class TestToggleFiles:
+    def test_list_file_names_skips_folders_and_respects_the_limit(self, store, tmp_path):
+        folder = tmp_path / "patches"
+        folder.mkdir()
+        for name in ("b.pnach", "A.pnach", "c.pnach"):
+            (folder / name).write_text("x")
+        (folder / "sub").mkdir()
+        assert store.list_file_names(str(folder), 10) == ["A.pnach", "b.pnach", "c.pnach"]
+        assert store.list_file_names(str(folder), 2) == ["A.pnach", "b.pnach"]
+        assert store.list_file_names(str(tmp_path / "missing"), 10) == []
+
+    def test_read_zip_text(self, store, tmp_path):
+        path = tmp_path / "patches.zip"
+        _zip(path, {"SLUS-20946_ABCD1234.pnach": "﻿[60 FPS]\n".encode()})
+        assert store.read_zip_text(str(path), "SLUS-20946_ABCD1234.pnach") == "[60 FPS]\n"
+        assert store.read_zip_text(str(path), "other.pnach") is None
+        assert store.read_zip_text(str(tmp_path / "none.zip"), "x") is None
+        (tmp_path / "bad.zip").write_bytes(b"not a zip")
+        assert store.read_zip_text(str(tmp_path / "bad.zip"), "x") is None
+
+    def test_create_text_never_overwrites(self, store, tmp_path):
+        path = tmp_path / "gamesettings" / "SLUS-20946_ABCD1234.ini"
+        assert store.create_text(str(path), "[Patches]\r\nEnable = A\r\n") is True
+        assert path.read_bytes() == b"[Patches]\r\nEnable = A\r\n"
+        assert store.create_text(str(path), "other") is False
+        assert path.read_bytes() == b"[Patches]\r\nEnable = A\r\n"

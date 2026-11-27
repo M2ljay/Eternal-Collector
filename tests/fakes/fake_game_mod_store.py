@@ -37,6 +37,10 @@ class FakeGameModStore:
         self.moves: list[tuple[str, str, str]] = []
         self.replacements: list[tuple[str, str, str, str]] = []
         self.opened: list[str] = []
+        self.file_names: dict[str, list[str]] = {}
+        self.zips: dict[tuple[str, str], str] = {}
+        self.created: list[tuple[str, str]] = []
+        self.create_result = True
 
     def downloads_folder(self) -> str:
         return self.downloads
@@ -59,6 +63,18 @@ class FakeGameModStore:
 
     def list_sources(self, folder: str, limit: int) -> tuple[list[ModEntryInfo], bool]:
         return (self.source_listing[:limit], len(self.source_listing) > limit)
+
+    def list_file_names(self, folder: str, limit: int) -> list[str]:
+        return self.file_names.get(folder, [])[:limit]
+
+    def read_zip_text(self, zip_path: str, member: str) -> str | None:
+        return self.zips.get((zip_path, member))
+
+    def create_text(self, path: str, new_text: str) -> bool:
+        if not self.create_result or path in self.files:
+            return False
+        self.created.append((path, new_text))
+        return True
 
     def source_path(self, name: str) -> str | None:
         return f"{self.downloads}\\{name}" if name in self.sources else None

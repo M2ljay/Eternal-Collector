@@ -299,6 +299,7 @@ async def test_action_report_rejects_stale_token_with_canonical_shape(harness):
         ("install_mod", (41, "soft_patch", "Game.ips", "fp")),
         ("remove_mod", (41, "soft_patch", "Game.ips")),
         ("enable_mod_setting", (41, "textures")),
+        ("set_mod_builtin", (41, "gecko_codes", "Widescreen", True)),
         ("evaluate_launch", (0x80000001,)),
     ],
 )

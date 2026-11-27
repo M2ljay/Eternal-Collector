@@ -54,6 +54,8 @@ function textures(overrides: Partial<ModTarget> = {}): ModTarget {
       can_enable: true,
     },
     accepts: "archive_or_folder",
+    kind: "files",
+    file_name: null,
     ...overrides,
   };
 }
@@ -347,5 +349,73 @@ describe("ModsModal — open folder", () => {
     fireEvent.click(button(container, "Open Folder"));
     await waitFor(() => expect(lastToast()).toBe("not yet"));
     expect(backend.openModFolder).toHaveBeenCalledWith(7, "textures");
+  });
+});
+
+describe("ModsModal — cheat files and built-in entries", () => {
+  it("offers a cheat file target with the name it is saved as, and its setting as a generic hint", async () => {
+    vi.mocked(backend.listModSources).mockResolvedValue({ success: true, folder: "D", entries: [], truncated: false });
+    const cheats = textures({
+      target_id: "cheats",
+      label: "Cheat file (.pnach)",
+      scope: "file",
+      path: "C:\\PCSX2\\cheats",
+      game_folder: null,
+      installed: [],
+      accepts: "cheat_file",
+      kind: "cheatFile",
+      file_name: "SLUS-20946_3E2A1B0C.pnach",
+      setting: {
+        label: "Enable Cheats",
+        file: "C:\\PCSX2\\inis\\PCSX2.ini",
+        section: "EmuCore",
+        key: "EnableCheats",
+        state: "off",
+        can_enable: true,
+      },
+    });
+    const { container } = await renderLoaded(info({ targets: [cheats] }));
+    expect(container.textContent).toContain("as SLUS-20946_3E2A1B0C.pnach");
+    expect(container.textContent).toContain("Enable Cheats is off in Dolphin");
+    fireEvent.click(button(container, "Install from Downloads"));
+    await waitFor(() => expect(container.textContent).toContain("a .pnach file, or a .zip holding exactly one"));
+  });
+
+  it("shows a built-in toggle target's entries and offers no install or remove", async () => {
+    vi.mocked(backend.listModBuiltins)
+      .mockReset()
+      .mockResolvedValue({
+        success: true,
+        target_id: "gecko_codes",
+        file: "f",
+        editable: true,
+        reason: null,
+        entries: [
+          {
+            entry_id: "WS",
+            name: "Widescreen",
+            description: "",
+            notes: [],
+            enabled: true,
+            can_toggle: true,
+            origin: "built-in",
+          },
+        ],
+        setting: null,
+      });
+    const gecko = textures({
+      target_id: "gecko_codes",
+      label: "Gecko codes",
+      scope: "toggle",
+      game_folder: null,
+      installed: [],
+      accepts: "none",
+      kind: "builtinToggle",
+    });
+    const { container } = await renderLoaded(info({ targets: [gecko] }));
+    await waitFor(() => expect(container.textContent).toContain("Widescreen"));
+    expect(container.textContent).not.toContain("Install from Downloads");
+    expect(container.textContent).not.toContain("Nothing installed here yet.");
+    expect(backend.listModBuiltins).toHaveBeenCalledWith(7, "gecko_codes");
   });
 });

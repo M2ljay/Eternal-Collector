@@ -2,7 +2,7 @@
 
 Driven frontend-shaped per ``src/api/backend.ts`` (``getGameMods``,
 ``listModSources``, ``previewModInstall``, ``installMod``, ``removeMod``,
-``enableModSetting``, ``openModFolder``). The harness bootstraps on Linux,
+``enableModSetting``, ``openModFolder``, ``listModBuiltins``, ``setModBuiltin``). The harness bootstraps on Linux,
 where no mod store is wired: every callable must answer the canonical
 ``unsupported`` failure shape and touch nothing.
 """
@@ -19,6 +19,8 @@ _CALLS = [
     ("remove_mod", (1, "textures", None)),
     ("enable_mod_setting", (1, "textures")),
     ("open_mod_folder", (1, "textures")),
+    ("list_mod_builtins", (1, "gecko_codes")),
+    ("set_mod_builtin", (1, "gecko_codes", "Widescreen", True)),
 ]
 
 

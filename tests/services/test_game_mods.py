@@ -14,7 +14,7 @@ from fakes.fake_launch_command_renderer import FakeLaunchCommandRenderer
 from fakes.fake_unit_of_work import FakeUnitOfWork, FakeUnitOfWorkFactory
 from fakes.system_time import FakeClock, FakeUuidGen
 
-from domain.disc_ids import GAMECUBE, WII, DiscCode
+from domain.disc_ids import GAMECUBE, N3DS, PS2, WII, DiscCode, Ps2ElfCrc
 from domain.game_mods import InstallOutcome, ModEntryInfo, SourceEntry
 from domain.rom import Rom
 from domain.rom_install import RomInstall
@@ -90,6 +90,7 @@ class _Env:
                 active_backend_id=lambda: self.backend,
                 disc_codes=self.discs,
                 mod_store=self.store if with_store else None,
+                elf_crcs=self.discs,
             )
         )
 
@@ -133,9 +134,9 @@ class TestAvailability:
         assert "No known mod folder" in result["note"]
 
     def test_unknown_emulator_names_it_and_offers_nothing(self, env):
-        env.emulator = EmulatorInvocation.standalone(f'"{_EMU}\\Cemu\\Cemu.exe" -g', "Cemu")
+        env.emulator = EmulatorInvocation.standalone(f'"{_EMU}\\Ryujinx\\Ryujinx.exe"', "Ryujinx")
         result = env.run(env.service().get_game_mods(1))
-        assert result["emulator"] == {"id": None, "label": "Cemu.exe", "exe": f"{_EMU}\\Cemu\\Cemu.exe"}
+        assert result["emulator"] == {"id": None, "label": "Ryujinx.exe", "exe": f"{_EMU}\\Ryujinx\\Ryujinx.exe"}
         assert result["targets"] == []
         assert result["note"] == "No known mod folder for this emulator."
 
@@ -148,7 +149,7 @@ class TestDolphin:
         assert result["success"] is True
         assert result["emulator"]["label"] == "Dolphin"
         assert result["game_id"] == "GALE01"
-        textures, graphic = result["targets"]
+        textures, graphic, gecko, action_replay = result["targets"]
         assert textures["path"] == _GAME
         assert textures["exists"] is True
         assert textures["installed"] == [
@@ -164,12 +165,19 @@ class TestDolphin:
         }
         assert graphic["scope"] == "shared"
         assert graphic["setting"] is None
+        assert [textures["kind"], graphic["kind"], gecko["kind"], action_replay["kind"]] == [
+            "files",
+            "graphicsMods",
+            "builtinToggle",
+            "builtinToggle",
+        ]
+        assert gecko["accepts"] == "none"
         assert env.discs.calls == [(_ISO, "gc-wii")]
 
     def test_wii_adds_riivolution(self, env):
         env.discs.codes[_ISO] = DiscCode(WII, "RMGE01")
         ids = [t["target_id"] for t in env.run(env.service().get_game_mods(1))["targets"]]
-        assert ids == ["textures", "graphic_mods", "riivolution"]
+        assert ids == ["textures", "graphic_mods", "riivolution", "gecko_codes", "action_replay_codes"]
 
     def test_unreadable_setting_file_is_unknown(self, env):
         env.store.files[_GFX] = None
@@ -421,3 +429,242 @@ class TestOpenFolder:
         env.store.dirs.add(_GAME)
         env.store.open_result = False
         assert env.run(env.service().open_mod_folder(1, "textures"))["reason"] == "open_failed"
+
+
+# -- cheat files, built-in toggles and the newer emulators ---------------------------
+
+_AZ_DIR = f"{_EMU}\\azahar"
+_AZ_USER = f"{_AZ_DIR}\\user"
+_AZ_CHEATS = f"{_AZ_USER}\\cheats"
+_AZ_FILE = f"{_AZ_CHEATS}\\0004000000055D00.txt"
+_3DS = "C:\\Emulation\\roms\\n3ds\\Game.3ds"
+_PS2_DIR = f"{_EMU}\\PCSX2"
+_PS2_ROM = "C:\\Emulation\\roms\\ps2\\SotC.chd"
+_PS2_INI = f"{_PS2_DIR}\\inis\\PCSX2.ini"
+_PS2_GAME_INI = f"{_PS2_DIR}\\gamesettings\\SCUS-97472_ABCD1234.ini"
+_SYS_GAMESETTINGS = f"{_DOLPHIN_DIR}\\Sys\\GameSettings"
+_USER_GAMESETTINGS = f"{_USER}\\GameSettings"
+
+
+def _targets(result: dict) -> dict[str, dict]:
+    return {t["target_id"]: t for t in result["targets"]}
+
+
+class TestAzaharCheats:
+    @pytest.fixture
+    def az(self, env):
+        env.uow = FakeUnitOfWork()
+        _seed(env.uow, path=_3DS, platform="3ds")
+        env.emulator = EmulatorInvocation.standalone(f'"{_AZ_DIR}\\azahar.exe"', "Azahar")
+        env.discs.codes[_3DS] = DiscCode(N3DS, "0004000000055D00")
+        env.store.dirs.add(_AZ_USER)
+        return env
+
+    def test_cheat_file_target_named_by_title_id(self, az):
+        az.store.listings[_AZ_CHEATS] = [ModEntryInfo("0004000000055D00.txt", False, 40, 1.0, files=1)]
+        targets = _targets(az.run(az.service().get_game_mods(1)))
+        cheats = targets["cheats"]
+        assert (cheats["kind"], cheats["scope"], cheats["accepts"]) == ("cheatFile", "file", "cheat_file")
+        assert cheats["file_name"] == "0004000000055D00.txt"
+        assert [e["name"] for e in cheats["installed"]] == ["0004000000055D00.txt"]
+        assert targets["cheat_codes"]["kind"] == "builtinToggle"
+        assert targets["mods"]["kind"] == "layeredFs"
+
+    def test_a_downloaded_cheat_is_installed_under_the_title_id(self, az):
+        az.store.sources["mk7 cheats.txt"] = FakeSource(entries=[SourceEntry("mk7 cheats.txt", False, 40)])
+        svc = az.service()
+        preview = az.run(svc.preview_mod_install(1, "cheats", "mk7 cheats.txt"))
+        assert preview["destination"] == _AZ_CHEATS
+        assert [w["path"] for w in preview["writes"]] == ["0004000000055D00.txt"]
+        result = az.run(svc.install_mod(1, "cheats", "mk7 cheats.txt", preview["fingerprint"]))
+        assert result["success"] is True
+        (_source, root, writes, _replaces, _backup) = az.store.installs[0]
+        assert root == _AZ_CHEATS
+        assert writes[0].dest == "0004000000055D00.txt"
+
+    def test_lists_and_switches_a_cheat_with_a_backup(self, az):
+        az.store.files[_AZ_FILE] = "[Infinite HP]\n12345678 00000063\n"
+        svc = az.service()
+        listing = az.run(svc.list_mod_builtins(1, "cheat_codes"))
+        assert listing["success"] is True
+        assert listing["editable"] is True
+        assert [(e["entry_id"], e["enabled"], e["can_toggle"]) for e in listing["entries"]] == [
+            ("Infinite HP", False, True)
+        ]
+        result = az.run(svc.set_mod_builtin(1, "cheat_codes", "Infinite HP", True))
+        assert result == {
+            "success": True,
+            "file": _AZ_FILE,
+            "backup_path": f"{_AZ_USER}\\romm-mod-backups\\20261124-153000-abcdef12\\settings\\0004000000055D00.txt",
+            "enabled": True,
+        }
+        path, expected, new_text, _backup = az.store.replacements[0]
+        assert (path, expected) == (_AZ_FILE, "[Infinite HP]\n12345678 00000063\n")
+        assert new_text == "[Infinite HP]\n*citra_enabled\n12345678 00000063\n"
+
+    def test_switching_to_the_current_state_writes_nothing(self, az):
+        az.store.files[_AZ_FILE] = "[A]\n*citra_enabled\n1 2\n"
+        result = az.run(az.service().set_mod_builtin(1, "cheat_codes", "A", True))
+        assert result["success"] is True
+        assert result["backup_path"] is None
+        assert az.store.replacements == []
+
+    def test_refused_while_the_emulator_runs(self, az):
+        az.store.files[_AZ_FILE] = "[A]\n1 2\n"
+        az.store.running = frozenset({"azahar.exe"})
+        result = az.run(az.service().set_mod_builtin(1, "cheat_codes", "A", True))
+        assert result["reason"] == "emulator_running"
+        assert az.store.replacements == []
+
+    def test_unknown_entry_and_changed_file(self, az):
+        az.store.files[_AZ_FILE] = "[A]\n1 2\n"
+        svc = az.service()
+        assert az.run(svc.set_mod_builtin(1, "cheat_codes", "Nope", True))["reason"] == "not_found"
+        az.store.replace_result = False
+        assert az.run(svc.set_mod_builtin(1, "cheat_codes", "A", True))["reason"] == "changed"
+
+    def test_unreadable_file_is_read_only(self, az):
+        az.store.files[_AZ_FILE] = None
+        listing = az.run(az.service().list_mod_builtins(1, "cheat_codes"))
+        assert listing["editable"] is False
+        assert "could not be read" in listing["reason"]
+
+    def test_listing_a_files_target_is_unsupported(self, az):
+        assert az.run(az.service().list_mod_builtins(1, "cheats"))["reason"] == "unsupported"
+
+
+class TestPcsx2Patches:
+    @pytest.fixture
+    def ps2(self, env):
+        env.uow = FakeUnitOfWork()
+        _seed(env.uow, path=_PS2_ROM, platform="ps2")
+        env.emulator = EmulatorInvocation.standalone(f'"{_PS2_DIR}\\pcsx2-qt.exe" -batch', "PCSX2")
+        env.discs.codes[_PS2_ROM] = DiscCode(PS2, "SCUS-97472")
+        env.discs.elf_crcs[_PS2_ROM] = Ps2ElfCrc(0xABCD1234)
+        env.store.files.update({f"{_PS2_DIR}\\portable.ini": "", _PS2_INI: "[Folders]\n"})
+        return env
+
+    def test_targets_named_by_serial_and_crc(self, ps2):
+        targets = _targets(ps2.run(ps2.service().get_game_mods(1)))
+        assert list(targets) == ["textures", "cheats", "patches", "cheat_codes"]
+        assert targets["cheats"]["file_name"] == "SCUS-97472_ABCD1234.pnach"
+        assert targets["cheats"]["path"] == f"{_PS2_DIR}\\cheats"
+        assert targets["cheats"]["setting"]["key"] == "EnableCheats"
+
+    def test_unreadable_crc_omits_them_with_the_reason(self, ps2):
+        ps2.discs.elf_crcs[_PS2_ROM] = Ps2ElfCrc(None, "the image could not be decoded: unsupported CHD codec")
+        result = ps2.run(ps2.service().get_game_mods(1))
+        assert list(_targets(result)) == ["textures"]
+        (omitted,) = result["omitted"]
+        assert "CRC" in omitted["reason"]
+        assert "unsupported CHD codec" in omitted["reason"]
+
+    def test_patches_come_from_the_folder_and_the_shipped_zip(self, ps2):
+        patches_dir = f"{_PS2_DIR}\\patches"
+        ps2.store.file_names[patches_dir] = ["SCUS-97472_ABCD1234_mine.pnach", "unrelated.pnach"]
+        ps2.store.files[f"{patches_dir}\\SCUS-97472_ABCD1234_mine.pnach"] = "[Mine]\npatch=1,EE,0,word,0\n"
+        ps2.store.zips[(f"{_PS2_DIR}\\resources\\patches.zip", "SCUS-97472_ABCD1234.pnach")] = (
+            "[Widescreen 16:9]\ndescription=wide\npatch=1,EE,0,word,0\n"
+        )
+        ps2.store.files[_PS2_GAME_INI] = "[Patches]\nEnable = Widescreen 16:9\n"
+        listing = ps2.run(ps2.service().list_mod_builtins(1, "patches"))
+        assert [(e["name"], e["enabled"], e["origin"]) for e in listing["entries"]] == [
+            ("Mine", False, "SCUS-97472_ABCD1234_mine.pnach"),
+            ("Widescreen 16:9", True, "built-in"),
+        ]
+
+    def test_an_unlabelled_patch_on_disk_hides_the_zip(self, ps2):
+        patches_dir = f"{_PS2_DIR}\\patches"
+        ps2.store.file_names[patches_dir] = ["ABCD1234.pnach"]
+        ps2.store.files[f"{patches_dir}\\ABCD1234.pnach"] = "patch=1,EE,0,word,0\n"
+        ps2.store.zips[(f"{_PS2_DIR}\\resources\\patches.zip", "SCUS-97472_ABCD1234.pnach")] = "[Zip]\n"
+        names = [e["name"] for e in ps2.run(ps2.service().list_mod_builtins(1, "patches"))["entries"]]
+        assert names == ["Unlabelled patches in ABCD1234.pnach"]
+
+    def test_switching_creates_the_game_settings_file(self, ps2):
+        ps2.store.zips[(f"{_PS2_DIR}\\resources\\patches.zip", "SCUS-97472_ABCD1234.pnach")] = "[60 FPS]\n"
+        result = ps2.run(ps2.service().set_mod_builtin(1, "patches", "60 FPS", True))
+        assert result == {"success": True, "file": _PS2_GAME_INI, "backup_path": None, "enabled": True}
+        assert ps2.store.created == [(_PS2_GAME_INI, "[Patches]\r\nEnable = 60 FPS\r\n")]
+
+    def test_switching_a_cheat_edits_the_existing_file(self, ps2):
+        cheats_dir = f"{_PS2_DIR}\\cheats"
+        ps2.store.file_names[cheats_dir] = ["SCUS-97472_ABCD1234.pnach"]
+        ps2.store.files[f"{cheats_dir}\\SCUS-97472_ABCD1234.pnach"] = "[Max Money]\npatch=1,EE,0,word,0\n"
+        ps2.store.files[_PS2_GAME_INI] = "[EmuCore]\nEnableCheats = true\n"
+        result = ps2.run(ps2.service().set_mod_builtin(1, "cheat_codes", "Max Money", True))
+        assert result["success"] is True
+        _path, _expected, new_text, backup = ps2.store.replacements[0]
+        assert new_text == "[EmuCore]\nEnableCheats = true\n\n[Cheats]\nEnable = Max Money\n"
+        assert backup.endswith("\\settings\\SCUS-97472_ABCD1234.ini")
+
+    def test_unlabelled_entries_cannot_be_switched(self, ps2):
+        cheats_dir = f"{_PS2_DIR}\\cheats"
+        ps2.store.file_names[cheats_dir] = ["ABCD1234.pnach"]
+        ps2.store.files[f"{cheats_dir}\\ABCD1234.pnach"] = "patch=1,EE,0,word,0\n"
+        result = ps2.run(ps2.service().set_mod_builtin(1, "cheat_codes", "unlabelled:ABCD1234.pnach", False))
+        assert result["reason"] == "not_editable"
+
+
+class TestDolphinCodes:
+    def test_lists_shipped_and_user_codes_and_switches_into_the_id6_file(self, env):
+        env.store.files[f"{_SYS_GAMESETTINGS}\\GALE01.ini"] = "[Gecko]\n$Widescreen [x]\n04000000 00000000\n"
+        svc = env.service()
+        listing = env.run(svc.list_mod_builtins(1, "gecko_codes"))
+        assert listing["setting"]["key"] == "EnableCheats"
+        assert [(e["name"], e["enabled"], e["origin"]) for e in listing["entries"]] == [
+            ("Widescreen", False, "built-in")
+        ]
+        result = env.run(svc.set_mod_builtin(1, "gecko_codes", "Widescreen", True))
+        assert result["success"] is True
+        assert env.store.created == [(f"{_USER_GAMESETTINGS}\\GALE01.ini", "[Gecko_Enabled]\r\n$Widescreen\r\n")]
+
+    def test_switches_in_another_user_file_make_it_read_only(self, env):
+        env.store.files[f"{_SYS_GAMESETTINGS}\\GALE01.ini"] = "[Gecko]\n$Widescreen\n04000000 00000000\n"
+        env.store.files[f"{_USER_GAMESETTINGS}\\GAL.ini"] = "[Gecko_Enabled]\n$Widescreen\n"
+        svc = env.service()
+        listing = env.run(svc.list_mod_builtins(1, "gecko_codes"))
+        assert listing["editable"] is False
+        assert env.run(svc.set_mod_builtin(1, "gecko_codes", "Widescreen", False))["reason"] == "not_editable"
+
+
+class TestNewerEmulators:
+    def test_cemu_portable_offers_graphic_packs(self, env):
+        cemu_dir = f"{_EMU}\\cemu"
+        env.emulator = EmulatorInvocation.standalone(f'"{cemu_dir}\\Cemu.exe" -g', "Cemu")
+        env.store.dirs.add(f"{cemu_dir}\\portable")
+        result = env.run(env.service().get_game_mods(1))
+        (target,) = result["targets"]
+        assert (target["target_id"], target["kind"], target["scope"]) == ("graphic_packs", "graphicsMods", "shared")
+        assert target["path"] == f"{cemu_dir}\\portable\\graphicPacks"
+        assert result["omitted"][0]["label"] == "Turning graphic packs on"
+
+    def test_cemu_not_portable_says_why(self, env):
+        env.emulator = EmulatorInvocation.standalone(f'"{_EMU}\\cemu\\Cemu.exe"', "Cemu")
+        result = env.run(env.service().get_game_mods(1))
+        assert result["targets"] == []
+        assert "portable" in result["note"]
+
+    @pytest.mark.parametrize(
+        ("exe", "label"),
+        [("RPCS3\\rpcs3.exe", "RPCS3"), ("xenia\\xenia_canary.exe", "Xenia Canary"), ("xemu\\xemu.exe", "xemu")],
+    )
+    def test_emulators_with_nothing_offered_name_the_reason(self, env, exe, label):
+        env.emulator = EmulatorInvocation.standalone(f'"{_EMU}\\{exe}"', label)
+        result = env.run(env.service().get_game_mods(1))
+        assert result["emulator"]["label"] == label
+        assert result["targets"] == []
+        assert result["note"] == f"Nothing is offered for {label}."
+        assert result["omitted"]
+        assert env.discs.calls == []
+
+    def test_retroarch_cheat_file_from_cfg_and_core_info(self, env):
+        env.uow = FakeUnitOfWork()
+        _seed(env.uow, path=_SFC, platform="snes")
+        env.emulator = EmulatorInvocation.libretro("snes9x_libretro", "Snes9x")
+        env.store.files[f"{_RA_DIR}\\info\\snes9x_libretro.info"] = 'needs_fullpath = "false"\ncorename = "Snes9x"\n'
+        env.store.files[f"{_RA_DIR}\\retroarch.cfg"] = 'cheat_database_path = ":\\cheats"\n'
+        targets = _targets(env.run(env.service().get_game_mods(1)))
+        assert list(targets) == ["soft_patch", "cheats"]
+        assert targets["cheats"]["path"] == f"{_RA_DIR}\\cheats\\Snes9x"
+        assert targets["cheats"]["file_name"] == "Game (USA).cht"

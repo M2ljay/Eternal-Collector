@@ -100,6 +100,7 @@ if TYPE_CHECKING:
         PluginMetadataReader,
         ProtonLocator,
         PruneArtifactStore,
+        Ps2ElfCrcReader,
         RecoveryBundleStore,
         RendererGcFn,
         RendererRssFn,
@@ -157,6 +158,7 @@ class AdapterBundle:
     rom_file_store: RomFileStore
     save_file_store: SaveFileStore
     disc_codes: DiscCodeReader
+    ps2_elf_crcs: Ps2ElfCrcReader
     path_probe: PathExistsReader
     renderer_rss: RendererRssFn
     renderer_gc: RendererGcFn
@@ -482,6 +484,7 @@ def bootstrap(
         rom_file_store=rom_file_store,
         save_file_store=save_file_store,
         disc_codes=disc_codes,
+        ps2_elf_crcs=disc_codes,
         path_probe=path_probe,
         renderer_rss=renderer_rss,
         renderer_gc=renderer_gc,

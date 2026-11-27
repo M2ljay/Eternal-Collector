@@ -239,3 +239,58 @@ class TestDiscCodeProblem:
         _write(tmp_path, "g.iso", _PS2_ISO)
         assert reader.read_disc_code(path, PS2) is not None
         assert reader.disc_code_problem(path, PS2) is None
+
+
+def _elf(words: int) -> bytes:
+    return b"\x7fELF" + bytes((i * 13 + 5) % 256 for i in range(words * 4 - 4))
+
+
+class TestPs2ElfCrc:
+    _ELF = _elf(3000)
+    _ISO = build_iso({"SYSTEM.CNF": b"BOOT2 = cdrom0:\\SLUS_209.46;1\r\n", "SLUS_209.46": _ELF}, pad_sectors=4)
+
+    def _expected(self) -> int:
+        crc = 0
+        for (word,) in struct.iter_unpack("<I", self._ELF):
+            crc ^= word
+        return crc
+
+    def test_iso(self, reader, tmp_path):
+        answer = reader.read_ps2_elf_crc(_write(tmp_path, "g.iso", self._ISO))
+        assert answer.crc == self._expected()
+        assert answer.reason is None
+
+    def test_cso(self, reader, tmp_path):
+        answer = reader.read_ps2_elf_crc(_write(tmp_path, "g.cso", build_cso(self._ISO, block_size=2048)))
+        assert answer.crc == self._expected()
+
+    def test_chd(self, reader, tmp_path):
+        blob = build_chd(self._ISO, hunk_bytes=4096, unit_bytes=2048, codecs=("zlib",))
+        assert reader.read_ps2_elf_crc(_write(tmp_path, "g.chd", blob)).crc == self._expected()
+
+    def test_boot_elf_in_a_folder(self, reader, tmp_path):
+        iso = build_iso({"SYSTEM.CNF": b"BOOT2 = cdrom0:\\DATA\\MAIN.ELF;1\n", "DATA/MAIN.ELF": self._ELF})
+        assert reader.read_ps2_elf_crc(_write(tmp_path, "g.iso", iso)).crc == self._expected()
+
+    def test_answer_is_cached_per_file(self, reader, tmp_path, monkeypatch):
+        path = _write(tmp_path, "g.iso", self._ISO)
+        first = reader.read_ps2_elf_crc(path)
+        monkeypatch.setattr(reader, "_read_ps2_elf_crc", lambda _p: pytest.fail("read again"))
+        assert reader.read_ps2_elf_crc(path) is first
+
+    @pytest.mark.parametrize(
+        ("files", "reason"),
+        [
+            ({"SYSTEM.CNF": b"BOOT = cdrom:\\SLUS_001.23;1\n"}, "names no PS2 boot executable"),
+            ({"SYSTEM.CNF": b"BOOT2 = cdrom0:\\SLUS_209.46;1\n"}, "missing or not an ELF"),
+            ({"SYSTEM.CNF": b"BOOT2 = cdrom0:\\SLUS_209.46;1\n", "SLUS_209.46": b"not an elf"}, "not an ELF"),
+        ],
+    )
+    def test_reasons(self, reader, tmp_path, files, reason):
+        answer = reader.read_ps2_elf_crc(_write(tmp_path, "g.iso", build_iso(files)))
+        assert answer.crc is None
+        assert reason in (answer.reason or "")
+
+    def test_unsupported_format_and_missing_file(self, reader, tmp_path):
+        assert "not read here" in (reader.read_ps2_elf_crc(_write(tmp_path, "g.bin", b"x")).reason or "")
+        assert "could not be read" in (reader.read_ps2_elf_crc(str(tmp_path / "gone.iso")).reason or "")

@@ -27,7 +27,7 @@ if TYPE_CHECKING:
         SteamRecoverySnapshot,
     )
 
-    from domain.disc_ids import DiscCode
+    from domain.disc_ids import DiscCode, Ps2ElfCrc
     from domain.game_mods import InstallOutcome, ModEntryInfo, PlannedWrite, SourceEntry
     from domain.prune import BundleReadmeContext
     from domain.save_bundles import BundleLayout
@@ -795,6 +795,14 @@ class DiscCodeReader(Protocol):
         ...
 
 
+class Ps2ElfCrcReader(Protocol):
+    """Reads PCSX2's CRC of a PS2 image's boot executable (``domain.disc_ids.ps2_elf_crc``)."""
+
+    def read_ps2_elf_crc(self, path: str) -> Ps2ElfCrc:
+        """The CRC of the ELF the image's ``SYSTEM.CNF`` boots, or why it could not be read."""
+        ...
+
+
 class GameModStore(Protocol):
     """Filesystem seam for game mod folders, the Downloads folder mods are installed from, and their backups.
 
@@ -856,6 +864,18 @@ class GameModStore(Protocol):
 
     def move_to_backup(self, root: str, name: str, backup: str) -> None:
         """Move the entry *name* of *root* (or *root* itself when *name* is empty) to the new path *backup*."""
+        ...
+
+    def list_file_names(self, folder: str, limit: int) -> list[str]:
+        """The plain files directly in *folder* (no folders, no links), at most *limit*; ``[]`` when absent."""
+        ...
+
+    def read_zip_text(self, zip_path: str, member: str) -> str | None:
+        """The UTF-8 text of *member* of the zip *zip_path*, or ``None`` when either is missing or unreadable."""
+        ...
+
+    def create_text(self, path: str, new_text: str) -> bool:
+        """Write *new_text* as the new file *path* (its folder created); ``False`` when the file already exists."""
         ...
 
     def replace_text(self, path: str, expected: str, new_text: str, backup: str) -> bool:

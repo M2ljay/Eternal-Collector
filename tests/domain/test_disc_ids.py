@@ -12,6 +12,7 @@ from domain.disc_ids import (
     PRIMARY_VOLUME_DESCRIPTOR_LBA,
     WII,
     DiscCode,
+    Ps2ElfCrc,
     cia_tmd_offset,
     find_directory_entry,
     gamecube_region_folder,
@@ -22,8 +23,10 @@ from domain.disc_ids import (
     parse_nintendo_disc_header,
     parse_param_sfo_disc_id,
     parse_primary_volume_descriptor,
+    parse_system_cnf_boot_path,
     parse_system_cnf_serial,
     parse_umd_data,
+    ps2_elf_crc,
     tmd_title_id,
     wii_title_folder,
 )
@@ -198,6 +201,41 @@ def _ncch(program_id: int) -> bytes:
     header[0x100:0x104] = b"NCCH"
     struct.pack_into("<Q", header, 0x118, program_id)
     return bytes(header)
+
+
+class TestPs2BootElf:
+    @pytest.mark.parametrize(
+        ("cnf", "path"),
+        [
+            (b"BOOT2 = cdrom0:\\SLUS_209.46;1\r\nVER = 1.00\r\n", ("SLUS_209.46",)),
+            (b"BOOT2=cdrom0:\\DATA\\main.elf;1\n", ("DATA", "MAIN.ELF")),
+            (b"BOOT2 = cdrom0:slus_200.62\n", ("SLUS_200.62",)),
+        ],
+    )
+    def test_boot_path(self, cnf, path):
+        assert parse_system_cnf_boot_path(cnf) == path
+
+    @pytest.mark.parametrize(
+        "cnf", [b"BOOT = cdrom:\\SLUS_001.23;1\n", b"VER = 1.00\n", b"BOOT2 = cdrom0:\\..\\x;1\n", b""]
+    )
+    def test_no_ps2_boot_path(self, cnf):
+        assert parse_system_cnf_boot_path(cnf) is None
+
+    def test_crc_is_the_xor_of_little_endian_words(self):
+        data = struct.pack("<3I", 0x11111111, 0x22222222, 0x0F0F0F0F) + b"\xff\xff"
+        assert ps2_elf_crc(data) == 0x11111111 ^ 0x22222222 ^ 0x0F0F0F0F
+
+    @pytest.mark.parametrize("words", [0, 1, 2, 3, 5, 8, 1000])
+    def test_crc_matches_a_word_by_word_xor(self, words):
+        data = bytes((i * 37 + 11) % 256 for i in range(words * 4 + 3))
+        expected = 0
+        for (word,) in struct.iter_unpack("<I", data[: words * 4]):
+            expected ^= word
+        assert ps2_elf_crc(data) == expected
+
+    def test_crc_text_is_eight_upper_hex_digits(self):
+        assert Ps2ElfCrc(0xAB12).text == "0000AB12"
+        assert Ps2ElfCrc(None, "why").text is None
 
 
 class TestNintendo3ds:

@@ -33,6 +33,11 @@ if TYPE_CHECKING:
 
 AZAHAR = "azahar"
 RETROARCH = "retroarch"
+CEMU = "cemu"
+RPCS3 = "rpcs3"
+XENIA = "xenia"
+SHADPS4 = "shadps4"
+XEMU = "xemu"
 
 SCOPE_GAME = "game"
 """The folder is this game's own (named by its identifier); everything in it belongs to the game."""
@@ -40,17 +45,38 @@ SCOPE_SHARED = "shared"
 """The folder is shared by every game of the emulator; what is in it may belong to other games."""
 SCOPE_PATCH = "patch"
 """Soft-patch files beside the ROM, named after the ROM's own file stem."""
+SCOPE_FILE = "file"
+"""One file named for this game (``file_name``) in a folder every game of the emulator shares."""
+SCOPE_TOGGLE = "toggle"
+"""Entries the emulator already has, switched on or off in its own settings; nothing is installed or removed."""
+
+KIND_FILES = "files"
+KIND_CHEAT_FILE = "cheatFile"
+KIND_BUILTIN_TOGGLE = "builtinToggle"
+KIND_RIIVOLUTION = "riivolution"
+KIND_GRAPHICS_MODS = "graphicsMods"
+KIND_LAYERED_FS = "layeredFs"
 
 TARGET_TEXTURES = "textures"
 TARGET_GRAPHIC_MODS = "graphic_mods"
 TARGET_RIIVOLUTION = "riivolution"
 TARGET_MODS = "mods"
 TARGET_SOFT_PATCH = "soft_patch"
+TARGET_CHEATS = "cheats"
+TARGET_CHEAT_CODES = "cheat_codes"
+TARGET_PATCHES = "patches"
+TARGET_GECKO = "gecko_codes"
+TARGET_ACTION_REPLAY = "action_replay_codes"
+TARGET_GRAPHIC_PACKS = "graphic_packs"
 
 SOURCE_ZIP = "zip"
 SOURCE_FOLDER = "folder"
 SOURCE_PATCH = "patch"
+SOURCE_CHEAT = "cheat"
 SOURCE_UNSUPPORTED_ARCHIVE = "unsupported_archive"
+
+CHEAT_EXTENSIONS: tuple[str, ...] = (".txt", ".pnach", ".cht")
+"""Single cheat files a Downloads entry can be: Azahar ``.txt``, PCSX2 ``.pnach``, RetroArch ``.cht``."""
 
 PATCH_EXTENSIONS: tuple[str, ...] = (".ips", ".bps", ".ups")
 """Patch formats this plugin installs. RetroArch tries them in this order (atlas ``PATCH_FORMATS``)."""
@@ -73,6 +99,11 @@ _EXE_PREFIXES: tuple[tuple[str, str], ...] = (
     ("azahar", AZAHAR),
     ("citra", AZAHAR),
     ("lime3ds", AZAHAR),
+    ("cemu", CEMU),
+    ("rpcs3", RPCS3),
+    ("xenia", XENIA),
+    ("shadps4", SHADPS4),
+    ("xemu", XEMU),
 )
 
 EMULATOR_LABELS: dict[str, str] = {
@@ -81,6 +112,11 @@ EMULATOR_LABELS: dict[str, str] = {
     PPSSPP: "PPSSPP",
     PCSX2: "PCSX2",
     AZAHAR: "Azahar",
+    CEMU: "Cemu",
+    RPCS3: "RPCS3",
+    XENIA: "Xenia Canary",
+    SHADPS4: "shadPS4",
+    XEMU: "xemu",
 }
 
 IDENTIFIER_FAMILIES: dict[str, str] = {DOLPHIN: NINTENDO_OPTICAL, PPSSPP: PSP, PCSX2: PS2, AZAHAR: N3DS}
@@ -350,7 +386,7 @@ def dolphin_home(exe: str, *, portable: bool, user_dir_exists: bool, dolphin_ini
         return EmulatorHome(DOLPHIN, exe, None, f"Dolphin's User folder was not found at {user}")
     load_path = ini_value(dolphin_ini, "General", "LoadPath")
     if load_path:
-        if not _is_absolute(load_path):
+        if not is_absolute_path(load_path):
             return EmulatorHome(DOLPHIN, exe, None, f"Dolphin's custom load path {load_path!r} is not absolute")
         load = load_path.rstrip("\\/")
     else:
@@ -391,7 +427,7 @@ def pcsx2_home(exe: str, *, portable_marker: bool, portable_txt: str | None, pcs
         return EmulatorHome(PCSX2, exe, None, "PCSX2's inis\\PCSX2.ini was not found")
     textures = ini_value(pcsx2_ini, "Folders", "Textures") or "textures"
     textures_dir = (
-        textures.rstrip("\\/") if _is_absolute(textures) else join_path(exe_dir, *re.split(r"[\\/]", textures))
+        textures.rstrip("\\/") if is_absolute_path(textures) else join_path(exe_dir, *re.split(r"[\\/]", textures))
     )
     return EmulatorHome(PCSX2, exe, exe_dir, folders={"textures": textures_dir})
 
@@ -409,7 +445,7 @@ def retroarch_home(exe: str) -> EmulatorHome:
     return EmulatorHome(RETROARCH, exe, path_dirname(exe))
 
 
-def _is_absolute(path: str) -> bool:
+def is_absolute_path(path: str) -> bool:
     return bool(re.match(r"^[A-Za-z]:[\\/]", path)) or path.startswith(("\\\\", "/"))
 
 
@@ -429,8 +465,12 @@ class ModTarget:
     For :data:`SCOPE_GAME`, ``path`` is ``base_dir`` plus the game's own
     folder ``game_folder``; for :data:`SCOPE_SHARED` it is ``base_dir``; for
     :data:`SCOPE_PATCH` it is the ROM's folder, and ``patch_stem`` is the
-    ROM's file stem every patch is named after. ``required_prefix`` is the
-    sub-folder inside the game folder the emulator actually reads from.
+    ROM's file stem every patch is named after; for :data:`SCOPE_FILE` it is
+    the shared folder ``file_name`` is written into, from a source holding one
+    file ending in ``file_ext``; for :data:`SCOPE_TOGGLE` it is the folder of
+    the file a switch edits, described by ``toggle``. ``required_prefix`` is
+    the sub-folder inside the game folder the emulator actually reads from.
+    ``kind`` is what the target offers, for a caller choosing how to show it.
     """
 
     target_id: str
@@ -442,11 +482,38 @@ class ModTarget:
     patch_stem: str | None = None
     setting: SettingSpec | None = None
     notes: tuple[str, ...] = ()
+    kind: str = KIND_FILES
+    file_name: str | None = None
+    file_ext: str | None = None
+    toggle: ToggleSource | None = None
 
     @property
     def path(self) -> str:
         """The folder this target writes into."""
         return join_path(self.base_dir, self.game_folder) if self.game_folder else self.base_dir
+
+
+@dataclass(frozen=True)
+class ToggleSource:
+    """Where a :data:`SCOPE_TOGGLE` target's entries are read from and the one file a switch writes.
+
+    ``format`` names the reader in :mod:`domain.mod_toggles`. ``read_files``
+    are read in order for the entries (shipped files first); ``user_files``
+    are the user's own files of the same format (Dolphin merges them);
+    ``scan_dir`` with ``scan_prefixes`` lists files whose names start with a
+    prefix and end in ``.pnach`` (PCSX2); ``zip_file`` / ``zip_members`` are a
+    shipped archive and the members tried in order. ``write_file`` is the only
+    file a switch changes.
+    """
+
+    format: str
+    write_file: str
+    read_files: tuple[str, ...] = ()
+    user_files: tuple[str, ...] = ()
+    scan_dir: str | None = None
+    scan_prefixes: tuple[str, ...] = ()
+    zip_file: str | None = None
+    zip_members: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -475,9 +542,9 @@ def standalone_targets(
       ``<load>\\GraphicMods`` (shared); Wii only, Riivolution in
       ``<load>\\Riivolution`` (shared).
     - PPSSPP: texture packs in ``<memstick>\\PSP\\TEXTURES\\<GAME ID>``.
-    - PCSX2: texture replacements in ``<textures>\\<SERIAL>\\replacements``.
-      Patches and cheats (``patches\\``/``cheats\\``) are named by the game's
-      ELF CRC, which is not read, so they are omitted.
+    - PCSX2: texture replacements in ``<textures>\\<SERIAL>\\replacements``
+      (cheats and patches, named by the boot ELF's CRC, are in
+      :mod:`domain.mod_targets`).
     - Azahar: LayeredFS/code mods in ``<user>\\load\\mods\\<TITLE ID>`` and
       custom textures in ``<user>\\load\\textures\\<TITLE ID>``.
     """
@@ -501,6 +568,7 @@ def standalone_targets(
                 "Graphics mods",
                 SCOPE_SHARED,
                 join_path(load, "GraphicMods"),
+                kind=KIND_GRAPHICS_MODS,
                 notes=(
                     "Shared by every Dolphin game: each mod's own metadata names the games it applies to.",
                     "Dolphin also needs Graphics > Advanced > Enable Graphics Mods, which is not checked here.",
@@ -514,6 +582,7 @@ def standalone_targets(
                     "Riivolution patches",
                     SCOPE_SHARED,
                     join_path(load, "Riivolution"),
+                    kind=KIND_RIIVOLUTION,
                     notes=(
                         "Shared by every Wii game. Pick the patch in Dolphin with right-click > Start with Riivolution"
                         " Patches.",
@@ -542,11 +611,7 @@ def standalone_targets(
             setting=PCSX2_LOAD_TEXTURE_REPLACEMENTS,
             notes=("PCSX2 reads replacement textures from the game folder's 'replacements' sub-folder.",),
         )
-        omitted = OmittedTarget(
-            "Patches and cheats (.pnach)",
-            "PCSX2 names these by the game's executable CRC, which this plugin does not read.",
-        )
-        return ((target,), (omitted,))
+        return ((target,), ())
     if home.emulator == AZAHAR:
         load = join_path(root, "load")
         targets = (
@@ -556,6 +621,7 @@ def standalone_targets(
                 SCOPE_GAME,
                 join_path(load, "mods"),
                 game_folder=identifier,
+                kind=KIND_LAYERED_FS,
                 notes=("A mod keeps its own 'romfs' and/or 'exefs' folders inside the game folder.",),
             ),
             ModTarget(
@@ -636,6 +702,8 @@ def source_kind(name: str, *, is_dir: bool) -> str | None:
         return SOURCE_ZIP
     if lower.endswith(PATCH_EXTENSIONS):
         return SOURCE_PATCH
+    if lower.endswith(CHEAT_EXTENSIONS):
+        return SOURCE_CHEAT
     if lower.endswith(_UNSUPPORTED_ARCHIVES):
         return SOURCE_UNSUPPORTED_ARCHIVE
     return None
@@ -643,8 +711,10 @@ def source_kind(name: str, *, is_dir: bool) -> str | None:
 
 def source_fits(target: ModTarget, kind: str | None) -> bool:
     """Whether a source of *kind* is worth listing for *target*."""
-    if kind is None:
+    if kind is None or target.scope == SCOPE_TOGGLE:
         return False
+    if target.scope == SCOPE_FILE:
+        return kind in (SOURCE_CHEAT, SOURCE_ZIP, SOURCE_UNSUPPORTED_ARCHIVE)
     if target.scope == SCOPE_PATCH:
         return kind in (SOURCE_PATCH, SOURCE_ZIP, SOURCE_UNSUPPORTED_ARCHIVE)
     return kind in (SOURCE_ZIP, SOURCE_FOLDER, SOURCE_UNSUPPORTED_ARCHIVE)
@@ -761,6 +831,10 @@ def plan_install(target: ModTarget, entries: Sequence[SourceEntry]) -> InstallPl
         return PlanRefusal("empty_source", "There are no files to install.")
     if target.scope == SCOPE_PATCH:
         return _plan_patch(target, files)
+    if target.scope == SCOPE_FILE:
+        return _plan_single_file(target, files)
+    if target.scope == SCOPE_TOGGLE:
+        return PlanRefusal("not_installable", f"{target.label} are switched on or off, not installed.")
     stripped = None
     names = [name for name, _ in files]
     if target.game_folder is not None:
@@ -788,6 +862,16 @@ def _plan_patch(target: ModTarget, files: list[tuple[str, SourceEntry]]) -> Inst
     name, entry = patches[0]
     ext = posixpath.splitext(name)[1].lower()
     return InstallPlan((PlannedWrite(entry.name, f"{target.patch_stem}{ext}", entry.size),))
+
+
+def _plan_single_file(target: ModTarget, files: list[tuple[str, SourceEntry]]) -> InstallPlan | PlanRefusal:
+    ext = (target.file_ext or "").lower()
+    found = [(name, entry) for name, entry in files if ext and name.lower().endswith(ext)]
+    if len(found) != 1 or target.file_name is None:
+        what = f"{len(found)} {ext} files" if found else f"no {ext} file"
+        return PlanRefusal("not_one_file", f"{target.label} needs exactly one {ext} file; found {what}.")
+    _name, entry = found[0]
+    return InstallPlan((PlannedWrite(entry.name, target.file_name, entry.size),))
 
 
 def plan_dirs(plan: InstallPlan) -> tuple[str, ...]:
@@ -851,6 +935,10 @@ def removable_name(target: ModTarget, name: str | None) -> str | None:
     """
     if name is None:
         return target.game_folder if target.scope == SCOPE_GAME else None
+    if target.scope == SCOPE_TOGGLE:
+        return None
+    if target.scope == SCOPE_FILE:
+        return name if name == target.file_name else None
     if target.scope == SCOPE_PATCH:
         return name if target.patch_stem is not None and name in patch_file_names(target.patch_stem) else None
     return name if "/" not in name and mod_entry_name(name) == name else None

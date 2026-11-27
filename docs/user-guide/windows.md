@@ -129,30 +129,38 @@ achievement support is not detected.
 
 An installed game's page has a **Mods** button (the puzzle piece, next to the RomM and Steam menus). It opens a panel
 for that game that shows where its mods go for the emulator it launches with, what is already there, and lets you
-install from your Downloads folder, remove, open the folder in Explorer, and turn on the emulator's texture setting.
+install from your Downloads folder (cheat files included), remove, switch the cheats, codes and patches the emulator
+already has on or off, open the folder in Explorer, and turn on the emulator's texture or cheat setting.
 
 Every folder is worked out from your machine — the emulator the game actually launches with, that emulator's portable
 folder, its own settings file, and the ID read from the game file itself. When any of that can't be read exactly, the
 panel says **No known mod folder for this emulator** and why, rather than guessing a folder.
 
-| Emulator                       | What the panel offers                                                                                                                                    | Setting it checks                                          |
-| ------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------- |
-| Dolphin (GameCube, Wii)        | Texture pack in `User\Load\Textures\<ID6>`; graphics mods in `User\Load\GraphicMods` (shared); Wii only: Riivolution in `User\Load\Riivolution` (shared) | `[Settings] HiresTextures` in `User\Config\GFX.ini`        |
-| PPSSPP (PSP)                   | Texture pack in `memstick\PSP\TEXTURES\<GAME ID>`                                                                                                        | `[Graphics] ReplaceTextures` in `PSP\SYSTEM\ppsspp.ini`    |
-| PCSX2 (PS2)                    | Texture replacements in `textures\<SERIAL>\replacements`                                                                                                 | `[EmuCore/GS] LoadTextureReplacements` in `inis\PCSX2.ini` |
-| Azahar / Citra / Lime3DS (3DS) | Mods (`romfs` / `exefs`) in `user\load\mods\<TITLE ID>`; custom textures in `user\load\textures\<TITLE ID>`                                              | —                                                          |
-| RetroArch (cartridge games)    | A soft patch beside the ROM: `<ROM name>.ips`, `.bps` or `.ups`                                                                                          | —                                                          |
+| Emulator                           | What the panel offers                                                                                                                                                                                                                  | Setting it checks                                                                                                 |
+| ---------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| Dolphin (GameCube, Wii)            | Texture pack in `User\Load\Textures\<ID6>`; graphics mods in `User\Load\GraphicMods` (shared); Wii only: Riivolution in `User\Load\Riivolution` (shared); **Gecko codes** and **Action Replay codes** for the game, switched on or off | `[Settings] HiresTextures` in `User\Config\GFX.ini`; `[Core] EnableCheats` in `User\Config\Dolphin.ini` for codes |
+| PPSSPP (PSP)                       | Texture pack in `memstick\PSP\TEXTURES\<GAME ID>`                                                                                                                                                                                      | `[Graphics] ReplaceTextures` in `PSP\SYSTEM\ppsspp.ini`                                                           |
+| PCSX2 (PS2)                        | Texture replacements in `textures\<SERIAL>\replacements`; a **cheat file** `cheats\<SERIAL>_<CRC>.pnach`; **Patches** (widescreen, 60 FPS, fixes) and **Cheats**, switched on or off                                                   | `[EmuCore/GS] LoadTextureReplacements` and `[EmuCore] EnableCheats` in `inis\PCSX2.ini`                           |
+| Azahar / Citra / Lime3DS (3DS)     | Mods (`romfs` / `exefs`) in `user\load\mods\<TITLE ID>`; custom textures in `user\load\textures\<TITLE ID>`; a **cheat file** `user\cheats\<TITLE ID>.txt` and its **Cheats**, switched on or off                                      | —                                                                                                                 |
+| RetroArch (cartridge games)        | A soft patch beside the ROM: `<ROM name>.ips`, `.bps` or `.ups`; a **cheat file** `cheats\<core>\<ROM name>.cht`                                                                                                                       | —                                                                                                                 |
+| Cemu (Wii U)                       | Graphic packs in `graphicPacks` (shared; turn a pack on in Cemu)                                                                                                                                                                       | —                                                                                                                 |
+| RPCS3, Xenia Canary, shadPS4, xemu | Nothing — the panel says why (see below)                                                                                                                                                                                               | —                                                                                                                 |
 
 - **Which emulator folder.** Only portable installs are read, which is how EmuDeck installs them: Dolphin with
   `portable.txt` beside `Dolphin.exe`; PPSSPP with its `memstick` folder and no `installed.txt`; PCSX2 with
-  `portable.ini` (or an empty `portable.txt`); Azahar/Citra with a `user` folder beside the exe. Dolphin's custom _Load_
-  path and PCSX2's custom _Textures_ folder are followed.
+  `portable.ini` (or an empty `portable.txt`); Azahar/Citra with a `user` folder beside the exe; Cemu with a `portable`
+  folder (or, for older installs, `settings.xml`) beside `Cemu.exe`. Dolphin's custom _Load_ path and PCSX2's custom
+  _Textures_, _Cheats_, _Patches_ and _GameSettings_ folders are followed.
 - **Game IDs.** GameCube/Wii, PSP and PS2 IDs come from the disc image (the same reader save sync uses: ISO, GCM, RVZ,
   WIA, CSO, CHD). 3DS title IDs come from `.3ds`, `.cci`, `.cxi`, `.app` and `.cia` files; `.3dsx` homebrew has none, so
   it gets no mod folder.
-- **Not offered.** PCSX2 patches and cheats (`.pnach`) are named by the game's executable CRC, which the plugin does not
-  read. Dolphin's _Enable Graphics Mods_ and Azahar's _Use Custom Textures_ settings are not checked. Other emulators
-  (Cemu, xemu, RPCS3, …) show no folder.
+- **PCSX2 cheats and patches** are named by the game's serial and the CRC of its boot executable, which the plugin reads
+  from ISO, CSO and CHD images (the CRC is shown in the cheat file's name). If it can't be read — another format, or a
+  CHD compressed in a way this build can't decode — the panel lists them as not offered and says why.
+- **Not offered.** RPCS3 patches (kept in YAML files the plugin can't edit safely; use _Manage > Game Patches_), Xenia
+  patches (named by a title ID the plugin doesn't read from discs; use Xenia Manager), shadPS4 cheats and patches (use
+  its Cheats/Patches window), xemu (no mods), and turning Cemu graphic packs on (right-click the game in Cemu > _Edit
+  graphic packs_). Dolphin's _Enable Graphics Mods_ and Azahar's _Use Custom Textures_ settings are not checked.
 - **Soft patches.** RetroArch applies the patch in memory each launch; the ROM file is never changed. It only works for
   a single cartridge file loaded into memory, so zipped ROMs, disc images and cores that read the game from disk (their
   core info says `needs_fullpath`) get no soft-patch option. Which patch formats EmuDeck's RetroArch build tries is
@@ -173,6 +181,24 @@ without a `replacements` folder are put in one.
 Files that would be overwritten are moved to a backup folder first. If the file, the archive or the mod folder changes
 between the preview and **Install**, the install is refused and you are shown the new preview.
 
+### Cheat files
+
+A cheat file target (Azahar, PCSX2, RetroArch) takes one `.txt`, `.pnach` or `.cht` file from Downloads, or a `.zip`
+holding exactly one, and saves it under the name the emulator looks for — you don't need to rename anything. A cheat
+file already there is replaced and kept in the backup folder. PCSX2 and Azahar cheats in the file start off; switch the
+ones you want on under **Cheats**. RetroArch applies cheats marked enabled in the file only when _Settings > Cheats >
+Auto-Apply Cheats During Game Load_ is on.
+
+### Codes, cheats and patches the emulator already has
+
+**Gecko codes** and **Action Replay codes** (Dolphin), **Patches** and **Cheats** (PCSX2) and **Cheats** (Azahar) list
+what the emulator has for this game, each with an **On / Off** button. Close the emulator first: the plugin refuses
+while it is running. Each switch changes only that entry's line in the emulator's own per-game file (Dolphin
+`User\GameSettings\<ID6>.ini`, PCSX2 `gamesettings\<SERIAL>_<CRC>.ini`, Azahar's cheat file), after copying the file to
+the backup folder. If the files are set up in a way the plugin could misread — for example Dolphin codes also switched
+in `GAL.ini` — the list is shown but can't be changed, with the reason; change it in the emulator instead. Cheats also
+need the emulator's _Enable Cheats_ setting, which the panel offers to turn on.
+
 ### Removing
 
 **Remove** (one entry) and **Remove All** (the game's whole folder) ask first, naming exactly what moves. Nothing is
@@ -181,7 +207,8 @@ deleted: it is moved to the backup folder, whose location the result message sho
 ### Backups
 
 Backups go to `romm-mod-backups\<date-time>\` inside the emulator's own folder — Dolphin's `User`, PPSSPP's `memstick`,
-the PCSX2 folder, Azahar's `user`, or the RetroArch folder for soft patches. Delete them yourself when you no longer
+the PCSX2 folder, Azahar's `user`, Cemu's user data folder, or the RetroArch folder for soft patches and cheat files.
+Switching a code, cheat or patch saves the file it changed under `settings`. Delete them yourself when you no longer
 need them.
 
 ### Turning texture packs on
@@ -196,8 +223,8 @@ is not offered — change the setting in the emulator instead.
 When the Forge plugin is installed, a ROM's game page gets a **MODS** tab beside GAME INFO, ACHIEVEMENTS, SAVES and
 BIOS, and a Mods card at the top of GAME INFO (how many mods are active, any updates waiting, and a way into the tab).
 Forge finds and downloads mods; The Collector still does every install, into the folders in the table above, with the
-same preview, backups and **Turn On** setting. The puzzle-piece Mods button is hidden while Forge's tab is there; remove
-or disable Forge and the button comes back.
+same preview, backups and **Turn On** setting, and every switch of a code, cheat or patch. The puzzle-piece Mods button
+is hidden while Forge's tab is there; remove or disable Forge and the button comes back.
 
 Forge saves what it downloads into `%USERPROFILE%\Downloads`, the same folder **Install from Downloads** lists, so a mod
 Forge fetched can also be installed from the panel and the other way round. If Forge's tab or card ever fails to draw,

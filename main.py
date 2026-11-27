@@ -558,6 +558,14 @@ class Plugin:
     async def open_mod_folder(self, rom_id, target_id):
         return await self._game_mods_service.open_mod_folder(rom_id, target_id)
 
+    async def list_mod_builtins(self, rom_id, target_id):
+        return await self._game_mods_service.list_mod_builtins(rom_id, target_id)
+
+    @migration_blocked
+    @prune_active_blocked
+    async def set_mod_builtin(self, rom_id, target_id, entry_id, enabled):
+        return await self._game_mods_service.set_mod_builtin(rom_id, target_id, entry_id, enabled)
+
     # ── Version picker delegation to VersionSwitchService ──────────────
 
     async def get_version_list(self, app_id):
