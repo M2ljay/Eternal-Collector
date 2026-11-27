@@ -262,6 +262,20 @@ The current approach owns the entire game detail UI via custom React components 
 
 See: `src/patches/gameDetailPatch.tsx`, `src/components/RomMPlaySection.tsx`
 
+### Finding the game page on both Decky loaders
+
+`@decky/ui` is supplied by the loader at runtime, not by our bundle: 4.x under Decky 3.3.1 (webpack Steam client) and
+5.x under Decky 4.0 (ES-module Steam client, nearly every CSS class renamed). The Steam class modules the game page
+needs (`appDetailsClasses`, `playSectionClasses`, `appActionButtonClasses`, `basicAppDetailsSectionStylerClasses`) are
+read through `src/utils/deckyUiInternals.ts`, which takes the named `@decky/ui` export and, when that is missing, looks
+the module up again by key: `findClassModule`, then the module-scope `findVar` that only 5.x has. A module no lookup
+finds stays `undefined` and is named once in the plugin log at patch registration.
+
+5.x pins class names per Steam build (`CLSTAMP`), so its values can lag a newer client. The patch therefore finds the
+insertion point by class first and, failing that, as the node whose children hold the native overview panel (the child
+whose props carry `details`, `overview` and `bFastRender`); the RomM wrapper borrows that panel's own class when the
+class map has none. If neither is found the page renders unpatched — never broken.
+
 ## Overview metadata mutations (readiness-gated)
 
 Beyond the custom UI, the plugin writes three fields directly onto each RomM shortcut's `SteamAppOverview` so the

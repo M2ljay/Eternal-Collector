@@ -9,10 +9,15 @@
 
 import { routerHook } from "@decky/api";
 import { afterPatch, findInReactTree, createReactTreePatcher } from "@decky/ui";
-import { appDetailsClasses, playSectionClasses, basicAppDetailsSectionStylerClasses } from "../utils/deckyUiInternals";
+import {
+  appDetailsClasses,
+  playSectionClasses,
+  basicAppDetailsSectionStylerClasses,
+  missingDeckyUiLookups,
+} from "../utils/deckyUiInternals";
 import { RomMPlaySection } from "../components/RomMPlaySection";
 import { RomMGameInfoPanel } from "../components/RomMGameInfoPanel";
-import { debugLog } from "../api/backend";
+import { debugLog, logWarn } from "../api/backend";
 import type { RoutePatch } from "@decky/api";
 import { detach } from "../utils/detach";
 
@@ -75,18 +80,38 @@ function deepTreeDump(node: any, depth: number, index: number, prefix: string): 
 }
 
 /**
- * Locate the InnerContainer node in Steam's app-details React subtree.
- * Returns the matched node (with an array `children` prop) or null/undefined.
+ * Locate the InnerContainer node in Steam's app-details React subtree: by its
+ * class-map class, else as the node whose children hold the native overview
+ * panel. Returns the matched node (with an array `children` prop) or
+ * null/undefined.
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Steam internal React tree; runtime shape is dynamic, no upstream types ship
-function findInsertionPoint(ret: any): any {
+export function findInsertionPoint(ret: any): any {
   const innerContainerClass = appDetailsClasses?.InnerContainer;
-  if (!innerContainerClass) return undefined;
+  const byClass = innerContainerClass
+    ? findInReactTree(
+        ret,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Steam internal React tree; runtime shape is dynamic, no upstream types ship
+        (x: any) => Array.isArray(x?.props?.children) && x?.props?.className?.includes?.(innerContainerClass),
+      )
+    : undefined;
+  if (byClass) return byClass;
+  // A class map can lag a Steam build (Decky 4.0's @decky/ui 5 pins class names
+  // per CLSTAMP); the overview panel's props are not renamed with the classes.
   return findInReactTree(
     ret,
     // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Steam internal React tree; runtime shape is dynamic, no upstream types ship
-    (x: any) => Array.isArray(x?.props?.children) && x?.props?.className?.includes(innerContainerClass),
+    (x: any) => Array.isArray(x?.props?.children) && findNativeOverviewIndex(x.props.children) >= 0,
   );
+}
+
+/** The class our wrapper borrows to sit in InnerContainer's layout like the native panel. */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- Steam internal React tree; runtime shape is dynamic, no upstream types ship
+export function overviewPanelClass(children: any[], nativeOverviewIdx: number): string {
+  const mapped = appDetailsClasses?.AppDetailsOverviewPanel;
+  if (mapped) return mapped;
+  const native: unknown = nativeOverviewIdx >= 0 ? children[nativeOverviewIdx]?.props?.className : undefined;
+  return typeof native === "string" ? native : "";
 }
 
 /**
@@ -95,7 +120,7 @@ function findInsertionPoint(ret: any): any {
  * bFastRender. Returns -1 if not found.
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Steam internal React tree; runtime shape is dynamic, no upstream types ship
-function findNativeOverviewIndex(children: any[]): number {
+export function findNativeOverviewIndex(children: any[]): number {
   for (let i = 0; i < children.length; i++) {
     const cp = children[i]?.props?.children?.props || {};
     if (cp.details && cp.overview && cp.bFastRender !== undefined) {
@@ -168,6 +193,10 @@ export function isRomMAppId(appId: number): boolean {
 let gamePatch: RoutePatch | null = null;
 
 export function registerGameDetailPatch() {
+  const missing = missingDeckyUiLookups();
+  if (missing.length > 0) {
+    logWarn(`gameDetailPatch: class modules not found on this Steam build: ${missing.join(", ")}`);
+  }
   gamePatch = routerHook.addPatch(
     "/library/app/:appid",
     // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Steam internal React tree; runtime shape is dynamic, no upstream types ship
@@ -232,12 +261,9 @@ export function registerGameDetailPatch() {
                 // Wrap in a container with the native AppDetailsOverviewPanel
                 // CSS class so it participates in InnerContainer's flex layout
                 // and scroll system the same way the native panel does.
+                const panelClass = overviewPanelClass(children, nativeOverviewIdx);
                 const rommWrapper = (
-                  <div
-                    key="romm-play-section"
-                    className={appDetailsClasses?.AppDetailsOverviewPanel || ""}
-                    data-romm="true"
-                  >
+                  <div key="romm-play-section" className={panelClass} data-romm="true">
                     {rommPlaySection}
                     {rommInfoPanel}
                   </div>
@@ -246,7 +272,7 @@ export function registerGameDetailPatch() {
                 if (nativeOverviewIdx >= 0) {
                   detach(
                     debugLog(
-                      `gameDetailPatch: replacing AppDetailsOverviewPanel at index ${nativeOverviewIdx} with RomM wrapper (cls=${appDetailsClasses?.AppDetailsOverviewPanel})`,
+                      `gameDetailPatch: replacing AppDetailsOverviewPanel at index ${nativeOverviewIdx} with RomM wrapper (cls=${panelClass})`,
                     ),
                   );
                   children.splice(nativeOverviewIdx, 1, rommWrapper);
