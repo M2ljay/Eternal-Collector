@@ -13,7 +13,9 @@
 import { Component, type FC, type ReactNode } from "react";
 import { Focusable } from "@decky/ui";
 import { logError } from "../api/backend";
+import type { BuiltinCard } from "./RomOverviewCards";
 import {
+  DEFAULT_EXTENSION_ORDER,
   extensionLabel,
   visibleExtensions,
   type RegisteredExtension,
@@ -50,29 +52,44 @@ function boundaryKey(entry: RegisteredExtension, ctx: RomPageContext): string {
   return `${entry.extension.id}:${entry.seq}:${ctx.romId}`;
 }
 
-/** The Overview card grid: The Collector's own cards (`children`) first, then the registered ones. */
+/**
+ * The Overview card grid: The Collector's own cards and the registered ones in
+ * one row, by `order` (a built-in card wins a tie).
+ */
 export const ExtensionOverviewCards: FC<{
   entries: readonly RegisteredExtension[];
   ctx: RomPageContext;
-  children?: ReactNode;
-}> = ({ entries, ctx, children }) => {
-  const cards = visibleExtensions(entries, "overviewCard", ctx);
-  if (cards.length === 0 && !children) return null;
+  builtins?: readonly BuiltinCard[];
+}> = ({ entries, ctx, builtins = [] }) => {
+  const registered = visibleExtensions(entries, "overviewCard", ctx).map((entry) => ({
+    order: entry.extension.order ?? DEFAULT_EXTENSION_ORDER,
+    builtin: null as BuiltinCard | null,
+    entry,
+  }));
+  const all = [...builtins.map((b) => ({ order: b.order, builtin: b, entry: null })), ...registered].sort(
+    (a, b) => a.order - b.order,
+  );
+  if (all.length === 0) return null;
   return (
     <Focusable className="romm-ext-cards romm-core-cards" flow-children="row" data-romm="true">
-      {children}
-      {cards.map((entry) => (
-        <div
-          key={boundaryKey(entry, ctx)}
-          className="romm-ext-card"
-          data-extension-id={entry.extension.id}
-          aria-label={extensionLabel(entry.extension, ctx.locale)}
-        >
-          <ExtensionBoundary extensionId={entry.extension.id}>
-            <ExtensionBody entry={entry} ctx={ctx} />
-          </ExtensionBoundary>
-        </div>
-      ))}
+      {all.map(({ builtin, entry }) =>
+        builtin ? (
+          <div key={`builtin-${builtin.key}`} className="romm-core-card-slot">
+            {builtin.node}
+          </div>
+        ) : entry ? (
+          <div
+            key={boundaryKey(entry, ctx)}
+            className="romm-ext-card"
+            data-extension-id={entry.extension.id}
+            aria-label={extensionLabel(entry.extension, ctx.locale)}
+          >
+            <ExtensionBoundary extensionId={entry.extension.id}>
+              <ExtensionBody entry={entry} ctx={ctx} />
+            </ExtensionBoundary>
+          </div>
+        ) : null,
+      )}
     </Focusable>
   );
 };

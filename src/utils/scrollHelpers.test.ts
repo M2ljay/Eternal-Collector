@@ -6,6 +6,8 @@ import {
   scrollNearestToTop,
   scrollFocusedToCenter,
   scrollElementToTop,
+  scrollToScreenOne,
+  scrollToScreenTwo,
 } from "./scrollHelpers";
 
 /**
@@ -346,6 +348,53 @@ describe("scrollElementToTop", () => {
     expect(() => {
       scrollElementToTop(null);
       vi.runAllTimers();
+    }).not.toThrow();
+  });
+});
+
+describe("the Core page's two screens", () => {
+  function page() {
+    const scroller = makeElement({
+      overflowY: "auto",
+      scrollHeight: 3000,
+      clientHeight: 758,
+      rect: { top: 0, height: 758 },
+    });
+    scroller.scrollTop = 0;
+    scroller.scrollTo = vi.fn() as unknown as typeof scroller.scrollTo;
+    const wrapper = makeElement({});
+    wrapper.className = "romm-core-page";
+    const bar = makeElement({ rect: { top: 638, height: 120 } });
+    bar.className = "romm-core-playbar";
+    const play = document.createElement("div");
+    play.className = "romm-native-play";
+    play.tabIndex = 0;
+    bar.appendChild(play);
+    const below = makeElement({});
+    chain(scroller, wrapper);
+    wrapper.append(bar, below);
+    return { scroller, bar, play, below };
+  }
+
+  it("brings screen two (everything after the play bar and the footer under it) to the top", () => {
+    const { scroller, below } = page();
+    scrollToScreenTwo(below);
+    expect(scroller.scrollTo).toHaveBeenCalledWith({ top: 758, behavior: "smooth" });
+  });
+
+  it("goes back to screen one with focus on the play button", () => {
+    const { scroller, below, play } = page();
+    scrollToScreenOne(below);
+    expect(scroller.scrollTo).toHaveBeenCalledWith({ top: 0, behavior: "smooth" });
+    expect(document.activeElement).toBe(play);
+  });
+
+  it("does nothing outside a Core page", () => {
+    const leaf = makeElement({});
+    chain(leaf);
+    expect(() => {
+      scrollToScreenTwo(leaf);
+      scrollToScreenOne(leaf);
     }).not.toThrow();
   });
 });

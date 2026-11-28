@@ -1,12 +1,13 @@
 import { describe, expect, it, vi } from "vitest";
 import { fireEvent, render } from "@testing-library/react";
 import { showModal } from "@decky/ui";
-import { RomPageHeader, playLine } from "./RomPageHeader";
-import { RomOverviewCards, saveSyncChip } from "./RomOverviewCards";
+import { RomPageChips } from "./RomPageChips";
+import { BUILTIN_CARD_ORDER, romOverviewCards, saveSyncChip, type RomOverviewCardsProps } from "./RomOverviewCards";
+import { ExtensionOverviewCards } from "./GamePageExtensions";
 import { RomMediaTab } from "./RomMediaTab";
-import { coreStatusLine } from "./RomMPlaySection";
+import { SaveSyncIcon } from "./icons";
 import { consoleFamily, core, familyTones } from "../theme/coreTokens";
-import { corePageCss, starfieldSvg, CORE_PAGE_CLASS } from "../utils/corePageStyles";
+import { corePageCss, starfieldSvg, CORE_PAGE_CLASS, GAME_VIEW } from "../utils/corePageStyles";
 import type { SaveStatus } from "../types";
 
 function status(display?: "synced" | "pending" | "conflict" | "none"): SaveStatus {
@@ -35,45 +36,21 @@ describe("consoleFamily", () => {
   });
 });
 
-describe("RomPageHeader", () => {
-  it("joins whichever play facts are known", () => {
-    expect(playLine("3 days ago", "12 hours")).toBe("Last played 3 days ago · 12 hours played");
-    expect(playLine("", "12 hours")).toBe("12 hours played");
-    expect(playLine("", "")).toBe("");
-  });
-
-  it("shows the title, the platform chip in its family tone and The Collector chip", () => {
-    const { container, getByText } = render(
-      <RomPageHeader
-        name="Super Metroid"
-        platformName="Super Nintendo"
-        platformSlug="snes"
-        lastPlayed="3 days ago"
-        playtime=""
-      />,
-    );
-    expect(getByText("Super Metroid").className).toBe("romm-core-title");
+describe("RomPageChips", () => {
+  it("shows the platform chip in its family tone and The Collector chip", () => {
+    const { container } = render(<RomPageChips platformName="Super Nintendo" platformSlug="snes" />);
     const chip = container.querySelector<HTMLElement>(".romm-core-chip-tone")!;
     expect(chip.textContent).toBe("Super Nintendo");
     expect(chip.dataset.coreFamily).toBe("nintendo");
     expect(chip.style.background.toLowerCase()).toBe(familyTones.nintendo.toLowerCase());
     expect(chip.style.color.toLowerCase()).toBe(core.black.toLowerCase());
     expect(container.textContent).toContain("The Collector");
-    expect(container.textContent).toContain("Last played 3 days ago");
   });
 
   it("leaves the platform chip out until the platform is known", () => {
-    const { container } = render(<RomPageHeader name="" platformName="" platformSlug="" lastPlayed="" playtime="" />);
+    const { container } = render(<RomPageChips platformName="" platformSlug="" />);
     expect(container.querySelector(".romm-core-chip-tone")).toBeNull();
-    expect(container.querySelector(".romm-core-title")).toBeNull();
-    expect(container.querySelector(".romm-core-play-line")).toBeNull();
-  });
-});
-
-describe("coreStatusLine", () => {
-  it("names the emulator and whether the game is on disk", () => {
-    expect(coreStatusLine("RetroArch: Snes9x", true)).toBe("RetroArch: Snes9x · Installed");
-    expect(coreStatusLine(null, false)).toBe("Not installed");
+    expect(container.textContent).toBe("The Collector");
   });
 });
 
@@ -105,29 +82,31 @@ describe("saveSyncChip", () => {
   });
 });
 
-describe("RomOverviewCards", () => {
-  it("shows the RetroAchievements card only for a game RA knows, and opens its tab", () => {
+describe("Overview cards", () => {
+  const ctx = {
+    appId: 5,
+    romId: 1,
+    name: "x",
+    platformSlug: "snes",
+    platformName: "SNES",
+    installed: true,
+    locale: "en",
+  };
+  const props = (over: Partial<RomOverviewCardsProps> = {}): RomOverviewCardsProps => ({
+    raId: 7,
+    achievements: { earned: 3, total: 50 },
+    saveSyncEnabled: true,
+    saveStatus: status("synced"),
+    conflictCount: 0,
+    onOpenTab: vi.fn(),
+    ...over,
+  });
+
+  it("shows the RetroAchievements card only for a game RA knows, and the cards open their tabs", () => {
+    expect(romOverviewCards(props({ raId: null })).map((c) => c.key)).toEqual(["saves"]);
     const onOpenTab = vi.fn();
-    const { getByText, queryByText, rerender } = render(
-      <RomOverviewCards
-        raId={null}
-        achievements={null}
-        saveSyncEnabled={true}
-        saveStatus={status("synced")}
-        conflictCount={0}
-        onOpenTab={onOpenTab}
-      />,
-    );
-    expect(queryByText("RetroAchievements")).toBeNull();
-    rerender(
-      <RomOverviewCards
-        raId={7}
-        achievements={{ earned: 3, total: 50 }}
-        saveSyncEnabled={true}
-        saveStatus={status("synced")}
-        conflictCount={0}
-        onOpenTab={onOpenTab}
-      />,
+    const { getByText } = render(
+      <ExtensionOverviewCards entries={[]} ctx={ctx} builtins={romOverviewCards(props({ onOpenTab }))} />,
     );
     expect(getByText("3 / 50")).not.toBeNull();
     fireEvent.click(getByText("RetroAchievements"));
@@ -139,17 +118,40 @@ describe("RomOverviewCards", () => {
   it("does not open a Saves tab that save sync being off has removed", () => {
     const onOpenTab = vi.fn();
     const { getByText } = render(
-      <RomOverviewCards
-        raId={null}
-        achievements={null}
-        saveSyncEnabled={false}
-        saveStatus={null}
-        conflictCount={0}
-        onOpenTab={onOpenTab}
+      <ExtensionOverviewCards
+        entries={[]}
+        ctx={ctx}
+        builtins={romOverviewCards(props({ saveSyncEnabled: false, saveStatus: null, onOpenTab }))}
       />,
     );
     fireEvent.click(getByText("Save sync"));
     expect(onOpenTab).not.toHaveBeenCalled();
+  });
+
+  it("places registered cards among its own by order: Mods at 20 between, Club at 40 after", () => {
+    const card = (id: string, order: number | undefined) => ({
+      seq: order ?? 0,
+      revision: 0,
+      extension: {
+        id,
+        kind: "overviewCard" as const,
+        label: id,
+        ...(order === undefined ? {} : { order }),
+        render: () => id.toUpperCase(),
+      },
+    });
+    const { container } = render(
+      <ExtensionOverviewCards
+        entries={[card("club", 40), card("forge.mods.card", 20), card("late", undefined)]}
+        ctx={ctx}
+        builtins={romOverviewCards(props())}
+      />,
+    );
+    const order = Array.from(container.querySelectorAll(".romm-core-card-slot, .romm-ext-card")).map(
+      (el) => el.getAttribute("data-extension-id") ?? el.textContent.slice(0, 10),
+    );
+    expect(order).toEqual(["RetroAchie", "forge.mods.card", "Save syncS", "club", "late"]);
+    expect(BUILTIN_CARD_ORDER).toEqual({ achievements: 10, saves: 30 });
   });
 });
 
@@ -195,10 +197,37 @@ describe("corePageCss", () => {
     }
   });
 
+  it("lays screen one out like Clean Gameview, on ROM pages only", () => {
+    expect(GAME_VIEW).toEqual({ playbar: 80, footer: 40, logo: 120, brightness: 0.6 });
+    const css = corePageCss();
+    expect(css).toContain(
+      ".romm-core-playbar { height: calc(var(--romm-gv-playbar, 80px) + var(--romm-gv-footer, 40px))",
+    );
+    expect(css).toMatch(/\.romm-core-playbar \{[^}]*background: transparent !important/);
+    expect(css).toMatch(
+      /\.romm-native-menu-btn \{ width: 48px !important; height: 48px !important;[^}]*background: #000000/,
+    );
+  });
+
   it("uses square focus and the float radius only for floating cards", () => {
     const css = corePageCss();
     expect(css).toMatch(/\.romm-core-card \{[^}]*border-radius: var\(--core-radius-float, 10px\)/);
     expect(css).toMatch(/\.romm-core-card\.gpfocus \{[^}]*outline: 2px solid #D7263D/);
     expect(css).not.toMatch(/glow|text-shadow/);
+  });
+});
+
+describe("SaveSyncIcon", () => {
+  it.each([
+    [false, "synced", "off"],
+    [true, "synced", "synced"],
+    [true, "pending", "pending"],
+    [true, "conflict", "conflict"],
+    [true, null, "unknown"],
+  ] as const)("enabled=%s status=%s is drawn as %s", (enabled, value, shown) => {
+    const { container } = render(<SaveSyncIcon enabled={enabled} status={value} />);
+    const svg = container.querySelector("svg")!;
+    expect(svg.dataset.saveSync).toBe(shown);
+    expect(svg.getAttribute("stroke")).toBe(shown === "conflict" ? "#EA5A68" : "currentColor");
   });
 });

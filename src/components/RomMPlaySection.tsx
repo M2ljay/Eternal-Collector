@@ -15,7 +15,7 @@ import { showToast } from "../utils/toast";
 import { ConfirmModal, Focusable, Menu, MenuItem, MenuSeparator, showContextMenu, showModal } from "@decky/ui";
 import { basicAppDetailsSectionStylerClasses, playSectionClasses } from "../utils/deckyUiInternals";
 import { ensureNativeLookStyles, joinCls, nativeLook, NativeMenuButton, rc } from "../utils/nativeLook";
-import { CogIcon, ChipIcon, WarningIcon } from "./icons";
+import { CogIcon, ChipIcon, GamepadIcon, SaveSyncIcon, WarningIcon } from "./icons";
 import { CustomPlayButton } from "./CustomPlayButton";
 import { DiscSelector } from "./DiscSelector";
 import { ExeSelector } from "./ExeSelector";
@@ -23,14 +23,13 @@ import { ModsButton } from "./ModsButton";
 import { VersionPicker } from "./VersionPicker";
 import { WarningCard } from "./WarningCard";
 import { SgdbGamePickerModalContent } from "./SgdbGamePickerModal";
-import { RomPageHeader } from "./RomPageHeader";
 import { ensureCorePageStyles } from "../utils/corePageStyles";
 import { applyArtwork, cancelArtworkApply } from "../utils/artwork";
 import { applyCaseArt } from "../utils/caseArt";
 import { CaseArtPickerModalContent } from "./CaseArtPickerModal";
 import { hasAnySaveConflict } from "../utils/saveStatus";
 import { saveSyncToastBody } from "../utils/saveSyncToast";
-import { scrollToTop } from "../utils/scrollHelpers";
+import { scrollToScreenTwo, scrollToTop } from "../utils/scrollHelpers";
 import { getEventTarget } from "../utils/events";
 import {
   testConnection,
@@ -92,11 +91,6 @@ let connectionCheckSeq = 0;
  *  abandoned before it answers (its page closed while the server was still
  *  thinking) from silencing the verdict of a page that is still open. */
 let lastSettledCheckId = 0;
-
-/** The Core play bar's line: "RetroArch: Snes9x · Installed", from what is known. */
-export function coreStatusLine(activeCoreLabel: string | null, installed: boolean): string {
-  return [activeCoreLabel, installed ? "Installed" : "Not installed"].filter(Boolean).join(" \u00B7 ");
-}
 
 /** Resolve the LAST PLAYED display, preferring our restored cross-device
  *  `last_played` (ISO-8601, from `reconcile_playtime` / native play sessions,
@@ -841,6 +835,16 @@ export const RomMPlaySection: FC<RomMPlaySectionProps> = ({ appId }) => { // NOS
   };
 
 
+  // The save sync button shows the Saves tab on screen two, or the Overview's Save
+  // sync card when save sync is off (the Saves tab exists only while it is on).
+  const openSaveSync = (e: Event) => {
+    if (detail.saveSyncEnabled) {
+      globalThis.dispatchEvent(new CustomEvent("romm_tab_switch", { detail: { tab: "saves" } }));
+    }
+    const target = getEventTarget(e);
+    if (target) scrollToScreenTwo(target);
+  };
+
   const showRomMMenu = (e: Event) => {
     showContextMenu(
       <Menu label="Options">
@@ -951,17 +955,20 @@ export const RomMPlaySection: FC<RomMPlaySectionProps> = ({ appId }) => { // NOS
     infoItems.push(infoItem("space-required", "SPACE REQUIRED", formatBytes(detail.fsSizeBytes)));
   }
 
-  // Last Played and Playtime: the Core page shows them in its header line.
-  if (playtimeInfo.lastPlayed && !nativeLook()) {
+  // Last Played and Playtime (Steam's own wording on the Core page)
+  if (playtimeInfo.lastPlayed) {
     infoItems.push(infoItem("last-played", "LAST PLAYED", playtimeInfo.lastPlayed));
   }
 
-  if (playtimeInfo.playtime && !nativeLook()) {
-    infoItems.push(infoItem("playtime", "PLAYTIME", playtimeInfo.playtime));
+  if (playtimeInfo.playtime) {
+    infoItems.push(infoItem("playtime", nativeLook() ? "PLAY TIME" : "PLAYTIME", playtimeInfo.playtime));
   }
 
-  // Achievements count (only when RA data available). The Core page shows it on
-  // the Overview's RetroAchievements card instead.
+  // The emulator the game launches with (Core page). The Steam Deck row shows the
+  // achievements count instead; the Core page has it on the Overview's card.
+  if (nativeLook() && detail.activeCoreLabel) {
+    infoItems.push(infoItem("emulator", "EMULATOR", detail.activeCoreLabel));
+  }
   if (detail.raId && !nativeLook()) {
     const countLabel =
       detail.achievementTotal > 0 ? `${detail.achievementEarned}/${detail.achievementTotal}` : `${detail.achievementEarned}`;
@@ -1005,7 +1012,6 @@ export const RomMPlaySection: FC<RomMPlaySectionProps> = ({ appId }) => { // NOS
     ensureNativeLookStyles();
     ensureCorePageStyles();
   }
-  const status = coreStatusLine(detail.activeCoreLabel, detail.installed);
   const playSectionRow = nativeLook() ? (
     <Focusable
       key="play-row"
@@ -1017,6 +1023,8 @@ export const RomMPlaySection: FC<RomMPlaySectionProps> = ({ appId }) => { // NOS
         basicAppDetailsSectionStylerClasses?.PlaySection,
       )}
       flow-children="row"
+      onMenuButton={showRomMMenu}
+      onMenuActionDescription="Options"
     >
       <Focusable className={basicAppDetailsSectionStylerClasses?.ActionRow} flow-children="row">
         <Focusable
@@ -1029,16 +1037,12 @@ export const RomMPlaySection: FC<RomMPlaySectionProps> = ({ appId }) => { // NOS
         <DiscSelector appId={appId} />
         <ExeSelector appId={appId} />
         <VersionPicker appId={appId} />
-        {status ? <div className="romm-core-status">{status}</div> : null}
         <div className={playSectionClasses?.StatusAndStats}>
           <div className={playSectionClasses?.StatusNameContainer}>
             <div className={playSectionClasses?.GameStatsSection}>{infoItems}</div>
           </div>
         </div>
         <Focusable className={basicAppDetailsSectionStylerClasses?.AppButtons} flow-children="row">
-          <NativeMenuButton onClick={showRomMMenu} onFocus={scrollToTop} title="Options">
-            <CogIcon size={22} />
-          </NativeMenuButton>
           {detail.emulators.length > 1 ? (
             <NativeMenuButton key="core-btn" onClick={showCoreMenu} onFocus={scrollToTop} title="Emulator Core">
               <ChipIcon size={22} />
@@ -1050,6 +1054,19 @@ export const RomMPlaySection: FC<RomMPlaySectionProps> = ({ appId }) => { // NOS
             installed={detail.installed}
             onFocus={scrollToTop}
           />
+          <NativeMenuButton onClick={openSaveSync} onFocus={scrollToTop} title="Save sync">
+            <SaveSyncIcon enabled={detail.saveSyncEnabled} status={detail.saveSyncStatus} />
+          </NativeMenuButton>
+          <NativeMenuButton
+            onClick={() => SteamClient.Apps.ShowControllerConfigurator(appId)}
+            onFocus={scrollToTop}
+            title="Controller layout"
+          >
+            <GamepadIcon size={22} />
+          </NativeMenuButton>
+          <NativeMenuButton onClick={showRomMMenu} onFocus={scrollToTop} title="Options">
+            <CogIcon size={22} />
+          </NativeMenuButton>
         </Focusable>
       </Focusable>
     </Focusable>
@@ -1131,29 +1148,25 @@ export const RomMPlaySection: FC<RomMPlaySectionProps> = ({ appId }) => { // NOS
   // root whose element type changes makes React unmount the whole row — the play
   // button drops back to "loading" and re-runs its init (#1682). A Fragment adds
   // no DOM node, so the row stays a direct child of the injected panel either way.
+  const warnings = [
+    detail.savefilesInContentDir && detail.saveSyncEnabled ? (
+      <WarningCard
+        key="savefiles-content-dir-warning"
+        title="Save sync off"
+        message="RetroArch's 'Write Saves to Content Directory' is enabled, so saves go next to the ROM and can't be synced. Turn it off in RetroArch → Settings → Saving to re-enable save sync."
+      />
+    ) : null,
+    detail.saveSyncBlocked && detail.saveSyncEnabled && !detail.savefilesInContentDir ? (
+      <WarningCard key="save-sync-blocked-warning" title="Saves not syncing" message={detail.saveSyncBlocked} />
+    ) : null,
+  ];
+  // The Core page keeps screen one for the art and the play bar alone, so its
+  // warnings open screen two instead of sitting over the art.
   return (
     <Fragment>
-      {detail.savefilesInContentDir && detail.saveSyncEnabled ? (
-        <WarningCard
-          key="savefiles-content-dir-warning"
-          title="Save sync off"
-          message="RetroArch's 'Write Saves to Content Directory' is enabled, so saves go next to the ROM and can't be synced. Turn it off in RetroArch → Settings → Saving to re-enable save sync."
-        />
-      ) : null}
-      {detail.saveSyncBlocked && detail.saveSyncEnabled && !detail.savefilesInContentDir ? (
-        <WarningCard key="save-sync-blocked-warning" title="Saves not syncing" message={detail.saveSyncBlocked} />
-      ) : null}
-      {nativeLook() ? (
-        <RomPageHeader
-          key="core-header"
-          name={detail.romName}
-          platformName={detail.platformName}
-          platformSlug={detail.platformSlug}
-          lastPlayed={playtimeInfo.lastPlayed}
-          playtime={playtimeInfo.playtime}
-        />
-      ) : null}
+      {nativeLook() ? null : warnings}
       {playSectionRow}
+      {nativeLook() ? warnings : null}
     </Fragment>
   );
 };

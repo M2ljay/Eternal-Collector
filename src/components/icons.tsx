@@ -101,3 +101,31 @@ export const CartridgeIcon = icon(
     <rect x="9" y="6" width="6" height="6" />
   </>,
 );
+
+const CLOUD = "M7 18H17.5A4 4 0 0 0 18 10A6 6 0 0 0 6.3 11A3.5 3.5 0 0 0 7 18Z";
+
+/** The play bar's save sync button: a cloud marked with the ROM's save sync state. */
+export const SaveSyncIcon: FC<{ enabled: boolean; status: string | null }> = ({ enabled, status }) => {
+  let mark = "M9.5 13.5L11.5 15.5L15 11.5";
+  if (!enabled) mark = "M4 4L20 20";
+  else if (status === "pending") mark = "M12 16V11M9.8 13L12 10.8L14.2 13";
+  else if (status === "conflict") mark = "M12 10.5V13.5M12 15.6V15.8";
+  else if (status !== "synced") mark = "";
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      width={22}
+      height={22}
+      fill="none"
+      stroke={enabled && status === "conflict" ? "#EA5A68" : "currentColor"}
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      data-save-sync={enabled ? (status ?? "unknown") : "off"}
+    >
+      <path d={CLOUD} />
+      {mark ? <path d={mark} /> : null}
+    </svg>
+  );
+};

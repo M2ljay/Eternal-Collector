@@ -145,3 +145,27 @@ export function scrollElementToTop(el: HTMLElement | null): void {
     scrollParent.scrollTo({ top: Math.max(0, targetScroll), behavior: "auto" });
   }, 50);
 }
+
+/**
+ * The Core game page's two screens: screen one is the art and the play bar
+ * (`.romm-core-playbar`, which reaches down to the footer), screen two
+ * everything after it. Scrolls the page's scroll parent so screen two starts at
+ * the top of the view.
+ */
+export function scrollToScreenTwo(from: HTMLElement): void {
+  const bar = from.closest(".romm-core-page")?.querySelector<HTMLElement>(".romm-core-playbar");
+  if (!bar) return;
+  const parent = findOutermostScrollParent(bar);
+  if (!parent) return;
+  const top = parent.scrollTop + bar.getBoundingClientRect().bottom - parent.getBoundingClientRect().top;
+  parent.scrollTo({ top, behavior: "smooth" });
+}
+
+/** Back to screen one: the page scrolled to the top and focus on the play button. */
+export function scrollToScreenOne(from: HTMLElement): void {
+  const page = from.closest(".romm-core-page");
+  const bar = page?.querySelector<HTMLElement>(".romm-core-playbar");
+  if (!bar) return;
+  findOutermostScrollParent(bar)?.scrollTo({ top: 0, behavior: "smooth" });
+  bar.querySelector<HTMLElement>(".romm-native-play, .romm-btn-play, .romm-btn-download, button")?.focus();
+}

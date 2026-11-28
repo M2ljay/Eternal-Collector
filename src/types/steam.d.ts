@@ -8,6 +8,7 @@ declare var SteamClient: {
     SetShortcutIcon(appId: number, path: string): void;
     SetAppLaunchOptions(appId: number, options: string): void;
     OpenAppSettingsDialog(appId: number, section: string): void;
+    ShowControllerConfigurator(appId: number): void;
     SetCustomArtworkForApp(
       appId: number,
       base64Data: string,

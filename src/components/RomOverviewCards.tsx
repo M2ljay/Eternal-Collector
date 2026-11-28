@@ -1,6 +1,7 @@
 /**
  * The Overview tab's own cards on a ROM game page (Core design): RetroAchievements
- * and Save sync, each a button that opens its tab. Render only, from the panel's
+ * and Save sync, each a button that opens its tab, placed by `order` among the
+ * cards other plugins register. Render only, from the panel's
  * state for the ROM it shows, so a version switch re-renders them with the
  * switched-to version's answers and nothing is read here.
  *
@@ -8,12 +9,12 @@
  * grid through the game page registry.
  */
 
-import type { FC } from "react";
+import type { ReactNode } from "react";
 import { DialogButton } from "@decky/ui";
 import type { SaveStatus } from "../types";
 import { core } from "../theme/coreTokens";
 
-interface RomOverviewCardsProps {
+export interface RomOverviewCardsProps {
   raId: number | null;
   achievements: { earned: number; total: number } | null;
   saveSyncEnabled: boolean;
@@ -45,28 +46,46 @@ export function saveSyncChip(enabled: boolean, status: SaveStatus | null, confli
   }
 }
 
-export const RomOverviewCards: FC<RomOverviewCardsProps> = ({
+/** A card The Collector draws itself, placed among the registered cards by `order`. */
+export interface BuiltinCard {
+  key: string;
+  order: number;
+  node: ReactNode;
+}
+
+/** Card orders: Forge's Mods card goes between them at 20, a Club card after them at 40. */
+export const BUILTIN_CARD_ORDER = { achievements: 10, saves: 30 } as const;
+
+export function romOverviewCards({
   raId,
   achievements,
   saveSyncEnabled,
   saveStatus,
   conflictCount,
   onOpenTab,
-}) => {
+}: RomOverviewCardsProps): BuiltinCard[] {
   const chip = saveSyncChip(saveSyncEnabled, saveStatus, conflictCount);
-  return (
-    <>
-      {raId ? (
-        <DialogButton key="ra" className="romm-core-card" onClick={() => onOpenTab("achievements")}>
+  const cards: BuiltinCard[] = [];
+  if (raId) {
+    cards.push({
+      key: "ra",
+      order: BUILTIN_CARD_ORDER.achievements,
+      node: (
+        <DialogButton className="romm-core-card" onClick={() => onOpenTab("achievements")}>
           <div className="romm-core-card-title">RetroAchievements</div>
           <div className="romm-core-card-value">
-            {achievements && achievements.total > 0 ? `${achievements.earned} / ${achievements.total}` : "—"}
+            {achievements && achievements.total > 0 ? `${achievements.earned} / ${achievements.total}` : "\u2014"}
           </div>
           <div className="romm-core-card-note">Open the list</div>
         </DialogButton>
-      ) : null}
+      ),
+    });
+  }
+  cards.push({
+    key: "saves",
+    order: BUILTIN_CARD_ORDER.saves,
+    node: (
       <DialogButton
-        key="saves"
         className="romm-core-card"
         onClick={() => {
           if (saveSyncEnabled) onOpenTab("saves");
@@ -80,6 +99,7 @@ export const RomOverviewCards: FC<RomOverviewCardsProps> = ({
           {saveSyncEnabled ? "Slots, versions and conflicts" : "Turn it on in The Collector's settings"}
         </div>
       </DialogButton>
-    </>
-  );
-};
+    ),
+  });
+  return cards;
+}

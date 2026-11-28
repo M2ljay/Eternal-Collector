@@ -47,7 +47,10 @@ import {
 } from "../utils/gamePageExtensions";
 import { ExtensionOverviewCards, ExtensionTabPane } from "./GamePageExtensions";
 import { GameContentSection } from "./GameContentSection";
-import { RomOverviewCards } from "./RomOverviewCards";
+import { romOverviewCards } from "./RomOverviewCards";
+import { RomPageChips } from "./RomPageChips";
+import { nativeLook } from "../utils/nativeLook";
+import { scrollToScreenOne, scrollToScreenTwo } from "../utils/scrollHelpers";
 
 function pageLocale(): string {
   return globalThis.navigator.language || "en";
@@ -91,6 +94,7 @@ export const RomMGameInfoPanel: FC<RomMGameInfoPanelProps> = ({ appId }) => {
     languages: [],
   });
   const romIdRef = useRef<number | null>(null);
+  const belowRef = useRef<HTMLDivElement | null>(null);
   // Tracks the panel's own platform so the broadcast `bios` data-changed
   // handler can reject events for other platforms without a stale closure
   // (mirrors romIdRef). bios events fan out to every mounted panel (#1082).
@@ -205,6 +209,7 @@ export const RomMGameInfoPanel: FC<RomMGameInfoPanelProps> = ({ appId }) => {
 
   const romId = state.romId;
   const ctx = extensionCtx;
+  const corePage = nativeLook();
   const extensionTabs = visibleExtensions(extensions, "tab", ctx);
   const activeExtension = extensionTabs.find((e) => extensionTabKey(e.extension.id) === state.activeTab) ?? null;
   // An extension tab that unregistered or stopped being available leaves the
@@ -212,8 +217,11 @@ export const RomMGameInfoPanel: FC<RomMGameInfoPanelProps> = ({ appId }) => {
   const activeTab = state.activeTab.startsWith("ext:") && !activeExtension ? "info" : state.activeTab;
   const tabState = activeTab === state.activeTab ? state : { ...state, activeTab };
 
-  return (
-    <div data-romm="true">
+  const body = (
+    <>
+      {corePage ? (
+        <RomPageChips key="chips" platformName={state.platformName} platformSlug={state.platformSlug} />
+      ) : null}
       {saveSortPending ? <SaveSortWarning key="save-sort-warning" /> : null}
       <PanelTabBar
         activeTab={activeTab}
@@ -229,16 +237,19 @@ export const RomMGameInfoPanel: FC<RomMGameInfoPanelProps> = ({ appId }) => {
       />
       <Focusable noFocusRing={true} className="romm-tab-content" style={{ paddingBottom: "48px" }}>
         {activeTab === "info" ? (
-          <ExtensionOverviewCards key="ext-cards" entries={extensions} ctx={ctx}>
-            <RomOverviewCards
-              raId={state.raId}
-              achievements={state.achievements}
-              saveSyncEnabled={state.saveSyncEnabled}
-              saveStatus={state.saveStatus}
-              conflictCount={state.conflicts.length}
-              onOpenTab={(tabId) => setState((prev) => ({ ...prev, activeTab: tabId }))}
-            />
-          </ExtensionOverviewCards>
+          <ExtensionOverviewCards
+            key="ext-cards"
+            entries={extensions}
+            ctx={ctx}
+            builtins={romOverviewCards({
+              raId: state.raId,
+              achievements: state.achievements,
+              saveSyncEnabled: state.saveSyncEnabled,
+              saveStatus: state.saveStatus,
+              conflictCount: state.conflicts.length,
+              onOpenTab: (tabId) => setState((prev) => ({ ...prev, activeTab: tabId })),
+            })}
+          />
         ) : null}
         {activeExtension ? <ExtensionTabPane key="ext-tab" entry={activeExtension} ctx={ctx} /> : null}
         {buildTabContent({ appId, binding: bindRomInState(romId, setState), state: tabState })}
@@ -263,6 +274,32 @@ export const RomMGameInfoPanel: FC<RomMGameInfoPanelProps> = ({ appId }) => {
           coreInfo={state.coreInfo}
           isActive={activeTab === "bios"}
         />
+      </Focusable>
+    </>
+  );
+
+  if (!corePage) return <div data-romm="true">{body}</div>;
+
+  // Screen two of the Core page: entering it from the play bar brings it to the
+  // top of the view, and Y goes back to screen one.
+  return (
+    <div
+      data-romm="true"
+      className="romm-core-below"
+      ref={belowRef}
+      onFocusCapture={(e) => {
+        const root = belowRef.current;
+        if (root && !(e.relatedTarget instanceof Node && root.contains(e.relatedTarget))) scrollToScreenTwo(root);
+      }}
+    >
+      <Focusable
+        flow-children="down"
+        onOptionsButton={() => {
+          if (belowRef.current) scrollToScreenOne(belowRef.current);
+        }}
+        onOptionsActionDescription="Back to top"
+      >
+        {body}
       </Focusable>
     </div>
   );
