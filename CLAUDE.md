@@ -292,8 +292,8 @@ Format: **invariant** — tier — enforced by.
   cleanup deletes only recorded collections and only after a non-cancelled sync, a record is forgotten only once its
   collection is gone, and a rename that cannot happen in place copies every game into the new collection and records it
   before the old one is deleted (the backup leg of the destructive-op rule); the installed collection (family `installed`)
-is not a sync source, so the stale cleanup skips it and only its setting or **Remove all** deletes it, through the
-record** — test + prompt-only —
+  and the console-family collections (family `console_family`) are not sync sources, so the stale cleanup skips them
+  and only their settings, an emptied family or **Remove all** delete them, through the record** — test + prompt-only —
   `src/utils/collectionsConfinement.test.ts` (structural: every collectionStore write — `NewUnsavedCollection`,
   `AsDragDropCollection`, `.Delete(`, `m_strName` — stays in `src/utils/collections.ts`; an alias or a computed property
   slips past it) and `src/utils/collections.test.ts` (user collections never written, collisions, cancelled runs,

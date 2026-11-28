@@ -468,9 +468,36 @@ the same record, the same name picking and the same write paths as the platform 
   skips the `installed` family, so only the setting and the Danger Zone's **Remove all** ever delete it.
 - **Empty is kept**: with nothing installed the collection stays, empty, so a filter pointing at it keeps working.
 
-Every collection write (sync reconcile, installed reconcile, the Danger Zone clears) runs one at a time (`serialized` in
-`collections.ts`). Two passes that both read the record before either wrote it would each create a collection for the
-same source, and the one whose record lost would be left unrecorded, which every later run must treat as the user's.
+### The console family collections
+
+For the Home shelf and for TabMaster family tabs, the plugin keeps one owned collection per console family, family
+`console_family`, source name the family's display name: `PlayStation`, `Nintendo`, `Sega`, `Xbox`, `Retro`. Like the
+installed collection it is not a sync source and is reconciled through the same record, name picking and write paths
+(`reconcileFamilies` in `collections.ts`):
+
+- **Members** come from `get_family_collection_games` (`services/steam_collections.py`): every ROM bound to a shortcut,
+  with its platform slug. The frontend groups them with `consoleFamily` (`src/theme/coreTokens.ts`), the mapping the
+  Home shelf and Core's Library tabs use, so a shortcut is in exactly one family collection. ROM shortcuts only.
+- **Name**: named like a platform. On Windows and under Clean it is the family's name; under Classic elsewhere
+  `RomM: <family> (<host>)`. A collection already holding the name, the user's or one of the plugin's own (RomM's own
+  platform called "PlayStation", for instance), makes the family collection `<family> (RomM)`; for a user's collection
+  with a `yielded_to` note. Nothing is merged into a collection the record does not name.
+- **When**: in the same pass as the installed collection (`reconcileInstalledRomsCollection` runs both, serialized), so
+  at the end of every library sync, at plugin start and after every install change; and from its setting.
+- **Empty family**: a family with no ROM shortcuts gets no collection, and one that had a recorded collection has it
+  deleted and the record forgotten.
+- **Setting**: `family_collections` (**Keep console family collections**, on by default). Off, the reconcile deletes the
+  recorded family collections and forgets them; it never looks for a collection by name. The stale cleanup of a sync
+  skips the `console_family` family, so only the setting, an empty family and the Danger Zone's **Remove all** ever
+  delete one.
+- **The Home shelf** learns each family's collection id from the record (`utils/familyCollections.ts`, filled whenever
+  `collections.ts` reads or writes the record), so A on a family tile opens `/library/collection/<id>` without a backend
+  call and without a name lookup.
+
+Every collection write (sync reconcile, installed and family reconcile, the Danger Zone clears) runs one at a time
+(`serialized` in `collections.ts`). Two passes that both read the record before either wrote it would each create a
+collection for the same source, and the one whose record lost would be left unrecorded, which every later run must treat
+as the user's.
 
 **Plugin start waits for Steam.** Right after Steam starts, `collectionStore` may not have loaded the user's collections
 or shortcuts yet, and a recorded collection that is merely not loaded reads exactly like one the user deleted. The

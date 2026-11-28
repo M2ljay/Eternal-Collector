@@ -51,11 +51,12 @@ gives the path. They are for a later console backdrop; the shelf does not use th
 
 ### Opening a family
 
-A on a family tile (`src/utils/familyNavigation.ts`) opens `/library/collection/<id>` for a Steam collection whose name
-is the family's ("PlayStation", "Nintendo", "Sega", "Xbox", "Retro"; any owner, matched without case, read-only through
-`utils/steamCollectionLookup.ts`). TabMaster's tabs carry the same names but are TabMaster's own state, with no route or
-public API to select one, so they are not reached. Without such a collection, A opens the console page of the family's
-most played console. The lookup runs on the press, never while Home renders.
+A on a family tile (`src/utils/familyNavigation.ts`) opens `/library/collection/<id>` for the plugin's own collection of
+that family ([The console family collections](steam-non-steam-shortcuts.md#the-console-family-collections)), found by
+its record (`utils/familyCollections.ts`) and only while Steam still has it, never by its name. TabMaster's tabs are
+TabMaster's own state, with no route or public API to select one, so they are not reached; a TabMaster tab can point at
+the same collection. With no family collection (its setting off, or none made yet), A opens the console page of the
+family's most played console. The lookup runs on the press, never while Home renders.
 
 ## Most played
 

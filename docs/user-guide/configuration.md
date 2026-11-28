@@ -233,6 +233,26 @@ plugin starts. It stays in Steam even when nothing is installed, so a filter poi
 setting off deletes only this collection, and never one of yours. **Remove all** in the Danger Zone deletes it with the
 rest of The Collector's collections; it comes back, empty or not, on the next check while the setting is on.
 
+## Console family collections
+
+**Keep console family collections**, in the **Library** section of the settings page (on by default), keeps one Steam
+collection for each console family you have games in: **PlayStation**, **Nintendo**, **Sega**, **Xbox** and **Retro**
+(Retro is everything outside the four makers, such as arcade, Neo Geo and TurboGrafx). Each holds your ROM shortcuts of
+that family and follows every sync, download and uninstall. A family you have no games in gets no collection, and its
+collection goes away when its last game does.
+
+They are named like platform collections. On Windows, and with **Clean** names, they are `PlayStation`, `Nintendo`, and
+so on; with Classic names on Linux, `RomM: PlayStation (htpc)`. If a collection with that name already exists (one of
+yours, or RomM's own platform collection called "PlayStation"), yours is left alone and The Collector's is
+`PlayStation (RomM)`.
+
+The Collector's Home row opens these collections when you press **A** on a family. They also make good **TabMaster**
+tabs: add a TabMaster tab with a **Collection** filter pointing at the family's collection, and the tab follows the
+collection as it changes. The plugin doesn't change TabMaster's settings itself.
+
+Turning the setting off deletes only these collections; nothing else is touched. **Remove all** in the Danger Zone
+removes them with the plugin's other collections; the next sync makes them again while the setting is on.
+
 ## RetroAchievements warning
 
 **Warn when RetroAchievements isn't working**, in the **Library** section of the settings page (on by default), shows

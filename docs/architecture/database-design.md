@@ -666,6 +666,11 @@ other than 0/1. Fresh tables: existing databases gain no rows until the user pin
 ([The installed collection](steam-non-steam-shortcuts.md#the-installed-collection)). SQLite cannot alter a `CHECK`, so
 the table is rebuilt and every row copied across unchanged; it is a leaf table, so nothing else is touched.
 
+`031_allow_console_family_steam_collections.sql` (`user_version = 31`) widens the same `CHECK` to admit
+`console_family`, the records of the plugin's five console-family collections
+([The console family collections](steam-non-steam-shortcuts.md#the-console-family-collections)); rebuilt and copied
+across the same way.
+
 ## The runtime Unit of Work
 
 The schema is read and written at runtime through a **Unit of Work** (UoW) — the atomic transaction boundary one

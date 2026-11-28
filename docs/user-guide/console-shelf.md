@@ -15,9 +15,9 @@ Each tile shows the family's artwork and logo from your icon pack, the family's 
 nothing else: no game art, no counts, no "last played".
 
 With a controller: press down from Recent games to reach the row, left and right to move between families, and **A** to
-open one. The selected tile lifts slightly with a crimson ring. **A** opens the Library collection named after the
-family ("PlayStation", "Nintendo", "Sega", "Xbox" or "Retro") when you have one; otherwise it opens the console page of
-the family's console you play most.
+open one. The selected tile lifts slightly with a crimson ring. **A** opens the family's collection in your Library, the
+one The Collector keeps for it (see [Console family collections](configuration.md#console-family-collections)); with
+that setting off, it opens the console page of the family's console you play most.
 
 The row appears once the plugin has loaded and you have at least one synced game. It never contacts your RomM server
 while Home is on screen; it updates after a sync, after you finish playing, and when a game's save status changes.
