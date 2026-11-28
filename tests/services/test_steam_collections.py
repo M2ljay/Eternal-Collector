@@ -55,7 +55,14 @@ class TestGet:
             "name_style": "classic",
             "adoption_done": False,
             "collections": [],
+            "platform_renames": {},
         }
+
+    def test_reports_platform_renames_from_the_romm_name_cache(self, service, uow):
+        with uow:
+            uow.kv_config.set("platform_names", '{"psx": "PlayStation", "ps2": "PlayStation 2"}')
+
+        assert service.get_owned_steam_collections()["platform_renames"] == {"PlayStation": "PlayStation 1"}
 
     def test_reports_records_style_and_adoption(self, service, uow, settings):
         settings["collection_name_style"] = "clean"

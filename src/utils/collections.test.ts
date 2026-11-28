@@ -32,6 +32,7 @@ const backend = vi.hoisted(() => ({
   installedReadFails: false,
   familyEnabled: true,
   familyGames: [] as { app_id: number; platform_slug: string }[],
+  platformRenames: {} as Record<string, string>,
 }));
 vi.mock("../api/backend", () => ({
   logInfo: vi.fn(),
@@ -46,6 +47,7 @@ vi.mock("../api/backend", () => ({
             name_style: backend.nameStyle,
             adoption_done: backend.adoptionDone,
             collections: backend.records.map((r) => ({ ...r })),
+            platform_renames: { ...backend.platformRenames },
           },
     ),
   ),
@@ -219,6 +221,7 @@ beforeEach(() => {
   backend.installedReadFails = false;
   backend.familyEnabled = true;
   backend.familyGames = [];
+  backend.platformRenames = {};
   resetFamilyCollections();
   rommAppIds.clear();
   [1, 2, 3, 4, 5].forEach((id) => rommAppIds.add(id));
@@ -882,6 +885,138 @@ describe("console family collections", () => {
 
     expect(familyCollectionId("sega")).toBe(owned.id);
     expect(familyCollectionId("nintendo")).toBeNull();
+  });
+});
+
+describe("PS1 shown as PlayStation 1, freeing PlayStation for the family", () => {
+  const game = (app_id: number, platform_slug: string) => ({ app_id, platform_slug });
+
+  /** One sync as index.tsx runs it: the platform collections, then installed + families. */
+  async function syncWithFamilies(platformAppIds: Record<string, number[]>): Promise<void> {
+    await sync(platformAppIds);
+    await reconcileInstalledRomsCollection();
+  }
+
+  beforeEach(() => {
+    vi.spyOn(navigator, "userAgent", "get").mockReturnValue(WINDOWS_UA);
+    backend.installedEnabled = false;
+    backend.platformRenames = { PlayStation: "PlayStation 1" };
+    backend.familyGames = [game(1, "psx"), game(2, "ps2")];
+  });
+
+  it("fresh install: the console collection is PlayStation 1 and the family takes PlayStation", async () => {
+    await syncWithFamilies({ "PlayStation 1": [1], "PlayStation 2": [2] });
+
+    expect(store.names()).toEqual(["PlayStation", "PlayStation 1", "PlayStation 2"]);
+    expect(recordFor("platform", "PlayStation 1")?.collection_id).toBe(store.named("PlayStation 1")?.id);
+    expect(recordFor("console_family", "PlayStation")).toMatchObject({ display_name: "PlayStation", yielded_to: null });
+  });
+
+  it("renames the recorded PS1 collection in place, by its record, keeping its id", async () => {
+    const ps1 = store.add("PlayStation", [1, 3]);
+    own(ps1, "platform", "PlayStation");
+
+    await sync({ "PlayStation 1": [1] });
+
+    expect(ps1.displayName).toBe("PlayStation 1");
+    expect(ps1.Delete).not.toHaveBeenCalled();
+    expect(appIdsOf(ps1)).toEqual([1]);
+    expect(recordFor("platform", "PlayStation")).toBeUndefined();
+    expect(recordFor("platform", "PlayStation 1")).toMatchObject({
+      collection_id: ps1.id,
+      display_name: "PlayStation 1",
+    });
+  });
+
+  it("falls back to copy-then-delete when Steam will not rename in place", async () => {
+    store = new FakeStore(false);
+    store.install();
+    const ps1 = store.add("PlayStation", [1]);
+    own(ps1, "platform", "PlayStation");
+
+    await sync({ "PlayStation 1": [1] });
+
+    const copy = store.named("PlayStation 1");
+    expect(copy).toBeDefined();
+    expect(ps1.Delete).toHaveBeenCalledTimes(1);
+    expect(recordFor("platform", "PlayStation 1")?.collection_id).toBe(copy?.id);
+  });
+
+  it("in the same sync, the family claims PlayStation once the console collection has moved", async () => {
+    const ps1 = store.add("PlayStation", [1]);
+    own(ps1, "platform", "PlayStation");
+
+    await syncWithFamilies({ "PlayStation 1": [1], "PlayStation 2": [2] });
+
+    expect(store.names()).toEqual(["PlayStation", "PlayStation 1", "PlayStation 2"]);
+    expect(ps1.displayName).toBe("PlayStation 1");
+    expect(recordFor("console_family", "PlayStation")).toMatchObject({ display_name: "PlayStation", yielded_to: null });
+    expect(appIdsOf(store.named("PlayStation"))).toEqual([1, 2]);
+  });
+
+  it("an earlier PlayStation (RomM) family collection is renamed, through its record, to PlayStation", async () => {
+    const ps1 = store.add("PlayStation", [1]);
+    own(ps1, "platform", "PlayStation");
+    const family = store.add("PlayStation (RomM)", [1, 2]);
+    own(family, "console_family", "PlayStation", "PlayStation");
+
+    await syncWithFamilies({ "PlayStation 1": [1], "PlayStation 2": [2] });
+
+    expect(family.displayName).toBe("PlayStation");
+    expect(family.Delete).not.toHaveBeenCalled();
+    expect(store.names()).toEqual(["PlayStation", "PlayStation 1", "PlayStation 2"]);
+    expect(recordFor("console_family", "PlayStation")).toMatchObject({
+      collection_id: family.id,
+      display_name: "PlayStation",
+      yielded_to: null,
+    });
+  });
+
+  it("a user's own PlayStation 1 is never touched; the console collection takes the (RomM) suffix", async () => {
+    const users = store.add("PlayStation 1", [42]);
+    const ps1 = store.add("PlayStation", [1]);
+    own(ps1, "platform", "PlayStation");
+
+    await syncWithFamilies({ "PlayStation 1": [1] });
+
+    expect(appIdsOf(users)).toEqual([42]);
+    expect(users.Save).not.toHaveBeenCalled();
+    expect(ps1.displayName).toBe("PlayStation 1 (RomM)");
+    expect(recordFor("platform", "PlayStation 1")).toMatchObject({ yielded_to: "PlayStation 1" });
+    expect(recordFor("console_family", "PlayStation")?.display_name).toBe("PlayStation");
+  });
+
+  it("a user's own PlayStation keeps the family on PlayStation (RomM)", async () => {
+    const users = store.add("PlayStation", [42]);
+
+    await syncWithFamilies({ "PlayStation 1": [1] });
+
+    expect(appIdsOf(users)).toEqual([42]);
+    expect(users.Save).not.toHaveBeenCalled();
+    expect(recordFor("platform", "PlayStation 1")?.display_name).toBe("PlayStation 1");
+    expect(recordFor("console_family", "PlayStation")).toMatchObject({
+      display_name: "PlayStation (RomM)",
+      yielded_to: "PlayStation",
+    });
+  });
+
+  it("never adopts a user's PlayStation collection just because RomM once used that name", async () => {
+    const users = store.add("PlayStation", [42]);
+
+    await sync({ "PlayStation 1": [1] });
+
+    expect(users.Save).not.toHaveBeenCalled();
+    expect(backend.records.map((r) => r.collection_id)).not.toContain(users.id);
+  });
+
+  it("Remove platform follows the record to PlayStation 1 before the next sync has run", async () => {
+    const ps1 = store.add("PlayStation", [1]);
+    own(ps1, "platform", "PlayStation");
+
+    await clearPlatformCollection("PlayStation 1");
+
+    expect(ps1.Delete).toHaveBeenCalledTimes(1);
+    expect(backend.records).toEqual([]);
   });
 });
 

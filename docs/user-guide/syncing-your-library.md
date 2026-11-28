@@ -245,9 +245,11 @@ run the plugin on multiple devices:
 
 - `RomM: Nintendo 64 (steamdeck)`
 - `RomM: Game Boy Advance (steamdeck)`
-- `RomM: PlayStation (htpc)`
+- `RomM: PlayStation 2 (htpc)`
 
-With **Clean** names they are just `Nintendo 64`, `Game Boy Advance` and `PlayStation`. Either way the plugin only ever
+With **Clean** names they are just `Nintendo 64`, `Game Boy Advance` and `PlayStation 2`. The original PlayStation's
+collection is called `PlayStation 1`, not RomM's "PlayStation", so that `PlayStation` is free for the
+[console family collection](configuration.md#console-family-collections). Either way the plugin only ever
 renames, refills or deletes collections it made itself — never one of yours, even one with the same name (its own then
 gets `(RomM)` added).
 

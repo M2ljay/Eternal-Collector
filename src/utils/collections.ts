@@ -66,6 +66,7 @@ interface Ownership {
   hostname: string;
   byId: Map<string, OwnedSteamCollection>;
   byKey: Map<string, OwnedSteamCollection>;
+  platformRenames: Record<string, string>;
 }
 
 function sourceKey(family: SteamCollectionFamily, name: string): string {
@@ -158,6 +159,7 @@ async function loadOwnership(): Promise<Ownership | null> {
       hostname: await getHostname(),
       byId,
       byKey,
+      platformRenames: answer.platform_renames ?? {},
     };
   } catch (e) {
     logWarn(`Steam collections left alone: the ownership record could not be read (${e})`);
@@ -193,6 +195,8 @@ async function record(
   const key = sourceKey(family, sourceName);
   const previous = ownership.byKey.get(key);
   if (previous && previous.collection_id !== collectionId) ownership.byId.delete(previous.collection_id);
+  const sameCollection = ownership.byId.get(collectionId);
+  if (sameCollection) ownership.byKey.delete(sourceKey(sameCollection.family, sameCollection.source_name));
   ownership.byId.set(collectionId, entry);
   ownership.byKey.set(key, entry);
   setFamilyCollections([...ownership.byId.values()]);
@@ -232,6 +236,23 @@ async function deleteOwned(ownership: Ownership, owned: OwnedSteamCollection, si
     }
   }
   await forget(ownership, owned);
+}
+
+/**
+ * Move each platform collection recorded under RomM's name for its platform to
+ * the name the plugin shows instead ("PlayStation" → "PlayStation 1"). Only the
+ * record moves — the same Steam collection, by id — so the reconcile that follows
+ * renames it through the usual rename path, and a stale cleanup never sees it as
+ * a source that went away. Runs before anything reads the record by source.
+ */
+async function followPlatformRenames(ownership: Ownership, signal?: AbortSignal): Promise<void> {
+  for (const [rommName, shownName] of Object.entries(ownership.platformRenames)) {
+    if (signal?.aborted) return;
+    const owned = ownership.byKey.get(sourceKey("platform", rommName));
+    if (!owned || ownership.byKey.has(sourceKey("platform", shownName))) continue;
+    logInfo(`Collection "${owned.display_name}" now belongs to platform "${shownName}" (RomM calls it "${rommName}")`);
+    await record(ownership, owned.collection_id, "platform", shownName, owned.display_name, owned.yielded_to);
+  }
 }
 
 /**
@@ -486,6 +507,7 @@ async function reconcileFromMaps(maps: CollectionMaps, signal?: AbortSignal): Pr
     if (!ownership || signal?.aborted) return;
     const sources = sourcesOf(maps);
 
+    await followPlatformRenames(ownership, signal);
     if (!ownership.adoptionDone) await adoptPreRecordCollections(ownership, sources, signal);
     if (!maps.cancelled) await removeStaleOwned(ownership, sources, signal);
 
@@ -520,6 +542,7 @@ async function clearPlatform(platformName: string, signal?: AbortSignal): Promis
     }
     const ownership = await loadOwnership();
     if (!ownership || signal?.aborted) return;
+    await followPlatformRenames(ownership, signal);
     const owned = ownership.byKey.get(sourceKey("platform", platformName));
     if (!owned) {
       logInfo(`The plugin owns no collection for "${platformName}", nothing to clear`);

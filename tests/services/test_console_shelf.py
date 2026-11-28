@@ -116,6 +116,11 @@ class TestGetConsoleShelf:
         ]
         assert logs == ["Console shelf: 2 consoles from 3 games"]
 
+    def test_ps1_is_shown_as_playstation_1_on_the_shelf_and_its_page(self, service, uow):
+        _seed(uow, _rom(1, "psx"), names={"psx": "PlayStation"})
+        assert service.get_console_shelf()["consoles"][0]["name"] == "PlayStation 1"
+        assert service.get_console_games("psx", 0, 30)["name"] == "PlayStation 1"
+
     def test_name_falls_back_to_slug_on_a_corrupt_cache(self, service, uow):
         _seed(uow, _rom(1, "gba"))
         with uow:

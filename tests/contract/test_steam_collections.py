@@ -18,6 +18,7 @@ async def test_empty_record_shape(harness):
         "name_style": "classic",
         "adoption_done": False,
         "collections": [],
+        "platform_renames": {},
     }
 
 

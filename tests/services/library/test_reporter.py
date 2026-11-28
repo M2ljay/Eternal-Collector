@@ -84,6 +84,15 @@ class TestGetSyncStats:
         assert stats["last_attempt"] is None
 
     @pytest.mark.asyncio
+    async def test_ps1_is_listed_as_playstation_1(self, plugin):
+        _seed_rom(plugin._uow, 10, app_id=1001, platform_slug="psx", name="Crash")
+        _seed_platform_names(plugin._uow, {"psx": "PlayStation"})
+
+        result = await plugin.get_registry_platforms()
+
+        assert [p["name"] for p in result["platforms"]] == ["PlayStation 1"]
+
+    @pytest.mark.asyncio
     async def test_empty_registry(self, plugin):
         stats = await plugin.get_sync_stats()
         assert stats["platforms"] == 0
@@ -1587,6 +1596,26 @@ class TestFinalizePerUnitRun:
                 "n64": "Nintendo 64",
                 "snes": "Super Nintendo",
             }
+
+    @pytest.mark.asyncio
+    async def test_platform_collections_use_the_shown_name_and_the_cache_keeps_romms(self, plugin):
+        import decky
+
+        decky.emit.reset_mock()
+        uow = plugin._uow
+        _seed_rom(uow, 1, app_id=1001, platform_slug="psx", name="A")
+        plugin.settings["collection_create_platform_groups"] = True
+
+        await plugin._sync_service._reporter.finalize_per_unit_run(
+            pending_collection_memberships={},
+            pending_platform_rom_ids={1},
+            platform_names={"psx": "PlayStation"},
+        )
+
+        payload = next(c[0][1] for c in decky.emit.call_args_list if c[0][0] == "sync_collections")
+        assert payload["platform_app_ids"] == {"PlayStation 1": [1001]}
+        with uow:
+            assert json.loads(uow.kv_config.get("platform_names")) == {"psx": "PlayStation"}
 
     @pytest.mark.asyncio
     async def test_builds_romm_collection_app_ids_excluding_unbound(self, plugin):

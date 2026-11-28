@@ -77,7 +77,7 @@ Everything the Home row and the console page show is read from this device's own
 
 | Shown                 | Source                                                                                                                              |
 | --------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
-| Consoles, game counts | bound ROMs (`roms.shortcut_app_id IS NOT NULL`) grouped by `platform_slug`; names from the `platform_names` cache                   |
+| Consoles, game counts | bound ROMs (`roms.shortcut_app_id IS NOT NULL`) grouped by `platform_slug`; names from the `platform_names` cache, overridden       |
 | Last played, ranking  | `rom_playtime`                                                                                                                      |
 | Save-sync chip        | `rom_save_sync_states` through `compute_save_sync_display`, the same cached display the game page shows before its live check       |
 | Downloaded            | `rom_installs`                                                                                                                      |

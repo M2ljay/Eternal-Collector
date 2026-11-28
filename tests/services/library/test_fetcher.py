@@ -111,6 +111,18 @@ class TestGetPlatformsMaterialization:
         assert all(p["sync_enabled"] is True for p in result["platforms"])
 
     @pytest.mark.asyncio
+    async def test_lists_ps1_as_playstation_1(self, plugin, fake_romm_api):
+        _wire_fake(plugin, fake_romm_api)
+        fake_romm_api.platforms = [
+            {"id": 1, "name": "PlayStation", "slug": "psx", "rom_count": 3},
+            {"id": 2, "name": "PlayStation 2", "slug": "ps2", "rom_count": 5},
+        ]
+
+        result = await plugin._sync_service._fetcher.get_platforms()
+
+        assert [p["name"] for p in result["platforms"]] == ["PlayStation 1", "PlayStation 2"]
+
+    @pytest.mark.asyncio
     async def test_excludes_zero_rom_platforms_from_materialized_map(self, plugin, fake_romm_api):
         """A rom_count==0 platform is neither shown nor materialized."""
         _wire_fake(plugin, fake_romm_api)

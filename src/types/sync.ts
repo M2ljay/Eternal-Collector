@@ -80,6 +80,12 @@ export interface OwnedSteamCollectionsAnswer {
   name_style: CollectionNameStyle;
   adoption_done: boolean;
   collections: OwnedSteamCollection[];
+  /**
+   * A platform's RomM name → the name the plugin shows for it, where they differ
+   * (RomM's "PlayStation" is shown as "PlayStation 1"). A platform collection
+   * recorded under the RomM name moves its record to the shown name.
+   */
+  platform_renames?: Record<string, string>;
   reason?: string;
   message?: string;
 }

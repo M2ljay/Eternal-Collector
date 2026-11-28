@@ -17,6 +17,7 @@ from typing import TYPE_CHECKING, Any, NamedTuple
 
 from domain.collection_owner import is_own_collection
 from domain.fetch_generation import backfill_needed, count_rows_for_skip
+from domain.platform_names import shown_platform_name
 from domain.platform_prefs import materialize_enabled_platforms, resolve_sync_enabled
 from domain.skip_prediction import collapsed_shortcut_count, new_shortcut_count, predict_unit_skip
 from domain.sync_stage import SyncStage
@@ -191,7 +192,7 @@ class LibraryFetcher:
             pid = str(p["id"])
             entry = {
                 "id": p["id"],
-                "name": p.get("name", ""),
+                "name": shown_platform_name(p.get("slug", ""), p.get("name", "")),
                 "slug": p.get("slug", ""),
                 "rom_count": rom_count,
                 "sync_enabled": resolve_sync_enabled(enabled, pid),

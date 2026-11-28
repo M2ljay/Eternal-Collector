@@ -23,7 +23,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
 from domain.collection_label import collection_label
-from domain.platform_names import decode_platform_names
+from domain.platform_names import decode_platform_names, shown_platform_names
 from domain.rom import Rom
 from domain.rom_metadata_mapping import build_rom_metadata
 from domain.sync_diff import BIND_ROM_ID_KEY, should_include_in_platform_collection
@@ -305,7 +305,9 @@ class SyncReporter:
         persisted here.
 
         Everything happens inside one write UoW so the unbind + cache
-        refresh + reads commit atomically.
+        refresh + reads commit atomically. The cache keeps RomM's names; the
+        platform collections key on the names the plugin shows
+        (``domain.platform_names.PLATFORM_NAME_OVERRIDES`` applied).
         """
         with self._uow_factory() as uow:
             # Stale removal only UNBINDS the row (ADR-0007 keeps it), so a
@@ -328,7 +330,7 @@ class SyncReporter:
                 uow,
                 pending_platform_rom_ids,
                 pending_collection_memberships,
-                platform_names,
+                shown_platform_names(platform_names),
             )
 
     async def finalize_per_unit_run(

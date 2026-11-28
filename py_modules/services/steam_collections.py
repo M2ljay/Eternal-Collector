@@ -14,6 +14,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Final
 
 from domain.owned_steam_collection import ADOPTION_DONE_KEY, OwnedSteamCollection
+from domain.platform_names import decode_romm_platform_names, platform_renames
 
 if TYPE_CHECKING:
     from services.protocols import DebugLogger, UnitOfWorkFactory
@@ -23,6 +24,7 @@ INSTALLED_COLLECTION_SETTING: Final = "installed_roms_collection"
 FAMILY_COLLECTIONS_SETTING: Final = "family_collections"
 NAME_STYLES: Final[tuple[str, ...]] = ("classic", "clean")
 DEFAULT_NAME_STYLE: Final = "classic"
+_PLATFORM_NAMES_KEY: Final = "platform_names"
 
 
 def name_style_of(settings: dict[str, Any]) -> str:
@@ -40,8 +42,9 @@ class SteamCollectionOwnershipServiceConfig:
     """Frozen wiring bundle handed to ``SteamCollectionOwnershipService.__init__``.
 
     Holds the SQLite Unit-of-Work factory (``owned_steam_collections`` and the
-    ``kv_config`` adoption marker, plus reads of ``roms`` and ``rom_installs`` for
-    the installed and console-family collections), the live settings dict (the name
+    ``kv_config`` adoption marker and platform-name cache, plus reads of ``roms`` and
+    ``rom_installs`` for the installed and console-family collections), the live
+    settings dict (the name
     style and the two collection toggles), and the debug logger.
     """
 
@@ -59,15 +62,23 @@ class SteamCollectionOwnershipService:
         self._log_debug = config.log_debug
 
     def get_owned_steam_collections(self) -> dict[str, Any]:
-        """Every owned collection, the name style, and whether the one-time adoption is done."""
+        """Every owned collection, the name style, whether the one-time adoption is done, and the platform renames.
+
+        ``platform_renames`` maps a platform's RomM name to the name the plugin shows
+        for it (``domain.platform_names.PLATFORM_NAME_OVERRIDES``), for the platforms
+        in the last sync's name cache: a platform collection recorded under the RomM
+        name moves its record to the shown name.
+        """
         with self._uow_factory() as uow:
             records = [record.to_wire() for record in uow.owned_steam_collections.iter_all()]
             adoption_done = uow.kv_config.get(ADOPTION_DONE_KEY) == "1"
+            renames = platform_renames(decode_romm_platform_names(uow.kv_config.get(_PLATFORM_NAMES_KEY)))
         return {
             "success": True,
             "name_style": name_style_of(self._settings),
             "adoption_done": adoption_done,
             "collections": records,
+            "platform_renames": renames,
         }
 
     def get_installed_rom_app_ids(self) -> dict[str, Any]:

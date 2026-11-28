@@ -242,9 +242,14 @@ that family and follows every sync, download and uninstall. A family you have no
 collection goes away when its last game does.
 
 They are named like platform collections. On Windows, and with **Clean** names, they are `PlayStation`, `Nintendo`, and
-so on; with Classic names on Linux, `RomM: PlayStation (htpc)`. If a collection with that name already exists (one of
-yours, or RomM's own platform collection called "PlayStation"), yours is left alone and The Collector's is
-`PlayStation (RomM)`.
+so on; with Classic names on Linux, `RomM: PlayStation (htpc)`. If one of your own collections already has that name,
+yours is left alone and The Collector's is `PlayStation (RomM)`.
+
+RomM calls the original PlayStation just "PlayStation", so The Collector calls it **PlayStation 1** everywhere (its
+platform collection, the console page, the game page and the platform list), leaving `PlayStation` for the family. An
+existing PS1 collection is renamed to `PlayStation 1` on the next sync, and a family collection that had to be called
+`PlayStation (RomM)` becomes `PlayStation` in the same sync. If you have your own collection called `PlayStation 1`,
+it is left alone and the PS1 collection is `PlayStation 1 (RomM)`.
 
 The Collector's Home row opens these collections when you press **A** on a family. They also make good **TabMaster**
 tabs: add a TabMaster tab with a **Collection** filter pointing at the family's collection, and the tab follows the
