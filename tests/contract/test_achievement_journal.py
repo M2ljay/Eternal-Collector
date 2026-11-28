@@ -118,3 +118,69 @@ async def test_game_links(harness):
         "guide_url": None,
         "web_api_configured": False,
     }
+
+
+async def test_bridge_reads_over_real_sqlite_never_carry_the_key(harness):
+    _seed(harness)
+    plugin = harness.plugin
+
+    assert (await plugin.get_recent_ra_unlocks(5))["reason"] == "no_web_api_key"
+    assert (await plugin.get_closest_ra_completions(5))["reason"] == "no_snapshot"
+    for answer in (await plugin.get_recent_ra_unlocks(0), await plugin.get_closest_ra_completions("5")):
+        assert set(answer) == {"success", "reason", "message"}
+        assert answer["reason"] == "invalid_argument"
+
+    assert await plugin.save_ra_web_api("Jamiras", KEY) == {"success": True}
+    harness.ra_web.timeline = [
+        {
+            "Date": "2026-11-25 10:00:00",
+            "HardcoreMode": 1,
+            "AchievementID": 11,
+            "Title": "Ring Master",
+            "Description": "Collect 100 rings",
+            "Points": 10,
+            "GameID": 77,
+            "GameTitle": "Sonic",
+            "ConsoleName": "Genesis/Mega Drive",
+            "BadgeURL": "/Badge/250336.png",
+        }
+    ]
+    recent = await plugin.get_recent_ra_unlocks(5)
+    assert recent == {
+        "success": True,
+        "items": [
+            {
+                "rom_id": 1,
+                "app_id": 4001,
+                "game": "Sonic",
+                "platform": "Genesis/Mega Drive",
+                "title": "Ring Master",
+                "description": "Collect 100 rings",
+                "badge_url": "https://media.retroachievements.org/Badge/250336.png",
+                "unlocked_at": "2026-11-25T10:00:00Z",
+                "hardcore": True,
+            }
+        ],
+    }
+    assert KEY not in repr(recent)
+
+    harness.romm.current_user = {
+        "id": 1,
+        "ra_username": "player",
+        "ra_progression": {
+            "results": [{"rom_ra_id": 77, "num_awarded": 3, "num_awarded_hardcore": 0, "max_possible": 12}]
+        },
+    }
+    assert (await plugin.refresh_console_achievements())["success"] is True
+    closest = await plugin.get_closest_ra_completions(5)
+    assert closest["success"] is True
+    assert closest["items"] == [
+        {"rom_id": 1, "app_id": 4001, "game": "Sonic", "platform": "genesis", "earned": 3, "total": 12, "percent": 25.0}
+    ]
+    assert KEY not in repr(closest)
+
+    harness.ra_web.error = RaWebApiError(None, "down")
+    await plugin.save_ra_web_api("Jamiras", "••••")  # drops the cached timeline
+    failed = await plugin.get_recent_ra_unlocks(5)
+    assert set(failed) == {"success", "reason", "message"}
+    assert failed["reason"] == "server_unreachable"

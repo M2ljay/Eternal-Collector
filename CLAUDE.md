@@ -441,12 +441,13 @@ Format: **invariant** — tier — enforced by.
 - **The RetroAchievements Web API key (`ra_web_api_key`, the one the user enters in The Collector's settings — never an
   emulator's login) is read only by `adapters/retroachievements_web.py`, sent only as the `y` parameter of a request to
   `https://retroachievements.org/API/` with redirects refused, never chained into an exception, logged, emitted or
-  returned to the frontend (`get_settings` reports `ra_web_api_key_masked`); `services/achievement_journal.py` tests it
-  only for presence and writes it only through `SettingsPersister`** — test + prompt-only —
-  `tests/adapters/test_retroachievements_web.py` (host, query, refused redirect, key absent from every error and log),
-  `tests/services/test_achievement_journal.py` and `tests/contract/test_achievement_journal.py` (masked settings, key
-  absent from answers). A new request method, a second reader of the setting or a log line that formats a request URL
-  is prompt-only ([Achievement journal](docs/architecture/achievement-journal.md#the-retroachievements-web-api-key))
+  returned to the frontend (`get_settings` reports `ra_web_api_key_masked`), and never handed to another plugin through
+  the achievements bridge; `services/achievement_journal.py` tests it only for presence and writes it only through
+  `SettingsPersister`** — test + prompt-only — `tests/adapters/test_retroachievements_web.py` (host, query, refused
+  redirect, key absent from every error and log), `tests/services/test_achievement_journal.py` and
+  `tests/contract/test_achievement_journal.py` (masked settings, key absent from answers, the bridge reads included). A
+  new request method, a second reader of the setting or a log line that formats a request URL is prompt-only
+  ([Achievement journal](docs/architecture/achievement-journal.md#the-retroachievements-web-api-key))
 - **The "now playing" record leaves the plugin (other plugins send it to Discord), so it never carries anything that
   points at the RomM server: `cover_url` is only a RomM `url_cover` that `domain/now_playing.public_cover_url` accepts
   (https, a public metadata CDN host, no user info, port, query or fragment) — never a `path_cover_*`/RomM asset URL,
@@ -456,14 +457,13 @@ Format: **invariant** — tier — enforced by.
   (`test_never_publishes_a_romm_or_credentialed_address`). A new field in the record, or a second writer of
   `window.__eternalNowPlaying` or the shared file, is prompt-only
   ([Now playing](docs/architecture/now-playing-presence.md#covers-never-the-romm-server))
-- **Steam's Big Picture Home is never broken by the console shelf: nothing on the Home render path calls the backend
-  (the row reads `src/utils/consoleShelfStore.ts` only); the `/library/home` patch copies Steam's elements and never
-  mutates them, returns Steam's output unchanged on any exception, an unrecognised tree or the setting off, wraps the
-  shelf in an error boundary, and switches itself off for the session after three failures** — test + prompt-only —
-  `src/patches/homeShelfPatch.test.tsx` (insert once, unknown tree untouched, render error caught, the watchdog, the
-  toggle); a new call or a new element on that path is prompt-only. The rule spans the patch, the row component and the
-  store, and a fetch dropped into the row "just to be fresh" would run on every Home re-render
-  ([Never breaking Home](docs/architecture/home-console-shelf.md#never-breaking-home))
+- **The Collector does not touch Steam's Big Picture Home: Core owns Home (its Consoles and Achievements tabs), so no
+  module registers a `/library/home` route patch or renders into Home; The Collector reaches Home only as data another
+  plugin reads (the per-console and console-family Steam collections, and the achievements bridge)** — test +
+  prompt-only — `src/index.test.tsx` (no `/library/home` patch is registered at plugin load); a patch registered
+  anywhere else, or a DOM mount into Home, is prompt-only. The family shelf that used to sit under Recent games was
+  retired in win.36 together with its setting and its watchdog
+  ([Retired: the Home shelf](docs/architecture/home-console-shelf.md#retired-the-home-shelf))
 - **A portrait cover is either the plain RomM cover or the ROM's Game case image, and the choice is made in one place:
   every publish or read of a cover in `services/artwork.py` (`finalize_cover_path`, `get_artwork_base64`, the style
   re-publish) goes through the `CoverChoiceReader` seam that `services/case_art.py` implements; a grid file holding case
@@ -483,6 +483,20 @@ Format: **invariant** — tier — enforced by.
   refused before the backend, rejections become `bridge_error`). A new render site for an extension outside
   `src/components/GamePageExtensions.tsx`, or a new bridge method, is prompt-only
   ([Forge bridge](docs/architecture/game-mods.md#forge-bridge))
+- **The achievements bridge (`window.__eternalCollectorAchievements`) is read-only and leaks nothing: it wraps only the
+  `get_recent_ra_unlocks` and `get_closest_ra_completions` reads plus the achievement-snapshot refresh the console page
+  already makes (`refresh_console_achievements`, at most one attempt an hour); limits are clamped to 1–50 and anything
+  that is not a finite number answers `bad_request` before the backend is called; every failure is
+  `{ ok: false, reason }` with a fixed code and no message (a rejected callable is `bridge_error`, never its text), so
+  no error text and never the RetroAchievements Web API key can leave through it; a `badgeUrl` is a plain https URL on
+  `media.retroachievements.org` (no user info, port, query or fragment), checked in `domain/ra_web.public_badge_url`
+  and again in the bridge, else `null`; no wrapper throws** — test + prompt-only —
+  `src/utils/collectorAchievementsBridge.test.ts` (shapes, clamping, `not_configured`, key absent from answers and
+  errors, refused badge URLs, backend failures and rejections become `ok: false`, the refresh throttle),
+  `tests/services/test_achievement_journal.py` (`TestBridgeRecentUnlocks`, `TestBridgeClosestToComplete`: key absent
+  from answers and logs) and `tests/domain/test_ra_web.py` (`TestPublicBadgeUrl`). A new bridge method, a new field in
+  an item, or a second writer of the global is prompt-only
+  ([Achievements bridge](docs/architecture/achievement-journal.md#achievements-bridge))
 - **A built-in mod toggle (`set_mod_builtin`) writes only the one file its target's `ToggleSource.write_file` names,
   changes only the lines carrying that entry's state, and takes the backup leg: the existing file is copied to
   `romm-mod-backups\<stamp>\settings\` and replaced only if it still holds what was read (`replace_text`), a new file is
@@ -503,15 +517,10 @@ Format: **invariant** — tier — enforced by.
   quits in time, tick wraparound); the Win32 glue in `rom-launcher.c` (job assignment, window enumeration,
   `TerminateJobObject`) is prompt-only, and the `.exe` is checksum-pinned beside it
   ([windows.md](docs/user-guide/windows.md), [launcher README](native/rom-launcher-win/README.md))
-- **The user's icon pack (ColorGrade, `%APPDATA%\GamingMode\icons\colorgrade`) has no licence to redistribute: it is
-  only ever read in place on the user's PC, never copied into the repository, a release ZIP, a test fixture or a cache;
-  it is reached only through `adapters/icon_pack_files.py` under `APPDATA` from the environment (never a fixed user
-  path), and only through the allow-listed families, platforms and kinds in `domain/icon_pack.py`, so no name from the
-  frontend becomes a path** — test + prompt-only — `tests/adapters/test_icon_pack_files.py` (traversal and symlink
-  refused, size cap, missing pack answers `None`) and `tests/services/test_console_shelf.py::TestFamilyArt` (refused
-  before any read); every fixture is generated bytes. A new reader of the pack, or a file from it added anywhere in the
-  tree, is prompt-only
-  ([Family art](docs/architecture/home-console-shelf.md#family-art-the-icon-pack))
+- **The user's icon pack (ColorGrade, `%APPDATA%\GamingMode\icons\colorgrade`) has no licence to redistribute: no file
+  from it is ever copied into the repository, a release ZIP, a test fixture or a cache** — prompt-only — nothing in the
+  plugin reads the pack any more (its reader went with the Home shelf in win.36); a new reader must bring back an
+  allow-listed, `APPDATA`-rooted adapter and its traversal tests before it lands
 - **Every module the plugin imports at module level uses only standard-library modules Decky's frozen Windows Python
   ships, or the plugin's own fallback copy** — test — `tests/runtime/test_frozen_runtime.py` against
   `tests/runtime/decky_frozen_stdlib.txt` (a lazily imported Windows-only module is covered only once it is listed in

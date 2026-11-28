@@ -321,7 +321,6 @@ class TestWireServices:
                 ps2_elf_crcs=MagicMock(),
                 console_ids=MagicMock(),
                 yaml_codec=MagicMock(),
-                icon_pack=MagicMock(),
                 path_probe=deps["path_probe"],
                 renderer_rss=deps["renderer_rss"],
                 renderer_gc=deps["renderer_gc"],

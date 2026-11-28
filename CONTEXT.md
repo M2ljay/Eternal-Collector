@@ -366,14 +366,13 @@ backup was turned on, and never restored automatically — "backup, not sync". A
 (`domain/savestate_names.py`). A backup is filed on the server as `<booted stem> [<device short-id>].<slot suffix>`, one
 row per device and slot.
 
-### Console shelf / console page / most played
+### Console page / achievements bridge
 
-The **console shelf** is The Collector's row on Steam's Big Picture Home, under Recent games: one tile per console
-(`platform_slug`) with at least one bound ROM, drawn as a stack of that console's media
-(`src/patches/homeShelfPatch.tsx`, `services/console_shelf.py`). A **console page** is the route
-`/the-collector/console/:slug` listing that console's games, "Continue" (its most recently played game) first. **Most
-played** orders the shelf by recency-weighted play time: each game's play seconds halved for every 90 days since it was
-last played (`domain/console_shelf.py`) — never lifetime play time.
+A **console page** is the route `/the-collector/console/:slug` listing that console's games, "Continue" (its most
+recently played game) first (`services/console_shelf.py`, `domain/console_shelf.py`). The **console shelf** — The
+Collector's former row on Steam's Big Picture Home — was retired in win.36: Core owns Home and draws its own Consoles
+tab from the Steam collections. The **achievements bridge** is `window.__eternalCollectorAchievements`, the read-only
+global another plugin (Core's Home Achievements tab) reads recent unlocks and closest-to-complete games through.
 
 ### Achievement snapshot
 

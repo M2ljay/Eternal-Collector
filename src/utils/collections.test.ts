@@ -9,7 +9,6 @@ import {
   reconcileFamilyCollections,
   familySources,
 } from "./collections";
-import { familyCollectionId, resetFamilyCollections } from "./familyCollections";
 import type { OwnedSteamCollection } from "../types";
 
 // The real module pulls in @decky/ui + the route patch; only RomM-shortcut
@@ -222,7 +221,6 @@ beforeEach(() => {
   backend.familyEnabled = true;
   backend.familyGames = [];
   backend.platformRenames = {};
-  resetFamilyCollections();
   rommAppIds.clear();
   [1, 2, 3, 4, 5].forEach((id) => rommAppIds.add(id));
   store = new FakeStore();
@@ -793,7 +791,6 @@ describe("console family collections", () => {
     expect(appIdsOf(store.named("Nintendo"))).toEqual([1, 2]);
     expect(appIdsOf(store.named("Sega"))).toEqual([3]);
     expect(recordFor("console_family", "Nintendo")?.collection_id).toBe(store.named("Nintendo")?.id);
-    expect(familyCollectionId("sega")).toBe(store.named("Sega")?.id);
   });
 
   it("runs with the installed collection on every install change and sync pass", async () => {
@@ -826,7 +823,6 @@ describe("console family collections", () => {
     expect(users.Delete).not.toHaveBeenCalled();
     expect(recordFor("console_family", "Xbox")).toBeUndefined();
     expect(store.names()).toEqual(["PlayStation", "Xbox (mine)"]);
-    expect(familyCollectionId("xbox")).toBeNull();
   });
 
   it("a family with no games and no record gets no collection", async () => {
@@ -874,17 +870,6 @@ describe("console family collections", () => {
     expect(owned.Delete).toHaveBeenCalled();
     expect(users.Delete).not.toHaveBeenCalled();
     expect(backend.records).toEqual([]);
-  });
-
-  it("learns the family collections from the record on any read, for the Home shelf", async () => {
-    const owned = store.add("Sega", [1]);
-    own(owned, "console_family", "Sega");
-    backend.familyGames = [game(1, "dc")];
-
-    await reconcileInstalledRomsCollection();
-
-    expect(familyCollectionId("sega")).toBe(owned.id);
-    expect(familyCollectionId("nintendo")).toBeNull();
   });
 });
 

@@ -1,10 +1,10 @@
 """Contract tests for The Collector's callables over the real nesting.
 
-Driven frontend-shaped per ``src/api/backend.ts``: ``get_console_shelf`` takes no
-argument; ``get_console_games`` takes ``(platform_slug, offset, limit)``;
-``refresh_console_achievements`` takes no argument and answers ``{success,
-refreshed_at}`` or the canonical failure shape; ``save_collector_home_shelf`` takes
-one boolean.
+Driven frontend-shaped per ``src/api/backend.ts``: ``get_console_games`` takes
+``(platform_slug, offset, limit)``; ``refresh_console_achievements`` takes no
+argument and answers ``{success, refreshed_at}`` or the canonical failure shape.
+The Home shelf callables (``get_console_shelf``, ``get_family_art``,
+``save_collector_home_shelf``) were retired in win.36.
 """
 
 from __future__ import annotations
@@ -30,33 +30,10 @@ def _seed_ra_rom(harness, rom_id: int, ra_id: int) -> None:
         )
 
 
-async def test_shelf_shape_over_real_sqlite(harness):
-    seed_rom(harness, 1, platform_slug="ps2")
-    seed_rom(harness, 2, platform_slug="ps2")
-    seed_rom(harness, 3, platform_slug="gba", shortcut_app_id=None)
-
-    result = await harness.plugin.get_console_shelf()
-
-    assert result == {
-        "success": True,
-        "enabled": True,
-        "consoles": [
-            {
-                "platform_slug": "ps2",
-                "name": "ps2",
-                "game_count": 2,
-                "last_played": None,
-                "play_seconds": 0,
-                "cover_app_id": 1,
-            },
-        ],
-    }
-
-
-async def test_toggle_round_trips_through_the_shelf_and_settings(harness):
-    assert await harness.plugin.save_collector_home_shelf(False) == {"success": True}
-    assert (await harness.plugin.get_console_shelf())["enabled"] is False
-    assert (await harness.plugin.get_settings())["collector_home_shelf"] is False
+async def test_the_retired_home_shelf_callables_are_gone(harness):
+    for name in ("get_console_shelf", "get_family_art", "save_collector_home_shelf"):
+        assert not hasattr(harness.plugin, name)
+    assert "collector_home_shelf" not in await harness.plugin.get_settings()
 
 
 async def test_console_page_shape(harness):

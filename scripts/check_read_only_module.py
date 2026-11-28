@@ -71,7 +71,7 @@ READ_ONLY_MODULES: dict[str, str] = {
         "the last finished run — and nothing else; a write belongs with the pipeline that performs it"
     ),
     "py_modules/services/console_shelf.py": (
-        "it answers the Home row and the console pages from this device's own records while Steam renders; "
+        "it answers the console pages from this device's own records while Steam renders; "
         "a write belongs with the service that owns the state"
     ),
 }

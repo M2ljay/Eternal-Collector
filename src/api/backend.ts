@@ -43,9 +43,9 @@ import type {
   PinnedAchievement,
   TimelineRange,
   UnlockTimelineAnswer,
-  ConsoleShelfAnswer,
+  RecentRaUnlocksAnswer,
+  ClosestRaCompletionsAnswer,
   ConsoleGamesAnswer,
-  FamilyArtAnswer,
   RefreshAchievementsAnswer,
   SaveSlotSummary,
   SaveSetupInfo,
@@ -394,13 +394,9 @@ export const saveCollectionPlatformGroups = callable<[boolean], { success: boole
   "save_collection_platform_groups",
 );
 export const saveRetroAchievementsWarning = callable<[boolean], { success: boolean }>("save_retroachievements_warning");
-// The Collector. The two reads answer from local state only (no RomM request), so
-// the Home row can load them at plugin start; the refresh reads RomM once.
-export const saveCollectorHomeShelf = callable<[boolean], { success: boolean }>("save_collector_home_shelf");
-export const getConsoleShelf = callable<[], ConsoleShelfAnswer>("get_console_shelf");
+// The Collector. The console page read answers from local state only (no RomM
+// request); the refresh reads RomM once.
 export const getConsoleGames = callable<[string, number, number], ConsoleGamesAnswer>("get_console_games");
-// One family's hero or logo from the user's icon pack (local file read, one per call: a hero is a few MB).
-export const getFamilyArt = callable<[string, "hero" | "logo"], FamilyArtAnswer>("get_family_art");
 export const refreshConsoleAchievements = callable<[], RefreshAchievementsAnswer>("refresh_console_achievements");
 // Owner-scope for the Collections tab (#1532). "all" (default) or "own" (only
 // the signed-in user's own collections). Read via getSettings().collection_owner_scope.
@@ -1402,6 +1398,11 @@ export const recordAchievementGoalUnlocks = callable<
 export const getAchievementGoals = callable<[], GoalsOverviewAnswer>("get_achievement_goals");
 export const refreshAchievementGoals = callable<[], GoalsOverviewAnswer>("refresh_achievement_goals");
 export const getUnlockTimeline = callable<[TimelineRange, boolean], UnlockTimelineAnswer>("get_unlock_timeline");
+// The achievements bridge's two reads (`window.__eternalCollectorAchievements`):
+// recent unlocks from the timeline (Web API key), closest to complete from the
+// achievement snapshot (RomM). Limits are 1-50; the bridge clamps before calling.
+export const getRecentRaUnlocks = callable<[number], RecentRaUnlocksAnswer>("get_recent_ra_unlocks");
+export const getClosestRaCompletions = callable<[number], ClosestRaCompletionsAnswer>("get_closest_ra_completions");
 export const getAchievementGameLinks = callable<[number], GameLinksAnswer>("get_achievement_game_links");
 export const verifyRaWebApi = callable<[string, string], { success: boolean; reason?: string; message: string }>(
   "verify_ra_web_api",

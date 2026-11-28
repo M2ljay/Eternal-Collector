@@ -10,6 +10,7 @@ from domain.ra_web import (
     normalize_ra_date,
     parse_game_progress,
     parse_timeline,
+    public_badge_url,
     safe_guide_url,
     web_api_failure,
 )
@@ -192,3 +193,28 @@ class TestFailure:
     )
     def test_maps_status(self, status, reason):
         assert web_api_failure(status)[0] == reason
+
+
+class TestPublicBadgeUrl:
+    def test_accepts_a_plain_media_url(self):
+        url = "https://media.retroachievements.org/Badge/250336.png"
+        assert public_badge_url(url) == url
+
+    @pytest.mark.parametrize(
+        "raw",
+        [
+            "",
+            None,
+            42,
+            "http://media.retroachievements.org/Badge/1.png",
+            "https://retroachievements.org/Badge/1.png",
+            "https://media.retroachievements.org.evil.example/Badge/1.png",
+            "https://media.retroachievements.org/Badge/1.png?y=AbCdEf0123456789",
+            "https://media.retroachievements.org/Badge/1.png#frag",
+            "https://user:pw@media.retroachievements.org/Badge/1.png",
+            "https://media.retroachievements.org:8443/Badge/1.png",
+            "https://[bad/Badge/1.png",
+        ],
+    )
+    def test_refuses_anything_else(self, raw):
+        assert public_badge_url(raw) is None

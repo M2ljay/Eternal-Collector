@@ -74,7 +74,6 @@ export interface PluginSettings {
   // Warn once per launch when the emulator's RetroAchievements is not working.
   // Optional: older payloads may omit it, treated as on.
   retroachievements_warning?: boolean;
-  collector_home_shelf?: boolean;
   // RetroAchievements Web API for the unlock timeline: the username, and the key
   // as a masked placeholder ("••••") or "" when none is stored. Never the key.
   ra_web_username?: string;

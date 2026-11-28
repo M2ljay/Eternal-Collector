@@ -1,15 +1,15 @@
-"""ConsoleShelfService — the offline read model behind The Collector's console shelf and console pages.
+"""ConsoleShelfService — the offline read model behind The Collector's console pages.
 
 Answers from this device's own records only — the bound ROMs, their play time, the
-cached save-sync state, the install records and the achievement snapshot — so the
-Home row and a console page never wait on the network. Read-only by declaration
+cached save-sync state, the install records and the achievement snapshot — so a
+console page never waits on the network. (The Home row it once also served was
+retired in win.36; Core draws its own Consoles tab.) Read-only by declaration
 (``scripts/check_read_only_module.py``): a write belongs with the service that owns
 the state, never here.
 """
 
 from __future__ import annotations
 
-import base64
 from dataclasses import asdict, dataclass
 from typing import TYPE_CHECKING, Any
 
@@ -19,9 +19,7 @@ from domain.console_shelf import (
     continue_game,
     newest_instant,
     order_console_games,
-    rank_consoles,
 )
-from domain.icon_pack import family_art_parts
 from domain.platform_names import decode_platform_names
 from domain.rom_achievement_progress import SNAPSHOT_FETCHED_AT_KEY
 from domain.save_status import compute_save_sync_display
@@ -29,18 +27,14 @@ from domain.save_status import compute_save_sync_display
 if TYPE_CHECKING:
     from domain.rom import Rom
     from domain.rom_save_sync_state import RomSaveSyncState
-    from services.protocols import Clock, DebugLogger, IconPackStore, UnitOfWork, UnitOfWorkFactory
+    from services.protocols import DebugLogger, UnitOfWork, UnitOfWorkFactory
 
 # kv_config key of the offline ``platform_slug → display_name`` cache the library sync
 # refreshes every run; also read by library.reporter and game_detail.
 _PLATFORM_NAMES_KEY = "platform_names"
-# Settings key of the "Show The Collector on Home" toggle; on unless switched off.
-HOME_SHELF_SETTING = "collector_home_shelf"
 
 DEFAULT_PAGE_SIZE = 100
 MAX_PAGE_SIZE = 200
-# The pack's heroes are 1920x1080 PNGs of 2-4 MB; anything far past that is not pack art.
-MAX_FAMILY_ART_BYTES = 8 * 1024 * 1024
 
 
 @dataclass(frozen=True)
@@ -49,16 +43,12 @@ class ConsoleShelfServiceConfig:
 
     Holds the SQLite Unit-of-Work factory (the read seam over ``roms``, ``playtime``,
     ``rom_installs``, ``rom_save_sync_states``, ``rom_achievement_progress`` and
-    ``kv_config``), the live settings dict (the Home toggle and ``save_sync_enabled``),
-    the clock that dates "most played", the debug logger, and the read-only seam over
-    the user's icon pack (``None`` where there is none to read).
+    ``kv_config``), the live settings dict (``save_sync_enabled``) and the debug logger.
     """
 
     uow_factory: UnitOfWorkFactory
     settings: dict[str, Any]
-    clock: Clock
     log_debug: DebugLogger
-    icon_pack: IconPackStore | None = None
 
 
 def _bound_games(uow: UnitOfWork) -> list[ShelfGame]:
@@ -106,66 +96,12 @@ def _save_sync_display(state: RomSaveSyncState | None) -> dict[str, Any] | None:
 
 
 class ConsoleShelfService:
-    """Builds the console shelf and console-page payloads from local state alone."""
+    """Builds the console-page payload from local state alone."""
 
     def __init__(self, *, config: ConsoleShelfServiceConfig) -> None:
         self._uow_factory = config.uow_factory
         self._settings = config.settings
-        self._clock = config.clock
         self._log_debug = config.log_debug
-        self._icon_pack = config.icon_pack
-
-    def home_shelf_enabled(self) -> bool:
-        """Whether the Home row is switched on (it is unless the user turned it off)."""
-        return bool(self._settings.get(HOME_SHELF_SETTING, True))
-
-    def get_console_shelf(self) -> dict[str, Any]:
-        """Return every console with games in Steam, most played first.
-
-        ``{success, enabled, consoles: [{platform_slug, name, game_count, last_played,
-        play_seconds, cover_app_id}]}``; ``cover_app_id`` is the shortcut whose Steam
-        capsule art the Home tile shows. Synchronous: one short read UoW, run off the loop by the caller.
-        """
-        with self._uow_factory() as uow:
-            games = _bound_games(uow)
-            names = decode_platform_names(uow.kv_config.get(_PLATFORM_NAMES_KEY))
-        entries = rank_consoles(games, names, self._clock.time())
-        self._log_debug(f"Console shelf: {len(entries)} consoles from {len(games)} games")
-        return {
-            "success": True,
-            "enabled": self.home_shelf_enabled(),
-            "consoles": [
-                {
-                    "platform_slug": e.platform_slug,
-                    "name": e.name,
-                    "game_count": e.game_count,
-                    "last_played": e.last_played,
-                    "play_seconds": e.play_seconds,
-                    "cover_app_id": e.cover_app_id,
-                }
-                for e in entries
-            ],
-        }
-
-    def get_family_art(self, family: object, kind: object) -> dict[str, Any]:
-        """Return one console family's art from the user's icon pack, base64-encoded.
-
-        ``{success, family, kind, base64}``; ``base64`` is ``None`` when the pack, the
-        family folder or the file is missing, which the Home row draws as a plain tile.
-        Only the families and kinds in ``domain.icon_pack`` are accepted.
-        """
-        parts = family_art_parts(family, kind)
-        if parts is None:
-            return {"success": False, "reason": "invalid_argument", "message": "Unknown family or art kind"}
-        data = self._icon_pack.read_art(parts, MAX_FAMILY_ART_BYTES) if self._icon_pack else None
-        if data is None:
-            self._log_debug(f"Family art: no {kind} for {family} in the icon pack")
-        return {
-            "success": True,
-            "family": family,
-            "kind": kind,
-            "base64": base64.b64encode(data).decode("ascii") if data is not None else None,
-        }
 
     def get_console_games(
         self, platform_slug: object, offset: object = 0, limit: object = DEFAULT_PAGE_SIZE
@@ -201,6 +137,7 @@ class ConsoleShelfService:
             ]
 
         first = continue_game(games)
+        self._log_debug(f"Console page: {slug}, {len(window)} of {len(ordered)} games from offset {start}")
         return {
             "success": True,
             "platform_slug": slug,

@@ -1,12 +1,8 @@
-"""The console shelf's pure rules: which console counts as most played, which game is "Continue", and badges.
+"""The console pages' pure rules: which game is "Continue", page order, and achievement badges.
 
 Everything here works on values the service has already read: per-game play time and
-last-played instants, the achievement snapshot, and the caller's ``now``. Nothing reads
-a clock, the database or the network.
-
-"Most played" is recency-weighted play time: each game's play time counts half as much
-for every :data:`HALF_LIFE_DAYS` days since it was last played, so a console binged years
-ago sinks below one played this week.
+last-played instants, and the achievement snapshot. Nothing reads a clock, the
+database or the network.
 """
 
 from __future__ import annotations
@@ -17,19 +13,16 @@ from typing import TYPE_CHECKING, Literal
 from domain.iso_time import parse_iso_to_epoch
 
 if TYPE_CHECKING:
-    from collections.abc import Iterable, Mapping
+    from collections.abc import Iterable
 
     from domain.rom_achievement_progress import RomAchievementProgress
-
-HALF_LIFE_DAYS = 90.0
-_SECONDS_PER_DAY = 86_400.0
 
 AwardKind = Literal["mastered", "completed", "beaten"]
 
 
 @dataclass(frozen=True, slots=True)
 class ShelfGame:
-    """One game as the shelf sees it: a bound shortcut with its folded play record."""
+    """One game as a console page sees it: a bound shortcut with its folded play record."""
 
     rom_id: int
     app_id: int
@@ -37,21 +30,6 @@ class ShelfGame:
     platform_slug: str
     play_seconds: int
     last_played: str | None
-
-
-@dataclass(frozen=True, slots=True)
-class ConsoleShelfEntry:
-    """One tile: a console with at least one game in Steam."""
-
-    platform_slug: str
-    name: str
-    game_count: int
-    last_played: str | None
-    play_seconds: int
-    score: float
-    # The Steam shortcut whose capsule art stands for the console on the Home row:
-    # the first game of the console page's order ("Continue", else the first by name).
-    cover_app_id: int
 
 
 @dataclass(frozen=True, slots=True)
@@ -66,20 +44,6 @@ class AchievementBadge:
     fetched_at: str
 
 
-def recency_weight(last_played: str | None, now_epoch: float) -> float:
-    """Weight in ``(0, 1]`` for play time last played at *last_played*.
-
-    Halves every :data:`HALF_LIFE_DAYS` days. An unknown or unparseable instant weighs
-    0, so play time nobody can date never lifts a console. A future instant (another
-    device's clock ahead of this one) weighs 1.
-    """
-    played = parse_iso_to_epoch(last_played)
-    if played is None:
-        return 0.0
-    days = max(0.0, (now_epoch - played) / _SECONDS_PER_DAY)
-    return 0.5 ** (days / HALF_LIFE_DAYS)
-
-
 def newest_instant(instants: Iterable[str | None]) -> str | None:
     """The latest parseable ISO-8601 instant of *instants*, as given, or ``None``."""
     best: tuple[float, str] | None = None
@@ -88,42 +52,6 @@ def newest_instant(instants: Iterable[str | None]) -> str | None:
         if epoch is not None and instant is not None and (best is None or epoch > best[0]):
             best = (epoch, instant)
     return best[1] if best else None
-
-
-def rank_consoles(
-    games: Iterable[ShelfGame],
-    platform_names: Mapping[str, str],
-    now_epoch: float,
-) -> list[ConsoleShelfEntry]:
-    """Group *games* by console and order the tiles most played first.
-
-    Order: score (recency-weighted play seconds) descending; ties by the newest
-    last-played instant, then by game count, then by name. Consoles whose score is 0
-    come after every played one, by game count then name. The display name falls back
-    to the slug when the platform-name cache does not know it.
-    """
-    grouped: dict[str, list[ShelfGame]] = {}
-    for game in games:
-        grouped.setdefault(game.platform_slug, []).append(game)
-
-    entries = [
-        ConsoleShelfEntry(
-            platform_slug=slug,
-            name=platform_names.get(slug) or slug,
-            game_count=len(members),
-            last_played=newest_instant(g.last_played for g in members),
-            play_seconds=sum(g.play_seconds for g in members),
-            score=sum(g.play_seconds * recency_weight(g.last_played, now_epoch) for g in members),
-            cover_app_id=order_console_games(members)[0].app_id,
-        )
-        for slug, members in grouped.items()
-    ]
-
-    def order(entry: ConsoleShelfEntry) -> tuple[bool, float, float, int, str]:
-        last = parse_iso_to_epoch(entry.last_played) or 0.0
-        return (entry.score <= 0, -entry.score, -last, -entry.game_count, entry.name.casefold())
-
-    return sorted(entries, key=order)
 
 
 def continue_game(games: Iterable[ShelfGame]) -> ShelfGame | None:

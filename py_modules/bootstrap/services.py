@@ -497,9 +497,7 @@ def wire_services(cfg: WiringConfig) -> dict[str, Any]:
         config=ConsoleShelfServiceConfig(
             uow_factory=cfg.callbacks.uow_factory,
             settings=cfg.stores.settings,
-            clock=cfg.runtime.clock,
             log_debug=cfg.callbacks.log_debug,
-            icon_pack=cfg.adapters.icon_pack,
         ),
     )
 

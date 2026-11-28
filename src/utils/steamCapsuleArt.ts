@@ -3,8 +3,7 @@
  * list of image URLs to try.
  *
  * Synchronous and local: it reads Steam's `appStore` only, never the plugin
- * backend or the network, so the Home row and the console page can call it while
- * they render.
+ * backend or the network, so the console page can call it while it renders.
  *
  * Order:
  * 1. `appStore.GetCustomVerticalCapsuleURLs(overview)` — the custom grid art with

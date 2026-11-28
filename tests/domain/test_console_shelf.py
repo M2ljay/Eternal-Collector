@@ -1,4 +1,4 @@
-"""Tests for the console shelf's pure rules (``domain/console_shelf.py``)."""
+"""Tests for the console pages' pure rules (``domain/console_shelf.py``)."""
 
 from __future__ import annotations
 
@@ -7,14 +7,11 @@ from datetime import UTC, datetime, timedelta
 import pytest
 
 from domain.console_shelf import (
-    HALF_LIFE_DAYS,
     ShelfGame,
     achievement_badge,
     continue_game,
     newest_instant,
     order_console_games,
-    rank_consoles,
-    recency_weight,
 )
 from domain.rom_achievement_progress import RomAchievementProgress
 
@@ -36,25 +33,6 @@ def _game(rom_id: int, slug: str, seconds: int = 0, last: str | None = None, nam
     )
 
 
-class TestRecencyWeight:
-    def test_played_now_weighs_one(self):
-        assert recency_weight(NOW.isoformat(), NOW.timestamp()) == pytest.approx(1.0)
-
-    def test_halves_every_half_life(self):
-        assert recency_weight(_ago(HALF_LIFE_DAYS), NOW.timestamp()) == pytest.approx(0.5)
-        assert recency_weight(_ago(2 * HALF_LIFE_DAYS), NOW.timestamp()) == pytest.approx(0.25)
-
-    @pytest.mark.parametrize("instant", [None, "", "not a date"])
-    def test_unknown_instant_weighs_zero(self, instant):
-        assert recency_weight(instant, NOW.timestamp()) == 0.0
-
-    def test_future_instant_weighs_one(self):
-        assert recency_weight((NOW + timedelta(days=3)).isoformat(), NOW.timestamp()) == 1.0
-
-    def test_trailing_z_is_understood(self):
-        assert recency_weight("2026-11-26T12:00:00Z", NOW.timestamp()) == pytest.approx(1.0)
-
-
 class TestNewestInstant:
     def test_picks_latest_and_skips_garbage(self):
         assert newest_instant([_ago(5), None, "x", _ago(1), _ago(3)]) == _ago(1)
@@ -62,65 +40,6 @@ class TestNewestInstant:
     def test_none_when_nothing_parses(self):
         assert newest_instant([None, "nope"]) is None
         assert newest_instant([]) is None
-
-
-class TestRankConsoles:
-    def test_recent_play_beats_an_old_binge(self):
-        games = [
-            _game(1, "ps2", seconds=100 * 3600, last=_ago(720)),  # 100 h, two years ago
-            _game(2, "ngc", seconds=10 * 3600, last=_ago(2)),
-        ]
-        ranked = rank_consoles(games, {"ps2": "PlayStation 2", "ngc": "GameCube"}, NOW.timestamp())
-        assert [e.platform_slug for e in ranked] == ["ngc", "ps2"]
-        assert ranked[0].name == "GameCube"
-
-    def test_entry_totals_and_newest_last_played(self):
-        games = [_game(1, "snes", 60, _ago(10)), _game(2, "snes", 40, _ago(1)), _game(3, "snes")]
-        [entry] = rank_consoles(games, {}, NOW.timestamp())
-        assert entry.game_count == 3
-        assert entry.play_seconds == 100
-        assert entry.last_played == _ago(1)
-        assert entry.name == "snes"  # falls back to the slug
-
-    def test_unplayed_consoles_go_last_by_game_count_then_name(self):
-        games = [
-            _game(1, "n64"),
-            _game(2, "gba"),
-            _game(3, "gba"),
-            _game(4, "psx"),
-            _game(5, "snes", seconds=1, last=_ago(400)),
-        ]
-        ranked = rank_consoles(games, {"n64": "Nintendo 64", "psx": "PlayStation"}, NOW.timestamp())
-        assert [e.platform_slug for e in ranked] == ["snes", "gba", "n64", "psx"]
-
-    def test_ties_break_on_last_played_then_count_then_name(self):
-        same = _ago(0)
-        games = [
-            _game(1, "b", 100, _ago(0)),
-            _game(2, "a", 100, _ago(0)),
-            _game(3, "c", 50, same),
-            _game(4, "c", 50, same),
-        ]
-        ranked = rank_consoles(games, {}, NOW.timestamp())
-        # Equal scores and equal last-played: the bigger console first, then by name.
-        assert [e.platform_slug for e in ranked] == ["c", "a", "b"]
-
-    def test_play_time_without_a_date_does_not_lift_a_console(self):
-        games = [_game(1, "a", seconds=10_000, last=None), _game(2, "b", seconds=1, last=_ago(1))]
-        assert [e.platform_slug for e in rank_consoles(games, {}, NOW.timestamp())] == ["b", "a"]
-
-    def test_empty(self):
-        assert rank_consoles([], {}, NOW.timestamp()) == []
-
-    def test_cover_is_the_most_recently_played_game(self):
-        games = [_game(1, "ps2", 500, _ago(30)), _game(2, "ps2", 10, _ago(1)), _game(3, "ps2")]
-        [entry] = rank_consoles(games, {}, NOW.timestamp())
-        assert entry.cover_app_id == 5002
-
-    def test_cover_falls_back_to_the_first_game_by_name(self):
-        games = [_game(1, "gba", name="Zelda"), _game(2, "gba", name="advance wars"), _game(3, "gba", name="Metroid")]
-        [entry] = rank_consoles(games, {}, NOW.timestamp())
-        assert entry.cover_app_id == 5002
 
 
 class TestContinueAndOrder:

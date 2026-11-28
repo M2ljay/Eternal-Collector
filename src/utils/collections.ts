@@ -22,7 +22,7 @@ import {
 import { isRomMAppId } from "../patches/gameDetailPatch";
 import type { CollectionNameStyle, OwnedSteamCollection, SteamCollectionFamily } from "../types";
 import { consoleFamily, FAMILY_NAMES, FAMILY_ORDER, type ConsoleFamily } from "../theme/coreTokens";
-import { familyOfSource, setFamilyCollections } from "./familyCollections";
+import { familyOfSource } from "./familyCollections";
 
 let _hostname = "";
 
@@ -152,7 +152,6 @@ async function loadOwnership(): Promise<Ownership | null> {
       byId.set(record.collection_id, record);
       byKey.set(sourceKey(record.family, record.source_name), record);
     }
-    setFamilyCollections(answer.collections);
     return {
       style: answer.name_style === "clean" ? "clean" : "classic",
       adoptionDone: answer.adoption_done,
@@ -199,7 +198,6 @@ async function record(
   if (sameCollection) ownership.byKey.delete(sourceKey(sameCollection.family, sameCollection.source_name));
   ownership.byId.set(collectionId, entry);
   ownership.byKey.set(key, entry);
-  setFamilyCollections([...ownership.byId.values()]);
   return true;
 }
 
@@ -216,7 +214,6 @@ async function forget(ownership: Ownership, owned: OwnedSteamCollection): Promis
   }
   ownership.byId.delete(owned.collection_id);
   ownership.byKey.delete(sourceKey(owned.family, owned.source_name));
-  setFamilyCollections([...ownership.byId.values()]);
 }
 
 /**

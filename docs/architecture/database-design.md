@@ -203,7 +203,7 @@ ones.
 
 Fourteen aggregate roots model the persisted domain (eight from #788, plus `PlatformSyncState` added by ADR-0023,
 `CollectionSyncState` added by #742, `RomSavestateSyncState` added by ADR-0031, `RomAchievementProgress` added for the
-[console shelf](home-console-shelf.md#achievement-snapshot), `OwnedSteamCollection`, the
+[console pages](home-console-shelf.md#achievement-snapshot), `OwnedSteamCollection`, the
 [ownership record of the plugin's Steam collections](steam-non-steam-shortcuts.md#ownership-is-a-record-never-a-name),
 and `RaGameJournal`, the user's [achievement goals and notes](achievement-journal.md)). Each lives in its own
 `domain/<name>.py` module, is declared with `@cosmic_aggregate`, and mutates only through verb-named methods. Per

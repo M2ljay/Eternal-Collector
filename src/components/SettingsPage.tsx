@@ -25,7 +25,6 @@ import {
   savePreferredRegion,
   saveCollectionPlatformGroups,
   saveRetroAchievementsWarning,
-  saveCollectorHomeShelf,
   saveInstalledRomsCollection,
   saveFamilyCollections,
   setCollectionNamingMode,
@@ -71,7 +70,6 @@ import { AdvancedSection } from "./settings/AdvancedSection";
 import { LauncherBackendSection } from "./settings/LauncherBackendSection";
 import { CollectorSection } from "./settings/CollectorSection";
 import { reconcileFamilyCollections, reconcileInstalledRomsCollection } from "../utils/collections";
-import { setHomeShelfEnabled } from "../utils/consoleShelfStore";
 import { PluginUpdateSection } from "./settings/PluginUpdateSection";
 import { LibrarySection, AUTO_REGION, DEFAULT_REGION_LABEL } from "./settings/LibrarySection";
 import { showPreferredRegionModal } from "./settings/PreferredRegionModal";
@@ -129,7 +127,6 @@ export const SettingsPage: FC<SettingsPageProps> = ({ onBack }) => {
   // Collection platform-groups toggle (relocated from the Collections tab, #1539).
   const [platformGroups, setPlatformGroups] = useState(false);
   const [raWarning, setRaWarning] = useState(true);
-  const [homeShelf, setHomeShelf] = useState(true);
   const [installedCollection, setInstalledCollection] = useState(true);
   const [familyCollections, setFamilyCollections] = useState(true);
   const [raWebUsername, setRaWebUsername] = useState("");
@@ -153,7 +150,6 @@ export const SettingsPage: FC<SettingsPageProps> = ({ onBack }) => {
         setPreferredRegion(s.preferred_region ?? AUTO_REGION);
         setPlatformGroups(!!s.collection_create_platform_groups);
         setRaWarning(s.retroachievements_warning ?? true);
-        setHomeShelf(s.collector_home_shelf ?? true);
         setInstalledCollection(s.installed_roms_collection ?? true);
         setFamilyCollections(s.family_collections ?? true);
         setRaWebUsername(s.ra_web_username ?? "");
@@ -530,21 +526,6 @@ export const SettingsPage: FC<SettingsPageProps> = ({ onBack }) => {
     );
   };
 
-  const handleHomeShelfChange = (value: boolean) => {
-    setHomeShelf(value);
-    setHomeShelfEnabled(value);
-    detach(
-      (async () => {
-        try {
-          await saveCollectorHomeShelf(value);
-        } catch {
-          setHomeShelf(!value);
-          setHomeShelfEnabled(!value);
-        }
-      })(),
-    );
-  };
-
   const handleInstalledCollectionChange = (value: boolean) => {
     setInstalledCollection(value);
     detach(
@@ -791,8 +772,6 @@ export const SettingsPage: FC<SettingsPageProps> = ({ onBack }) => {
       />
 
       <CollectorSection
-        homeShelf={homeShelf}
-        onHomeShelfChange={handleHomeShelfChange}
         raWebApi={{
           username: raWebUsername,
           configured: raWebConfigured,

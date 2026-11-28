@@ -1260,6 +1260,14 @@ class Plugin:
     async def get_achievement_game_links(self, rom_id):
         return await self._achievement_journal_service.get_game_links(rom_id)
 
+    async def get_recent_ra_unlocks(self, limit):
+        """The achievements bridge's recent unlocks (library games only; needs the Web API key)."""
+        return await self._achievement_journal_service.get_recent_unlocks(limit)
+
+    async def get_closest_ra_completions(self, limit):
+        """The achievements bridge's started, unfinished games closest to 100%, from the snapshot."""
+        return await self.loop.run_in_executor(None, self._achievement_journal_service.get_closest_to_complete, limit)
+
     async def verify_ra_web_api(self, username, api_key):
         return await self._achievement_journal_service.verify_web_api(username, api_key)
 
@@ -1269,15 +1277,7 @@ class Plugin:
     async def clear_ra_web_api(self):
         return await self.loop.run_in_executor(None, self._achievement_journal_service.clear_web_api)
 
-    # ── The Collector: console shelf and console pages ────────
-
-    async def get_console_shelf(self):
-        """Return the Home row's consoles, most played first, from local state alone."""
-        return await self.loop.run_in_executor(None, self._console_shelf_service.get_console_shelf)
-
-    async def get_family_art(self, family, kind):
-        """Return one console family's hero, logo or icon from the user's icon pack (base64, or None)."""
-        return await self.loop.run_in_executor(None, self._console_shelf_service.get_family_art, family, kind)
+    # ── The Collector: console pages ───────────────────────────
 
     async def get_console_games(self, platform_slug, offset, limit):
         """Return one page of a console's games with their save-sync and achievement chips."""
@@ -1288,9 +1288,6 @@ class Plugin:
     @prune_active_blocked
     async def refresh_console_achievements(self):
         return await self._achievements_service.refresh_progress_snapshot()
-
-    async def save_collector_home_shelf(self, enabled):
-        return self._settings_service.save_collector_home_shelf(enabled)
 
     # ── Migration delegation to MigrationService ──────────────
 

@@ -29,10 +29,8 @@ import {
   applyAllMetadata,
 } from "./patches/metadataPatches";
 import { registerLaunchInterceptor, unregisterLaunchInterceptor } from "./utils/launchInterceptor";
-import { registerHomeShelfPatch, unregisterHomeShelfPatch } from "./patches/homeShelfPatch";
 import { ConsolePage } from "./components/collector/ConsolePage";
 import { CONSOLE_PAGE_ROUTE } from "./utils/consoleMedia";
-import { startConsoleShelfStore } from "./utils/consoleShelfStore";
 import { showCoreChangeModal } from "./components/CoreChangeModal";
 import { handleConflicts } from "./components/SyncConflictModal";
 import { showOfflineDriftModal } from "./components/OfflineDriftModal";
@@ -67,6 +65,7 @@ import { initSessionManager, destroySessionManager } from "./utils/sessionManage
 import { startNowPlayingPublisher } from "./utils/nowPlayingPublisher";
 import { installGamePageRegistry } from "./utils/gamePageExtensions";
 import { installCollectorModsBridge } from "./utils/collectorModsBridge";
+import { installCollectorAchievementsBridge } from "./utils/collectorAchievementsBridge";
 import { findOutermostScrollParent } from "./utils/scrollHelpers";
 import { detach } from "./utils/detach";
 import type {
@@ -274,10 +273,7 @@ export default definePlugin(() => {
   const stopPluginUpdateWatch = startPluginUpdateWatch();
   const pluginAdmission = capturePruneLeaseAdmission();
   registerGameDetailPatch();
-  // The Collector: the Home row reads a store this fills, so Home never waits on
-  // the backend; the console page is a route of its own.
-  const stopConsoleShelfStore = startConsoleShelfStore();
-  registerHomeShelfPatch();
+  // The Collector's console page is a route of its own.
   routerHook.addRoute(CONSOLE_PAGE_ROUTE, ConsolePage);
   registerLaunchInterceptor({
     confirmCoreChange: showCoreChangeModal,
@@ -448,6 +444,7 @@ export default definePlugin(() => {
   const stopNowPlayingPublisher = startNowPlayingPublisher();
   const uninstallGamePageRegistry = installGamePageRegistry();
   const uninstallCollectorModsBridge = installCollectorModsBridge({ isRomApp: isRomMAppId });
+  const uninstallCollectorAchievementsBridge = installCollectorAchievementsBridge();
 
   // Register device and initialize session manager for save sync (if enabled)
   detach(
@@ -986,13 +983,12 @@ export default definePlugin(() => {
       syncContinuationController.abort();
       stopNowPlayingPublisher();
       uninstallCollectorModsBridge();
+      uninstallCollectorAchievementsBridge();
       uninstallGamePageRegistry();
       destroySessionManager();
       unregisterLaunchInterceptor();
       unregisterGameDetailPatch();
-      unregisterHomeShelfPatch();
       routerHook.removeRoute(CONSOLE_PAGE_ROUTE);
-      stopConsoleShelfStore();
       unregisterMetadataPatches();
       removeEventListener("sync_complete", syncCompleteListener);
       removeEventListener("sync_apply_unit", syncApplyUnitListener);

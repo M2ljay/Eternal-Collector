@@ -4,22 +4,10 @@ import { showModal } from "@decky/ui";
 import { CollectorSection } from "./CollectorSection";
 
 describe("CollectorSection", () => {
-  it("shows the toggle with its value and reports a change", () => {
-    const onChange = vi.fn();
-    render(<CollectorSection homeShelf={true} onHomeShelfChange={onChange} />);
-    expect(screen.getByText("Show The Collector on Home")).toBeInTheDocument();
-    const input = screen.getByTestId("toggle-input") as HTMLInputElement;
-    expect(input.checked).toBe(true);
-    fireEvent.click(input);
-    expect(onChange).toHaveBeenCalledWith(false);
-  });
-
   it("shows the RetroAchievements Web API row masked, with Edit and Remove", () => {
     const onClear = vi.fn();
     render(
       <CollectorSection
-        homeShelf={true}
-        onHomeShelfChange={vi.fn()}
         raWebApi={{ username: "Jamiras", configured: true, onVerify: vi.fn(), onSave: vi.fn(), onClear }}
       />,
     );
@@ -33,8 +21,6 @@ describe("CollectorSection", () => {
   it("explains what the key is for when none is stored", () => {
     render(
       <CollectorSection
-        homeShelf={true}
-        onHomeShelfChange={vi.fn()}
         raWebApi={{ username: "", configured: false, onVerify: vi.fn(), onSave: vi.fn(), onClear: vi.fn() }}
       />,
     );

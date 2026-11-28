@@ -1,34 +1,15 @@
-# Console Shelf and Console Pages
+# Console Pages
 
-The Collector adds a row of your console families to Steam's Big Picture Home, right under **Recent games**, and a page
-for each console with its games.
+The Collector has a page for each console listing its games.
 
-## The Home row
+!!! note "The Home row is gone"
 
-The row is titled **The Collector**, with a cartridge glyph, and holds one wide tile per console family that has games
-in your Steam library, always in this order: **PlayStation**, **Nintendo**, **Sega**, **Xbox** and **Retro**. Retro is
-everything that isn't one of the four makers: arcade, Neo Geo and Neo Geo Pocket, SNK, TurboGrafx / PC Engine, Atari and
-the home computers. Every Nintendo system (Game & Watch and Virtual Boy included) is under Nintendo, as in Core's
-Library tabs.
-
-Each tile shows the family's artwork and logo from your icon pack, the family's colour along the bottom edge, and
-nothing else: no game art, no counts, no "last played".
-
-With a controller: press down from Recent games to reach the row, left and right to move between families, and **A** to
-open one. The selected tile lifts slightly with a crimson ring. **A** opens the family's collection in your Library, the
-one The Collector keeps for it (see [Console family collections](configuration.md#console-family-collections)); with
-that setting off, it opens the console page of the family's console you play most.
-
-The row appears once the plugin has loaded and you have at least one synced game. It never contacts your RomM server
-while Home is on screen; it updates after a sync, after you finish playing, and when a game's save status changes.
-
-### The icon pack (Windows)
-
-The artwork comes from the ColorGrade icon pack on your own PC, in
-`%APPDATA%\GamingMode\icons\colorgrade\families\<family>\` (`hero.png`, `logo.png`, `icon.png`; the family folders are
-`playstation`, `nintendo`, `sega`, `xbox` and `retro`). The plugin only reads these files; it doesn't ship or copy them.
-When the folder or a file is missing, the tile is plain dark grey with the family's name in large letters. Art you add
-later shows the next time the plugin loads.
+    Up to version win.35, The Collector also put a row of your console families on Steam's Big Picture Home, under
+    **Recent games**, with a **Show The Collector on Home** setting. Core now draws Home itself: its **Consoles** tab
+    shows your consoles from The Collector's per-console Steam collections, the family collections stay as Library tabs
+    (see [Console family collections](configuration.md#console-family-collections)), and its **Achievements** tab shows
+    your RetroAchievements alongside Steam achievements. The setting is gone, and the icon pack in
+    `%APPDATA%\GamingMode\icons\colorgrade` is no longer read by The Collector.
 
 ## A console page
 
@@ -53,14 +34,7 @@ Press **A** on a game to open its game page (Play, downloads, saves). Press **B*
 
 The plugin reads RetroAchievements progress from your RomM server; it never asks for a RetroAchievements key of its own.
 RomM refreshes that data during its own RetroAchievements sync (nightly, or when you sync from your RomM profile), so a
-trophy earned tonight may only show up tomorrow. The console page asks RomM for the latest copy when it opens, at most
-once an hour, and keeps the last copy for when the server is offline. Your RetroAchievements username must be set in
+trophy earned tonight may only show up tomorrow. The console page (and Core's Achievements tab) asks RomM for the latest copy at most once an hour, and keeps the last copy for when the server is offline. Your RetroAchievements username must be set in
 your RomM profile.
 
-## Turning it off
-
-**Show The Collector on Home**, in **The Collector** section of the settings page, hides the row (it is on by default).
-Turning it off takes effect at once.
-
-If the row doesn't appear, see
-[The console shelf doesn't appear on Home](troubleshooting.md#the-console-shelf-doesnt-appear-on-home).
+Nothing in The Collector itself opens a console page any more; Core or another plugin can link to it.

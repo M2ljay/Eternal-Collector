@@ -31,7 +31,6 @@ import type { ControllerSection } from "./settings/ControllerSection";
 import type { AdvancedSection } from "./settings/AdvancedSection";
 import type { LibrarySection } from "./settings/LibrarySection";
 import type { CollectorSection } from "./settings/CollectorSection";
-import { getConsoleShelfState, resetConsoleShelfStore } from "../utils/consoleShelfStore";
 import { showPreferredRegionModal } from "./settings/PreferredRegionModal";
 import type { SaveSortMigrationSection } from "./settings/SaveSortMigrationSection";
 
@@ -1640,43 +1639,6 @@ describe("SettingsPage", () => {
       });
       // CATCH-REJECTION assert: rolled back to false.
       expect(capturedLibrary[capturedLibrary.length - 1]?.platformGroups).toBe(false);
-    });
-
-    it("hydrates the Collector Home toggle from getSettings, defaulting to on", async () => {
-      vi.mocked(backend.getSettings).mockResolvedValue({ ...defaultSettings(), collector_home_shelf: false });
-      render(<SettingsPage onBack={vi.fn()} />);
-      await flushAsync();
-      expect(capturedCollector[capturedCollector.length - 1]?.homeShelf).toBe(false);
-    });
-
-    it("saving the Collector Home toggle persists it and updates the shelf store at once", async () => {
-      resetConsoleShelfStore();
-      vi.mocked(backend.saveCollectorHomeShelf).mockResolvedValue({ success: true });
-      render(<SettingsPage onBack={vi.fn()} />);
-      await flushAsync();
-      expect(capturedCollector[capturedCollector.length - 1]?.homeShelf).toBe(true);
-      await act(async () => {
-        capturedCollector[capturedCollector.length - 1]?.onHomeShelfChange(false);
-        await Promise.resolve();
-      });
-      expect(vi.mocked(backend.saveCollectorHomeShelf)).toHaveBeenCalledWith(false);
-      expect(capturedCollector[capturedCollector.length - 1]?.homeShelf).toBe(false);
-      expect(getConsoleShelfState().enabled).toBe(false);
-    });
-
-    it("reverts the Collector Home toggle and the store when the save rejects", async () => {
-      resetConsoleShelfStore();
-      vi.mocked(backend.saveCollectorHomeShelf).mockRejectedValue(new Error("boom"));
-      render(<SettingsPage onBack={vi.fn()} />);
-      await flushAsync();
-      await act(async () => {
-        capturedCollector[capturedCollector.length - 1]?.onHomeShelfChange(false);
-        await Promise.resolve();
-        await Promise.resolve();
-        await Promise.resolve();
-      });
-      expect(capturedCollector[capturedCollector.length - 1]?.homeShelf).toBe(true);
-      expect(getConsoleShelfState().enabled).toBe(true);
     });
 
     it("hydrates the Installed ROMs collection toggle from getSettings, defaulting to on", async () => {

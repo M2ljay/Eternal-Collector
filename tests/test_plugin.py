@@ -808,12 +808,9 @@ _MIGRATION_BLOCKED_WHITELIST: set[str] = {
     "update_whitelist_settings",
     "save_collection_platform_groups",
     "save_retroachievements_warning",
-    # The Collector — offline reads, a settings.json-only toggle, and the
-    # achievement snapshot (one /api/users/me read); none touches RetroDECK state.
-    "save_collector_home_shelf",
-    "get_console_shelf",
+    # The Collector — an offline read and the achievement snapshot (one
+    # /api/users/me read); neither touches RetroDECK state.
     "get_console_games",
-    "get_family_art",
     "refresh_console_achievements",
     # Collection owner-scope (#1532) — a settings.json-only write, never touches
     # RetroDECK state; takes effect on the next sync's work-queue build.
@@ -846,6 +843,9 @@ _MIGRATION_BLOCKED_WHITELIST: set[str] = {
     "refresh_achievement_goals",
     "get_unlock_timeline",
     "get_achievement_game_links",
+    # The achievements bridge's two reads (timeline + local snapshot).
+    "get_recent_ra_unlocks",
+    "get_closest_ra_completions",
     "verify_ra_web_api",
     "save_ra_web_api",
     "clear_ra_web_api",
@@ -1215,7 +1215,6 @@ class TestMainStartupOrdering:
                 ps2_elf_crcs=MagicMock(),
                 console_ids=MagicMock(),
                 yaml_codec=MagicMock(),
-                icon_pack=MagicMock(),
                 path_probe=MagicMock(),
                 renderer_rss=FakeRendererRss(),
                 renderer_gc=FakeRendererGc(),

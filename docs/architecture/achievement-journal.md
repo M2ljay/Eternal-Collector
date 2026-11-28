@@ -74,6 +74,68 @@ unlock. Badge images point at `media.retroachievements.org`, never at the RomM s
 minutes per window; **Refresh** forces a new read, and saving or removing the key drops the cache. Filtering by game and
 console happens in the QAM page over the fetched window.
 
+## Achievements bridge
+
+`window.__eternalCollectorAchievements` (`src/utils/collectorAchievementsBridge.ts`) lets another plugin — Core's Home
+Achievements tab — read The Collector's RetroAchievements data. It is installed and withdrawn with the plugin like the
+mods bridge (`window.__eternalCollectorMods`): published frozen on load, announced with the
+`eternal_collector_achievements_ready` event, and removed on dismount only if the global is still this bridge. It is
+read-only and has two methods:
+
+```ts
+interface CollectorAchievementsBridge {
+  readonly version: number; // 1
+  getRecentUnlocks(limit: number): Promise<RecentUnlocksAnswer>;
+  getClosestToComplete(limit: number): Promise<ClosestToCompleteAnswer>;
+}
+type RecentUnlocksAnswer = { ok: true; items: RecentUnlock[] } | { ok: false; reason: string };
+type ClosestToCompleteAnswer = { ok: true; items: CompletionProgress[] } | { ok: false; reason: string };
+interface RecentUnlock {
+  romId: number;
+  appId: number | null; // the Steam shortcut appId
+  game: string;
+  platform: string;
+  title: string;
+  description: string;
+  badgeUrl: string | null;
+  unlockedAt: string; // ISO-8601, UTC
+  hardcore: boolean;
+}
+interface CompletionProgress {
+  romId: number;
+  appId: number | null;
+  game: string;
+  platform: string;
+  earned: number;
+  total: number;
+  percent: number; // one decimal, never 0 or 100
+}
+```
+
+- **Recent unlocks** come from the unlock timeline (`get_recent_ra_unlocks`, so they need the Web API key): the 30-day
+  window, and the 365-day window only when 30 days held fewer unlocks than asked for, both through the timeline's
+  ten-minute cache (and ticking goals off as any timeline read does). Only unlocks in games the library holds are listed,
+  matched by `roms.ra_id` with the version that has a Steam shortcut preferred; an unlock in any other game has no ROM to
+  name and is left out. `game` is the ROM's name, `platform` the console's display name (RetroAchievements' console name
+  when the cache has none).
+- **Closest to complete** comes from the [achievement snapshot](home-console-shelf.md#achievement-snapshot)
+  (`get_closest_ra_completions`, RomM's data, no Web API key): every game with a set and progress, one per
+  RetroAchievements game, highest percent first, games at 0% and 100% left out (`domain/achievement_highlights.py`). When
+  the snapshot is missing or older than an hour, the bridge calls `refresh_console_achievements` first, at most one
+  attempt an hour whatever its outcome, then re-reads.
+- **Limits** are clamped to 1–50; anything that is not a finite number answers `bad_request` without a backend call.
+- **Failures** are `{ ok: false, reason }` with a code and no message: `not_configured` (no Web API key for recent
+  unlocks; no snapshot even after a refresh for closest to complete), `bad_request`, the backend's own code where it is a
+  plain one (`auth_failed`, `rate_limited`, `server_unreachable`, …) else `backend_error`, and `bridge_error` when the
+  callable itself rejects. No wrapper throws. A user whose RomM profile has no RetroAchievements username gets an empty
+  list from closest to complete, not `not_configured`: RomM's answer does not tell the two apart.
+- **Nothing secret leaves.** The answers carry no key, and failure text is never passed on. A `badgeUrl` is a plain https
+  URL on `media.retroachievements.org` (no user info, port, query or fragment), checked in the backend
+  (`domain/ra_web.public_badge_url`) and again in the bridge, else `null`.
+
+Not available, so not invented: the achievement's points and RetroAchievements ids are in the timeline but are not in
+the bridge's item shape; the snapshot has no per-achievement list, so closest-to-complete items carry counts only.
+
 ## Links and guides
 
 Each achievement's menu opens its public page (`https://retroachievements.org/achievement/<id>`), where players' tips
@@ -115,3 +177,5 @@ copied from either.
 | `src/components/AchievementsPage.tsx`                   | QAM goals list and unlock timeline                       |
 | `src/components/settings/RaWebApiModal.tsx`             | Username and key entry, verified before saving           |
 | `src/utils/achievementJournal.ts`                       | Badge-to-achievement mapping, filters, link-out          |
+| `src/utils/collectorAchievementsBridge.ts`              | `window.__eternalCollectorAchievements`                  |
+| `py_modules/domain/achievement_highlights.py`           | Bridge rules: library match, closest-to-complete order   |

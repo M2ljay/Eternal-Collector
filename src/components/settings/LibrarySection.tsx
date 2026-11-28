@@ -41,7 +41,7 @@ interface LibrarySectionProps {
 }
 
 export const FAMILY_COLLECTIONS_DESCRIPTION =
-  "One Steam collection each for PlayStation, Nintendo, Sega, Xbox and Retro, holding your ROM shortcuts of that family. The Collector's Home row opens them, and TabMaster can show them as tabs. Turning this off removes only these collections.";
+  "One Steam collection each for PlayStation, Nintendo, Sega, Xbox and Retro, holding your ROM shortcuts of that family. Core shows them as Library tabs, and TabMaster can too. Turning this off removes only these collections.";
 
 // The internal sentinel for "no preference — use the fixed build-time order".
 export const AUTO_REGION = "auto";

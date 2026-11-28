@@ -152,3 +152,32 @@ export type UnlockTimelineAnswer =
 
 export type GameLinksAnswer =
   { success: true; game_url: string; guide_url: string | null; web_api_configured: boolean } | JournalFailure;
+
+/** One unlock as the backend answers it for the achievements bridge (`get_recent_ra_unlocks`). */
+export interface RecentRaUnlockWire {
+  rom_id: number;
+  app_id: number | null;
+  game: string;
+  platform: string;
+  title: string;
+  description: string;
+  badge_url: string | null;
+  unlocked_at: string;
+  hardcore: boolean;
+}
+
+export type RecentRaUnlocksAnswer = { success: true; items: RecentRaUnlockWire[] } | JournalFailure;
+
+/** One game's completion as the backend answers it for the achievements bridge (`get_closest_ra_completions`). */
+export interface RaCompletionWire {
+  rom_id: number;
+  app_id: number | null;
+  game: string;
+  platform: string;
+  earned: number;
+  total: number;
+  percent: number;
+}
+
+export type ClosestRaCompletionsAnswer =
+  { success: true; fetched_at: string; items: RaCompletionWire[] } | JournalFailure;

@@ -24,7 +24,6 @@ import {
   getMetadataCachePage,
   releasePruneConflictLease,
   waitForPruneRelease,
-  getConsoleShelf,
 } from "./api/backend";
 import { getSettingsResetState, setSettingsResetState } from "./utils/settingsResetStore";
 import { getDownloadState, setDownloads } from "./utils/downloadStore";
@@ -50,10 +49,6 @@ vi.mock("./patches/gameDetailPatch", () => ({
   registerRomMAppId: vi.fn(),
   unregisterRomMAppId: vi.fn(),
   isRomMAppId: vi.fn(() => false),
-}));
-vi.mock("./patches/homeShelfPatch", () => ({
-  registerHomeShelfPatch: vi.fn(),
-  unregisterHomeShelfPatch: vi.fn(),
 }));
 vi.mock("./patches/metadataPatches", () => ({
   registerMetadataPatches: vi.fn(),
@@ -434,32 +429,29 @@ describe("index.tsx — persistent prune listeners", () => {
 });
 
 describe("index.tsx — The Collector", () => {
-  it("registers the Home shelf, the console page route and the shelf store, and removes all three on dismount", async () => {
+  it("registers the console page route, never patches Home, and removes the route on dismount", async () => {
     const { routerHook } = await import("@decky/api");
-    const { registerHomeShelfPatch, unregisterHomeShelfPatch } = await import("./patches/homeShelfPatch");
-    vi.mocked(getConsoleShelf).mockResolvedValue({ success: true, enabled: true, consoles: [] });
     const plugin = pluginFactory();
 
-    expect(registerHomeShelfPatch).toHaveBeenCalled();
     expect(routerHook.addRoute).toHaveBeenCalledWith("/the-collector/console/:slug", expect.any(Function));
-    expect(deckyEventListenerCount("save_status_updated")).toBe(2);
+    expect(vi.mocked(routerHook.addPatch).mock.calls.some(([route]) => route === "/library/home")).toBe(false);
 
     plugin.onDismount();
-    expect(unregisterHomeShelfPatch).toHaveBeenCalled();
     expect(routerHook.removeRoute).toHaveBeenCalledWith("/the-collector/console/:slug");
-    expect(deckyEventListenerCount("save_status_updated")).toBe(0);
   });
 
-  it("publishes the game page registry and the mods bridge, and withdraws both on dismount", () => {
+  it("publishes the game page registry and the mods and achievements bridges, and withdraws them on dismount", () => {
     const g = globalThis as unknown as Record<string, { version: number } | undefined>;
     const plugin = pluginFactory();
 
     expect(g.__eternalGamePage?.version).toBe(1);
     expect(g.__eternalCollectorMods?.version).toBe(1);
+    expect(g.__eternalCollectorAchievements?.version).toBe(1);
 
     plugin.onDismount();
     expect(g.__eternalGamePage).toBeUndefined();
     expect(g.__eternalCollectorMods).toBeUndefined();
+    expect(g.__eternalCollectorAchievements).toBeUndefined();
   });
 });
 

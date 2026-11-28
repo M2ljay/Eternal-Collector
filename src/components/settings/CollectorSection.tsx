@@ -1,12 +1,12 @@
 /**
- * The Collector's settings: whether its console shelf appears on Steam's Home,
- * under Recent games, and the RetroAchievements Web API key that powers the
- * unlock timeline and cross-game goal checks. Pure renderer: the parent owns the
- * values and the saves; the key is shown masked and entered through RaWebApiModal.
+ * The Collector's settings: the RetroAchievements Web API key that powers the
+ * unlock timeline, cross-game goal checks and the achievements bridge. Pure
+ * renderer: the parent owns the values and the saves; the key is shown masked
+ * and entered through RaWebApiModal.
  */
 
 import { FC } from "react";
-import { DialogButton, Field, Focusable, PanelSection, PanelSectionRow, ToggleField, showModal } from "@decky/ui";
+import { DialogButton, Field, Focusable, PanelSection, PanelSectionRow, showModal } from "@decky/ui";
 import { RaWebApiModal } from "./RaWebApiModal";
 
 export interface RaWebApiSettingsProps {
@@ -19,21 +19,11 @@ export interface RaWebApiSettingsProps {
 }
 
 interface CollectorSectionProps {
-  homeShelf: boolean;
-  onHomeShelfChange: (enabled: boolean) => void;
   raWebApi?: RaWebApiSettingsProps;
 }
 
-export const CollectorSection: FC<CollectorSectionProps> = ({ homeShelf, onHomeShelfChange, raWebApi }) => (
+export const CollectorSection: FC<CollectorSectionProps> = ({ raWebApi }) => (
   <PanelSection title="The Collector">
-    <PanelSectionRow>
-      <ToggleField
-        label="Show The Collector on Home"
-        description="A row of your consoles under Recent games, most played first. Select one to see its games."
-        checked={homeShelf}
-        onChange={onHomeShelfChange}
-      />
-    </PanelSectionRow>
     {raWebApi ? (
       <PanelSectionRow>
         <Field

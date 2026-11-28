@@ -387,7 +387,7 @@ A platform collection is named after the platform's **shown name**: RomM's name,
 RomM calls PS1 `PlayStation` (slug `ps` or `psx`), which is also the PlayStation
 [console family](#the-console-family-collections)'s name, so PS1 is shown as `PlayStation 1`. The match is on the slug,
 never the name. The overrides are applied where platform names are read — the collection maps
-(`SyncReporter._finalize_per_unit_run_io`), `decode_platform_names` (the console shelf, the Console page, the game page,
+(`SyncReporter._finalize_per_unit_run_io`), `decode_platform_names` (the Console page, the game page,
 the Danger Zone, the now-playing record) and the QAM platform list (`get_platforms`) — while the `platform_names`
 `kv_config` cache keeps RomM's names (`decode_romm_platform_names`).
 
@@ -500,14 +500,14 @@ the same record, the same name picking and the same write paths as the platform 
 
 ### The console family collections
 
-For the Home shelf and for TabMaster family tabs, the plugin keeps one owned collection per console family, family
+For Core's Library tabs and for TabMaster family tabs, the plugin keeps one owned collection per console family, family
 `console_family`, source name the family's display name: `PlayStation`, `Nintendo`, `Sega`, `Xbox`, `Retro`. Like the
 installed collection it is not a sync source and is reconciled through the same record, name picking and write paths
 (`reconcileFamilies` in `collections.ts`):
 
 - **Members** come from `get_family_collection_games` (`services/steam_collections.py`): every ROM bound to a shortcut,
-  with its platform slug. The frontend groups them with `consoleFamily` (`src/theme/coreTokens.ts`), the mapping the
-  Home shelf and Core's Library tabs use, so a shortcut is in exactly one family collection. ROM shortcuts only.
+  with its platform slug. The frontend groups them with `consoleFamily` (`src/theme/coreTokens.ts`), the mapping
+  Core's Library tabs use, so a shortcut is in exactly one family collection. ROM shortcuts only.
 - **Name**: named like a platform. On Windows and under Clean it is the family's name; under Classic elsewhere
   `RomM: <family> (<host>)`. A collection already holding the name, the user's or one of the plugin's own, makes the
   family collection `<family> (RomM)`; for a user's collection with a `yielded_to` note. Nothing is merged into a
@@ -521,9 +521,8 @@ installed collection it is not a sync source and is reconciled through the same 
   recorded family collections and forgets them; it never looks for a collection by name. The stale cleanup of a sync
   skips the `console_family` family, so only the setting, an empty family and the Danger Zone's **Remove all** ever
   delete one.
-- **The Home shelf** learns each family's collection id from the record (`utils/familyCollections.ts`, filled whenever
-  `collections.ts` reads or writes the record), so A on a family tile opens `/library/collection/<id>` without a backend
-  call and without a name lookup.
+- **Readers**: Core finds the family collections as ordinary Steam collections and shows them as Library tabs; the
+  plugin itself no longer reads them back (the Home shelf that opened them was retired in win.36).
 
 Every collection write (sync reconcile, installed and family reconcile, the Danger Zone clears) runs one at a time
 (`serialized` in `collections.ts`). Two passes that both read the record before either wrote it would each create a
@@ -731,7 +730,6 @@ immediate remount cannot let the old chain write launch options or invoke `RunGa
 | `py_modules/services/shortcut_removal.py` | `ShortcutRemovalService` — resolves shortcut-removal sets, unbinds removed ROMs, and runs `reconcile_live_shortcuts` (the sync-start reconcile of Steam-UI-deleted bindings)                                                                                                                                                                   |
 | `src/utils/collections.ts`                | The plugin's own Steam collections: naming, collisions, renames, stale cleanup — all gated on the ownership record                                                                                                                                                                                                                             |
 | `src/patches/gameDetailPatch.tsx`         | Route patch for `/library/app/:appid` — injects RomMPlaySection for custom game detail UI                                                                                                                                                                                                                                                      |
-| `src/patches/homeShelfPatch.tsx`          | Route patch for `/library/home` — inserts The Collector's console shelf under Recent games ([Home console shelf](home-console-shelf.md))                                                                                                                                                                                                       |
 | `src/patches/metadataPatches.ts`          | Store patches for description, associations, categories, release date display                                                                                                                                                                                                                                                                  |
 | `py_modules/adapters/steam_config.py`     | `SteamConfigAdapter` — VDF read/write, grid dir, shortcut icon write, Steam Input config                                                                                                                                                                                                                                                       |
 | `py_modules/services/library/`            | LibraryService — builds shortcut data, drives per-unit sync apply                                                                                                                                                                                                                                                                              |

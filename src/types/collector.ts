@@ -1,35 +1,11 @@
 /**
  * Wire shapes of The Collector's callables (`services/console_shelf.py`,
- * `AchievementsService.refresh_progress_snapshot`). Every field is computed from
- * this device's own records, so the Home row never waits on the network.
+ * `AchievementsService.refresh_progress_snapshot`). Every field of a console page
+ * is computed from this device's own records, so the page never waits on the network.
  */
 
 import type { RommErrorCode } from "./api";
 import type { SaveSyncDisplay } from "./saves";
-
-/** One console tile on the Home row, already in "most played" order. */
-export interface ShelfConsole {
-  platform_slug: string;
-  name: string;
-  game_count: number;
-  /** ISO-8601, the newest last-played instant of any of its games; null when none was played. */
-  last_played: string | null;
-  play_seconds: number;
-  /** The shortcut whose Steam capsule art stands for the console: its "Continue" game, else its first by name. */
-  cover_app_id: number;
-}
-
-/** One console family's art from the user's icon pack; `base64` is null when the pack has none. */
-export type FamilyArtAnswer =
-  | { success: true; family: string; kind: "hero" | "logo" | "icon"; base64: string | null }
-  | { success: false; reason: string; message: string };
-
-export interface ConsoleShelfAnswer {
-  success: true;
-  /** The "Show The Collector on Home" setting. */
-  enabled: boolean;
-  consoles: ShelfConsole[];
-}
 
 export type CollectorAward = "mastered" | "completed" | "beaten";
 

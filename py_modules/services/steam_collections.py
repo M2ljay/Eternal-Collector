@@ -108,7 +108,7 @@ class SteamCollectionOwnershipService:
 
         One entry per ROM bound to a shortcut (``{app_id, platform_slug}``); the
         frontend groups them into PlayStation, Nintendo, Sega, Xbox and Retro with the
-        same mapping the Home shelf uses. ``enabled`` is the "Keep console family
+        same mapping as Core's Library tabs. ``enabled`` is the "Keep console family
         collections" setting, on unless switched off.
         """
         with self._uow_factory() as uow:

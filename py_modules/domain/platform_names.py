@@ -2,7 +2,7 @@
 
 The cache is a JSON object stored as a single ``kv_config`` TEXT value, refreshed
 each sync so offline reads (DangerZone labels, game-detail platform names, the
-console shelf and Console page) show a human platform name rather than the bare
+Console page) show a human platform name rather than the bare
 slug. It holds RomM's own names; the name the plugin shows is RomM's name unless
 :data:`PLATFORM_NAME_OVERRIDES` names the slug. Anything that turns the stored
 string back into a ``slug → name`` mapping belongs here; reading the value out of

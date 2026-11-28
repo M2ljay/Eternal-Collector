@@ -61,6 +61,31 @@ def safe_guide_url(raw: object) -> str | None:
     return None
 
 
+_MEDIA_HOST: Final = "media.retroachievements.org"
+
+
+def public_badge_url(raw: object) -> str | None:
+    """Return *raw* when it is a plain https image URL on RetroAchievements' media host, else ``None``.
+
+    Plain means no user info, no port, no query and no fragment, so the URL cannot carry
+    a credential or point anywhere but the public badge file.
+    """
+    if not isinstance(raw, str) or not raw:
+        return None
+    try:
+        parts = urlsplit(raw)
+        port = parts.port
+    except ValueError:
+        return None
+    if parts.scheme != "https" or (parts.hostname or "").lower() != _MEDIA_HOST:
+        return None
+    if parts.username or parts.password or port is not None or parts.query or parts.fragment:
+        return None
+    if not parts.path.startswith("/") or "?" in raw or "#" in raw:
+        return None
+    return raw
+
+
 def normalize_ra_date(value: object) -> str | None:
     """Turn a RetroAchievements or RomM date into ``YYYY-MM-DDTHH:MM:SSZ``, or ``None``.
 

@@ -22,7 +22,14 @@ import re
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Final
 
+from domain.achievement_highlights import (
+    MAX_BRIDGE_ITEMS,
+    LibraryRom,
+    closest_to_complete,
+    library_by_ra_game,
+)
 from domain.iso_time import epoch_to_iso
+from domain.platform_names import decode_platform_names
 from domain.ra_game_journal import AchievementGoal, RaGameJournal
 from domain.ra_web import (
     TIMELINE_RANGES_DAYS,
@@ -32,8 +39,10 @@ from domain.ra_web import (
     normalize_ra_date,
     parse_game_progress,
     parse_timeline,
+    public_badge_url,
     web_api_failure,
 )
+from domain.rom_achievement_progress import SNAPSHOT_FETCHED_AT_KEY
 from lib.errors import RaWebApiError, classify_error
 
 if TYPE_CHECKING:
@@ -60,6 +69,12 @@ GUIDE_CACHE_SECONDS: Final = 24 * 3600
 # keeps one press from turning into a burst of requests.
 MAX_REFRESH_GAMES: Final = 10
 MAX_UNLOCKS_PER_CALL: Final = 500
+# The timeline windows the bridge's recent-unlocks read walks, shortest first; the
+# longer one is read only when the shorter held fewer library unlocks than asked for.
+RECENT_UNLOCK_WINDOWS_DAYS: Final[tuple[int, ...]] = (30, 365)
+# kv_config key of the offline platform_slug -> display name cache the library sync
+# refreshes every run; also read by console_shelf, library.reporter and game_detail.
+_PLATFORM_NAMES_KEY: Final = "platform_names"
 
 _USERNAME_RE: Final = re.compile(r"^[A-Za-z0-9_.-]{2,40}$")
 _API_KEY_RE: Final = re.compile(r"^[A-Za-z0-9]{16,64}$")
@@ -110,6 +125,17 @@ def _as_positive_int(value: object) -> int | None:
         number = int(value.strip())
         return number if number > 0 else None
     return None
+
+
+def _bridge_limit(value: object) -> int | None:
+    """A bridge list length: an int from 1 to ``MAX_BRIDGE_ITEMS``, else ``None``."""
+    if isinstance(value, bool) or not isinstance(value, int) or not 1 <= value <= MAX_BRIDGE_ITEMS:
+        return None
+    return value
+
+
+def _bad_limit() -> dict[str, Any]:
+    return _failure("invalid_argument", f"limit must be an integer from 1 to {MAX_BRIDGE_ITEMS}")
 
 
 def _as_points(value: object) -> int:
@@ -427,6 +453,34 @@ class AchievementJournalService:
 
     # ── Unlock timeline ──────────────────────────────────────────────────
 
+    async def _timeline_entries(self, span: int, force: bool) -> tuple[list[TimelineEntry], float] | dict[str, Any]:
+        """The unlocks of the last *span* days and when they were read, or the failure shape.
+
+        Served from a ten-minute cache unless *force*. Unlocks of pinned goals are
+        ticked off on the way through.
+        """
+        if not self.web_api_configured():
+            return dict(_NO_KEY)
+        now = self._clock.time()
+        cached = self._timeline_cache.get(span)
+        if cached is not None and not force and now - cached[0] < TIMELINE_CACHE_SECONDS:
+            return cached[1], cached[0]
+        try:
+            payload = await self._loop.run_in_executor(
+                None,
+                self._ra_web.get_achievements_earned_between,
+                self._username(),
+                int(now) - span * 86400,
+                int(now),
+            )
+        except RaWebApiError as e:
+            reason, message = web_api_failure(e.status_code)
+            return _failure(reason, message)
+        entries = parse_timeline(payload)
+        self._timeline_cache[span] = (now, entries)
+        await self._tick_goals_from_timeline(entries)
+        return entries, now
+
     async def get_unlock_timeline(self, days: object, force: object = False) -> dict[str, Any]:
         """The user's unlocks over the last *days* (30, 90 or 365), newest first.
 
@@ -435,33 +489,13 @@ class AchievementJournalService:
         """
         if isinstance(days, bool) or not isinstance(days, int) or days not in TIMELINE_RANGES_DAYS:
             return _failure("invalid_range", f"Timeline range must be one of {list(TIMELINE_RANGES_DAYS)} days")
-        if not self.web_api_configured():
-            return dict(_NO_KEY)
-        span = days
-        now = self._clock.time()
-        cached = self._timeline_cache.get(span)
-        if cached is not None and force is not True and now - cached[0] < TIMELINE_CACHE_SECONDS:
-            entries = cached[1]
-            fetched_at = cached[0]
-        else:
-            try:
-                payload = await self._loop.run_in_executor(
-                    None,
-                    self._ra_web.get_achievements_earned_between,
-                    self._username(),
-                    int(now) - span * 86400,
-                    int(now),
-                )
-            except RaWebApiError as e:
-                reason, message = web_api_failure(e.status_code)
-                return _failure(reason, message)
-            entries = parse_timeline(payload)
-            fetched_at = now
-            self._timeline_cache[span] = (now, entries)
-            await self._tick_goals_from_timeline(entries)
+        read = await self._timeline_entries(days, force is True)
+        if isinstance(read, dict):
+            return read
+        entries, fetched_at = read
         return {
             "success": True,
-            "days": span,
+            "days": days,
             "entries": [entry.to_wire() for entry in entries],
             "fetched_at": epoch_to_iso(fetched_at),
         }
@@ -513,3 +547,100 @@ class AchievementJournalService:
         if progress.unlocks:
             await self._loop.run_in_executor(None, self._apply_unlocks, {game.ra_game_id: list(progress.unlocks)})
         return result
+
+    # ── Achievements bridge (window.__eternalCollectorAchievements) ──────
+
+    def _read_library(self) -> tuple[dict[int, LibraryRom], dict[str, str]]:
+        """Every ROM with a RetroAchievements set, one per RA game, and the platform display names."""
+        with self._uow_factory() as uow:
+            roms = [
+                LibraryRom(
+                    rom_id=rom.rom_id,
+                    app_id=rom.shortcut_app_id,
+                    name=rom.name,
+                    platform_slug=rom.platform_slug,
+                    ra_game_id=rom.ra_id,
+                )
+                for rom in uow.roms.iter_all()
+                if rom.ra_id
+            ]
+            names = decode_platform_names(uow.kv_config.get(_PLATFORM_NAMES_KEY))
+        return library_by_ra_game(roms), names
+
+    async def get_recent_unlocks(self, limit: object) -> dict[str, Any]:
+        """The user's newest unlocks in games of The Collector's library, newest first, at most *limit*.
+
+        ``{success, items: [{rom_id, app_id, game, platform, title, description,
+        badge_url, unlocked_at, hardcore}]}``. Read from the unlock timeline (Web API),
+        so ``no_web_api_key`` without a key. An unlock in a game the library does not
+        hold is left out: it has no ROM to name. ``badge_url`` is ``None`` unless it is a
+        plain https URL on RetroAchievements' media host.
+        """
+        size = _bridge_limit(limit)
+        if size is None:
+            return _bad_limit()
+        if not self.web_api_configured():
+            return dict(_NO_KEY)
+        library, names = await self._loop.run_in_executor(None, self._read_library)
+        items: list[dict[str, Any]] = []
+        for days in RECENT_UNLOCK_WINDOWS_DAYS:
+            read = await self._timeline_entries(days, force=False)
+            if isinstance(read, dict):
+                return read
+            items = []
+            for entry in read[0]:
+                rom = library.get(entry.game_id)
+                if rom is None:
+                    continue
+                items.append(
+                    {
+                        "rom_id": rom.rom_id,
+                        "app_id": rom.app_id,
+                        "game": rom.name,
+                        "platform": names.get(rom.platform_slug) or entry.console_name or rom.platform_slug,
+                        "title": entry.title,
+                        "description": entry.description,
+                        "badge_url": public_badge_url(entry.badge_url),
+                        "unlocked_at": entry.unlocked_at,
+                        "hardcore": entry.hardcore,
+                    }
+                )
+                if len(items) == size:
+                    break
+            if len(items) == size:
+                break
+        return {"success": True, "items": items}
+
+    def get_closest_to_complete(self, limit: object) -> dict[str, Any]:
+        """The started, unfinished games closest to 100%, from the achievement snapshot, at most *limit*.
+
+        ``{success, fetched_at, items: [{rom_id, app_id, game, platform, earned, total,
+        percent}]}``, highest percent first, games at 0% and 100% left out. The snapshot
+        is RomM's ``ra_progression`` (no Web API key involved); before its first refresh
+        the answer is the ``no_snapshot`` failure. Synchronous: one short read UoW.
+        """
+        size = _bridge_limit(limit)
+        if size is None:
+            return _bad_limit()
+        library, names = self._read_library()
+        with self._uow_factory() as uow:
+            fetched_at = uow.kv_config.get(SNAPSHOT_FETCHED_AT_KEY)
+            progress = dict(uow.rom_achievement_progress.iter_all())
+        if not fetched_at:
+            return _failure("no_snapshot", "RetroAchievements progress has not been read from RomM yet")
+        return {
+            "success": True,
+            "fetched_at": fetched_at,
+            "items": [
+                {
+                    "rom_id": c.rom.rom_id,
+                    "app_id": c.rom.app_id,
+                    "game": c.rom.name,
+                    "platform": names.get(c.rom.platform_slug) or c.rom.platform_slug,
+                    "earned": c.earned,
+                    "total": c.total,
+                    "percent": c.percent,
+                }
+                for c in closest_to_complete(library, progress, size)
+            ],
+        }

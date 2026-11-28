@@ -98,7 +98,7 @@ const FAMILY_SLUGS: Record<Exclude<ConsoleFamily, "retro">, readonly string[]> =
   xbox: ["xbox", "xbox360", "xboxone"],
 };
 
-/** The families in the order the Home shelf shows them, with their names. */
+/** The console families in Core's Library-tab order, with their names. */
 export const FAMILY_ORDER: readonly ConsoleFamily[] = ["playstation", "nintendo", "sega", "xbox", "retro"];
 export const FAMILY_NAMES: Record<ConsoleFamily, string> = {
   playstation: "PlayStation",

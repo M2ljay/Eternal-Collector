@@ -14,6 +14,7 @@ from fakes.system_time import FakeClock
 
 from domain.ra_game_journal import MAX_NOTES_CHARS, AchievementGoal, RaGameJournal
 from domain.rom import Rom
+from domain.rom_achievement_progress import SNAPSHOT_FETCHED_AT_KEY, RomAchievementProgress
 from lib.errors import RaWebApiError
 from services.achievement_journal import (
     MAX_REFRESH_GAMES,
@@ -450,3 +451,159 @@ def test_never_holds_an_emulator_login_reader():
     fields = AchievementJournalServiceConfig.__dataclass_fields__
     assert "config_reader" not in fields
     assert all("RetroAchievementsConfigReader" not in str(f.type) for f in fields.values())
+
+
+def _bridge_entry(achievement_id: int, game_id: int, date: str, badge: object = "/Badge/250336.png") -> dict[str, Any]:
+    return _timeline_entry(achievement_id, game_id, date) | {"Description": f"Do {achievement_id}", "BadgeURL": badge}
+
+
+def _seed_progress(
+    uow: FakeUnitOfWork, progress: dict[int, tuple[int, int]], fetched_at: str | None = "2026-11-26T11:00:00Z"
+):
+    snapshot = {
+        rom_id: RomAchievementProgress.observed(
+            earned=earned, earned_hardcore=0, total=total, highest_award_kind=None, fetched_at=fetched_at or "x"
+        )
+        for rom_id, (earned, total) in progress.items()
+    }
+    with uow:
+        uow.rom_achievement_progress.replace_all(snapshot)
+        if fetched_at is not None:
+            uow.kv_config.set(SNAPSHOT_FETCHED_AT_KEY, fetched_at)
+
+
+class TestBridgeRecentUnlocks:
+    async def test_needs_a_key(self, service, ra_web):
+        assert (await service.get_recent_unlocks(5))["reason"] == "no_web_api_key"
+        assert ra_web.calls == []
+
+    @pytest.mark.parametrize("limit", [0, 51, -1, "5", 2.5, True, None])
+    async def test_limit_is_validated_before_any_request(self, service, settings, ra_web, limit):
+        _configure(settings)
+        result = await service.get_recent_unlocks(limit)
+        assert set(result) == {"success", "reason", "message"}
+        assert result["reason"] == "invalid_argument"
+        assert ra_web.calls == []
+
+    async def test_shape_library_games_only_newest_first(self, service, settings, ra_web, uow):
+        _configure(settings)
+        with uow:
+            uow.kv_config.set("platform_names", '{"genesis": "Sega Genesis"}')
+        ra_web.timeline = [
+            _bridge_entry(1, 77, "2026-11-20 10:00:00"),
+            _bridge_entry(2, 999, "2026-11-25 10:00:00"),  # not in the library
+            _bridge_entry(3, 88, "2026-11-24 10:00:00", badge="//evil.example/x.png"),
+        ]
+        result = await service.get_recent_unlocks(10)
+        assert result == {
+            "success": True,
+            "items": [
+                {
+                    "rom_id": 3,
+                    "app_id": None,
+                    "game": "Streets of Rage",
+                    "platform": "Sega Genesis",
+                    "title": "A3",
+                    "description": "Do 3",
+                    "badge_url": None,
+                    "unlocked_at": "2026-11-24T10:00:00Z",
+                    "hardcore": False,
+                },
+                {
+                    "rom_id": 1,
+                    "app_id": 5000,
+                    "game": "Sonic",
+                    "platform": "Sega Genesis",
+                    "title": "A1",
+                    "description": "Do 1",
+                    "badge_url": "https://media.retroachievements.org/Badge/250336.png",
+                    "unlocked_at": "2026-11-20T10:00:00Z",
+                    "hardcore": False,
+                },
+            ],
+        }
+        assert KEY not in repr(result)
+
+    async def test_limit_cuts_and_a_full_short_window_reads_no_longer_one(self, service, settings, ra_web):
+        _configure(settings)
+        ra_web.timeline = [_bridge_entry(i, 77, f"2026-11-{10 + i} 10:00:00") for i in range(1, 6)]
+        result = await service.get_recent_unlocks(2)
+        assert [i["title"] for i in result["items"]] == ["A5", "A4"]
+        assert len(ra_web.calls) == 1
+
+    async def test_a_short_window_with_too_few_reads_the_year(self, service, settings, ra_web):
+        _configure(settings)
+        ra_web.timeline = [_bridge_entry(1, 77, "2026-11-20 10:00:00")]
+        result = await service.get_recent_unlocks(5)
+        assert len(result["items"]) == 1
+        now = int(NOW.timestamp())
+        assert [c[2] for c in ra_web.calls] == [now - 30 * 86400, now - 365 * 86400]
+
+    @pytest.mark.parametrize(("status", "reason"), [(401, "auth_failed"), (None, "server_unreachable")])
+    async def test_web_api_failure_is_the_failure_shape_without_the_key(
+        self, service, settings, ra_web, status, reason
+    ):
+        _configure(settings)
+        ra_web.error = RaWebApiError(status, "x")
+        result = await service.get_recent_unlocks(5)
+        assert set(result) == {"success", "reason", "message"}
+        assert result["reason"] == reason
+        assert KEY not in repr(result)
+
+    async def test_logs_never_carry_the_key(self, service, settings, ra_web, logs, caplog):
+        _configure(settings)
+        ra_web.timeline = [_bridge_entry(1, 77, "2026-11-20 10:00:00")]
+        with caplog.at_level(logging.DEBUG):
+            await service.get_recent_unlocks(5)
+        assert all(KEY not in line for line in logs)
+        assert KEY not in caplog.text
+
+
+class TestBridgeClosestToComplete:
+    def test_no_snapshot_yet(self, service):
+        result = service.get_closest_to_complete(5)
+        assert result == {"success": False, "reason": "no_snapshot", "message": result["message"]}
+
+    @pytest.mark.parametrize("limit", [0, 51, "3", None, True])
+    def test_limit_is_validated(self, service, limit):
+        assert service.get_closest_to_complete(limit)["reason"] == "invalid_argument"
+
+    def test_order_excludes_zero_and_complete_and_prefers_the_steam_version(self, service, uow, settings):
+        _configure(settings)
+        _seed_rom(uow, 4, ra_id=77, name="Sonic (Rev 1)", app_id=None)  # sibling of rom 1, not in Steam
+        _seed_rom(uow, 5, ra_id=55, name="Ecco", app_id=5005)
+        _seed_rom(uow, 6, ra_id=66, name="Golden Axe", app_id=5006)
+        _seed_progress(uow, {1: (3, 12), 4: (3, 12), 3: (9, 10), 5: (0, 20), 6: (40, 40)})
+        result = service.get_closest_to_complete(10)
+        assert result == {
+            "success": True,
+            "fetched_at": "2026-11-26T11:00:00Z",
+            "items": [
+                {
+                    "rom_id": 3,
+                    "app_id": None,
+                    "game": "Streets of Rage",
+                    "platform": "genesis",
+                    "earned": 9,
+                    "total": 10,
+                    "percent": 90.0,
+                },
+                {
+                    "rom_id": 1,
+                    "app_id": 5000,
+                    "game": "Sonic",
+                    "platform": "genesis",
+                    "earned": 3,
+                    "total": 12,
+                    "percent": 25.0,
+                },
+            ],
+        }
+        assert KEY not in repr(result)
+        assert len(service.get_closest_to_complete(1)["items"]) == 1
+
+    def test_needs_no_web_api_key(self, service, uow, ra_web):
+        _seed_progress(uow, {1: (1, 3)})
+        result = service.get_closest_to_complete(5)
+        assert result["items"][0]["percent"] == 33.3
+        assert ra_web.calls == []
