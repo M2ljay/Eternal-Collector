@@ -91,6 +91,7 @@ from services.protocols.files import (
     SgdbArtworkCache,
     SteamRecoveryStore,
     VitaAppLinker,
+    IconPackStore,
     YamlCodec,
 )
 from services.protocols.infra import (
@@ -318,6 +319,7 @@ __all__ = [
     "UuidGen",
     "VersionSwitcherFn",
     "VitaAppLinker",
+    "IconPackStore",
     "YamlCodec",
     "WindowsResolver",
     "XemuConfigReader",

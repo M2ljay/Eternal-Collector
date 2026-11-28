@@ -813,6 +813,7 @@ _MIGRATION_BLOCKED_WHITELIST: set[str] = {
     "save_collector_home_shelf",
     "get_console_shelf",
     "get_console_games",
+    "get_family_art",
     "refresh_console_achievements",
     # Collection owner-scope (#1532) — a settings.json-only write, never touches
     # RetroDECK state; takes effect on the next sync's work-queue build.
@@ -1212,6 +1213,7 @@ class TestMainStartupOrdering:
                 ps2_elf_crcs=MagicMock(),
                 console_ids=MagicMock(),
                 yaml_codec=MagicMock(),
+                icon_pack=MagicMock(),
                 path_probe=MagicMock(),
                 renderer_rss=FakeRendererRss(),
                 renderer_gc=FakeRendererGc(),

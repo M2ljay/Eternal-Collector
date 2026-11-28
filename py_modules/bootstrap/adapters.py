@@ -32,6 +32,7 @@ from adapters.firmware_file import FirmwareFileAdapter
 from adapters.game_process import GameProcessAdapter
 from adapters.gavel_native import GavelNativeAdapter, copy_out_of_plugin_folder
 from adapters.hostname import HostnameAdapter
+from adapters.icon_pack_files import IconPackFilesAdapter
 from adapters.machine_id import MachineIdAdapter
 from adapters.migration_file import MigrationFileAdapter
 from adapters.now_playing_file import NowPlayingFileAdapter
@@ -92,6 +93,7 @@ if TYPE_CHECKING:
         GameModStore,
         GameProcessControl,
         HostnameReader,
+        IconPackStore,
         LauncherBackendFactory,
         MachineIdReader,
         MigrationFileStore,
@@ -164,6 +166,7 @@ class AdapterBundle:
     ps2_elf_crcs: Ps2ElfCrcReader
     console_ids: ConsoleIdReader
     yaml_codec: YamlCodec
+    icon_pack: IconPackStore
     path_probe: PathExistsReader
     renderer_rss: RendererRssFn
     renderer_gc: RendererGcFn
@@ -492,6 +495,7 @@ def bootstrap(
         ps2_elf_crcs=disc_codes,
         console_ids=disc_codes,
         yaml_codec=YamlCodecAdapter(),
+        icon_pack=IconPackFilesAdapter(appdata=os.environ.get("APPDATA")),
         path_probe=path_probe,
         renderer_rss=renderer_rss,
         renderer_gc=renderer_gc,

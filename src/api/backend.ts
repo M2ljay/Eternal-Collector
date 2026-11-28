@@ -44,6 +44,7 @@ import type {
   UnlockTimelineAnswer,
   ConsoleShelfAnswer,
   ConsoleGamesAnswer,
+  FamilyArtAnswer,
   RefreshAchievementsAnswer,
   SaveSlotSummary,
   SaveSetupInfo,
@@ -397,6 +398,8 @@ export const saveRetroAchievementsWarning = callable<[boolean], { success: boole
 export const saveCollectorHomeShelf = callable<[boolean], { success: boolean }>("save_collector_home_shelf");
 export const getConsoleShelf = callable<[], ConsoleShelfAnswer>("get_console_shelf");
 export const getConsoleGames = callable<[string, number, number], ConsoleGamesAnswer>("get_console_games");
+// One family's hero or logo from the user's icon pack (local file read, one per call: a hero is a few MB).
+export const getFamilyArt = callable<[string, "hero" | "logo"], FamilyArtAnswer>("get_family_art");
 export const refreshConsoleAchievements = callable<[], RefreshAchievementsAnswer>("refresh_console_achievements");
 // Owner-scope for the Collections tab (#1532). "all" (default) or "own" (only
 // the signed-in user's own collections). Read via getSettings().collection_owner_scope.

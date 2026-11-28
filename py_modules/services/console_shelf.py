@@ -9,6 +9,7 @@ the state, never here.
 
 from __future__ import annotations
 
+import base64
 from dataclasses import asdict, dataclass
 from typing import TYPE_CHECKING, Any
 
@@ -20,6 +21,7 @@ from domain.console_shelf import (
     order_console_games,
     rank_consoles,
 )
+from domain.icon_pack import family_art_parts
 from domain.platform_names import decode_platform_names
 from domain.rom_achievement_progress import SNAPSHOT_FETCHED_AT_KEY
 from domain.save_status import compute_save_sync_display
@@ -27,7 +29,7 @@ from domain.save_status import compute_save_sync_display
 if TYPE_CHECKING:
     from domain.rom import Rom
     from domain.rom_save_sync_state import RomSaveSyncState
-    from services.protocols import Clock, DebugLogger, UnitOfWork, UnitOfWorkFactory
+    from services.protocols import Clock, DebugLogger, IconPackStore, UnitOfWork, UnitOfWorkFactory
 
 # kv_config key of the offline ``platform_slug → display_name`` cache the library sync
 # refreshes every run; also read by library.reporter and game_detail.
@@ -37,6 +39,8 @@ HOME_SHELF_SETTING = "collector_home_shelf"
 
 DEFAULT_PAGE_SIZE = 100
 MAX_PAGE_SIZE = 200
+# The pack's heroes are 1920x1080 PNGs of 2-4 MB; anything far past that is not pack art.
+MAX_FAMILY_ART_BYTES = 8 * 1024 * 1024
 
 
 @dataclass(frozen=True)
@@ -46,13 +50,15 @@ class ConsoleShelfServiceConfig:
     Holds the SQLite Unit-of-Work factory (the read seam over ``roms``, ``playtime``,
     ``rom_installs``, ``rom_save_sync_states``, ``rom_achievement_progress`` and
     ``kv_config``), the live settings dict (the Home toggle and ``save_sync_enabled``),
-    the clock that dates "most played", and the debug logger.
+    the clock that dates "most played", the debug logger, and the read-only seam over
+    the user's icon pack (``None`` where there is none to read).
     """
 
     uow_factory: UnitOfWorkFactory
     settings: dict[str, Any]
     clock: Clock
     log_debug: DebugLogger
+    icon_pack: IconPackStore | None = None
 
 
 def _bound_games(uow: UnitOfWork) -> list[ShelfGame]:
@@ -107,6 +113,7 @@ class ConsoleShelfService:
         self._settings = config.settings
         self._clock = config.clock
         self._log_debug = config.log_debug
+        self._icon_pack = config.icon_pack
 
     def home_shelf_enabled(self) -> bool:
         """Whether the Home row is switched on (it is unless the user turned it off)."""
@@ -138,6 +145,26 @@ class ConsoleShelfService:
                 }
                 for e in entries
             ],
+        }
+
+    def get_family_art(self, family: object, kind: object) -> dict[str, Any]:
+        """Return one console family's art from the user's icon pack, base64-encoded.
+
+        ``{success, family, kind, base64}``; ``base64`` is ``None`` when the pack, the
+        family folder or the file is missing, which the Home row draws as a plain tile.
+        Only the families and kinds in ``domain.icon_pack`` are accepted.
+        """
+        parts = family_art_parts(family, kind)
+        if parts is None:
+            return {"success": False, "reason": "invalid_argument", "message": "Unknown family or art kind"}
+        data = self._icon_pack.read_art(parts, MAX_FAMILY_ART_BYTES) if self._icon_pack else None
+        if data is None:
+            self._log_debug(f"Family art: no {kind} for {family} in the icon pack")
+        return {
+            "success": True,
+            "family": family,
+            "kind": kind,
+            "base64": base64.b64encode(data).decode("ascii") if data is not None else None,
         }
 
     def get_console_games(

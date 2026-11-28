@@ -19,6 +19,11 @@ export interface ShelfConsole {
   cover_app_id: number;
 }
 
+/** One console family's art from the user's icon pack; `base64` is null when the pack has none. */
+export type FamilyArtAnswer =
+  | { success: true; family: string; kind: "hero" | "logo" | "icon"; base64: string | null }
+  | { success: false; reason: string; message: string };
+
 export interface ConsoleShelfAnswer {
   success: true;
   /** The "Show The Collector on Home" setting. */

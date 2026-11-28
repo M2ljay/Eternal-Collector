@@ -1269,6 +1269,10 @@ class Plugin:
         """Return the Home row's consoles, most played first, from local state alone."""
         return await self.loop.run_in_executor(None, self._console_shelf_service.get_console_shelf)
 
+    async def get_family_art(self, family, kind):
+        """Return one console family's hero, logo or icon from the user's icon pack (base64, or None)."""
+        return await self.loop.run_in_executor(None, self._console_shelf_service.get_family_art, family, kind)
+
     async def get_console_games(self, platform_slug, offset, limit):
         """Return one page of a console's games with their save-sync and achievement chips."""
         return await self.loop.run_in_executor(

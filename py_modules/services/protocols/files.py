@@ -828,6 +828,14 @@ class YamlCodec(Protocol):
         ...
 
 
+class IconPackStore(Protocol):
+    """Read-only seam over the user's own icon pack (``%APPDATA%\\GamingMode\\icons\\colorgrade``)."""
+
+    def read_art(self, parts: tuple[str, ...], limit: int) -> bytes | None:
+        """The file at *parts* under the pack, or ``None`` when there is no pack, no such file, or it exceeds *limit*."""
+        ...
+
+
 class GameModStore(Protocol):
     """Filesystem seam for game mod folders, the Downloads folder mods are installed from, and their backups.
 
