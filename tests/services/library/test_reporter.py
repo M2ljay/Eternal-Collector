@@ -93,6 +93,15 @@ class TestGetSyncStats:
         assert [p["name"] for p in result["platforms"]] == ["PlayStation 1"]
 
     @pytest.mark.asyncio
+    async def test_the_original_xbox_is_listed_as_xbox_original(self, plugin):
+        _seed_rom(plugin._uow, 11, app_id=1011, platform_slug="xbox", name="Halo")
+        _seed_platform_names(plugin._uow, {"xbox": "Xbox"})
+
+        result = await plugin.get_registry_platforms()
+
+        assert [p["name"] for p in result["platforms"]] == ["Xbox (Original)"]
+
+    @pytest.mark.asyncio
     async def test_empty_registry(self, plugin):
         stats = await plugin.get_sync_stats()
         assert stats["platforms"] == 0
@@ -1616,6 +1625,27 @@ class TestFinalizePerUnitRun:
         assert payload["platform_app_ids"] == {"PlayStation 1": [1001]}
         with uow:
             assert json.loads(uow.kv_config.get("platform_names")) == {"psx": "PlayStation"}
+
+    @pytest.mark.asyncio
+    async def test_the_original_xbox_collection_uses_its_shown_name(self, plugin):
+        import decky
+
+        decky.emit.reset_mock()
+        uow = plugin._uow
+        _seed_rom(uow, 1, app_id=1001, platform_slug="xbox", name="Halo")
+        _seed_rom(uow, 2, app_id=1002, platform_slug="xbox360", name="Halo 3")
+        plugin.settings["collection_create_platform_groups"] = True
+
+        await plugin._sync_service._reporter.finalize_per_unit_run(
+            pending_collection_memberships={},
+            pending_platform_rom_ids={1, 2},
+            platform_names={"xbox": "Xbox", "xbox360": "Xbox 360"},
+        )
+
+        payload = next(c[0][1] for c in decky.emit.call_args_list if c[0][0] == "sync_collections")
+        assert payload["platform_app_ids"] == {"Xbox (Original)": [1001], "Xbox 360": [1002]}
+        with uow:
+            assert json.loads(uow.kv_config.get("platform_names")) == {"xbox": "Xbox", "xbox360": "Xbox 360"}
 
     @pytest.mark.asyncio
     async def test_builds_romm_collection_app_ids_excluding_unbound(self, plugin):

@@ -383,10 +383,11 @@ already the plain platform name, so there Clean changes only the RomM collection
 ### Platform name overrides
 
 A platform collection is named after the platform's **shown name**: RomM's name, unless
-`PLATFORM_NAME_OVERRIDES` (`py_modules/domain/platform_names.py`) names the platform's slug. Today it holds one override:
+`PLATFORM_NAME_OVERRIDES` (`py_modules/domain/platform_names.py`) names the platform's slug. Today it holds two:
 RomM calls PS1 `PlayStation` (slug `ps` or `psx`), which is also the PlayStation
-[console family](#the-console-family-collections)'s name, so PS1 is shown as `PlayStation 1`. The match is on the slug,
-never the name. The overrides are applied where platform names are read — the collection maps
+[console family](#the-console-family-collections)'s name, so PS1 is shown as `PlayStation 1`; and it calls the original
+Xbox `Xbox` (slug `xbox`; Xbox 360, Xbox One and Series X/S are `xbox360`, `xboxone` and `series-x-s`), the Xbox
+family's name, so it is shown as `Xbox (Original)`. The match is on the slug, never the name. The overrides are applied where platform names are read — the collection maps
 (`SyncReporter._finalize_per_unit_run_io`), `decode_platform_names` (the Console page, the game page,
 the Danger Zone, the now-playing record) and the QAM platform list (`get_platforms`) — while the `platform_names`
 `kv_config` cache keeps RomM's names (`decode_romm_platform_names`).
@@ -396,16 +397,17 @@ the Danger Zone, the now-playing record) and the QAM platform list (`get_platfor
 `domain.platform_names.platform_renames`), and before anything reads the record by source — in the sync reconcile and in
 the Danger Zone's per-platform clear — `followPlatformRenames` (`collections.ts`) re-records that same collection id
 under the shown name. It is not a name lookup: only a recorded collection moves, and a user's collection named
-`PlayStation` is never adopted. The sync's reconcile then sees a recorded collection carrying an old name and renames it
+`PlayStation` or `Xbox` is never adopted. The sync's reconcile then sees a recorded collection carrying an old name and renames it
 through the usual rename path (in place, else copy-then-delete, as in **Switching style** below), so the stale cleanup
 never takes it for a source that went away.
 
 **Ordering frees the family name in one sync.** `onSyncComplete` runs the platform reconcile before
 `reconcileInstalledRomsCollection`, so by the time the family collections are named, `PlayStation` is free and the
-PlayStation family takes it. A family collection a previous build had to call `PlayStation (RomM)` is renamed, through
-its record, to `PlayStation` on that same pass, because a name is always picked afresh from the wanted one. A user's
-own `PlayStation 1` makes the PS1 collection `PlayStation 1 (RomM)`, and a user's own `PlayStation` keeps the family on
-`PlayStation (RomM)`, as for any [collision](#name-collisions).
+PlayStation family takes it (and `Xbox` likewise for the Xbox family). A family collection a previous build had to call
+`PlayStation (RomM)` or `Xbox (RomM)` is renamed, through its record, to `PlayStation` or `Xbox` on that same pass,
+because a name is always picked afresh from the wanted one. A user's own `PlayStation 1` makes the PS1 collection
+`PlayStation 1 (RomM)` (`Xbox (Original) (RomM)` for a user's own `Xbox (Original)`), and a user's own `PlayStation` or
+`Xbox` keeps the family on `PlayStation (RomM)` or `Xbox (RomM)`, as for any [collision](#name-collisions).
 
 To add an override, add the slug to the map: the shown name, the rename of an existing collection and the record move
 all follow from it.
@@ -511,8 +513,8 @@ installed collection it is not a sync source and is reconciled through the same 
 - **Name**: named like a platform. On Windows and under Clean it is the family's name; under Classic elsewhere
   `RomM: <family> (<host>)`. A collection already holding the name, the user's or one of the plugin's own, makes the
   family collection `<family> (RomM)`; for a user's collection with a `yielded_to` note. Nothing is merged into a
-  collection the record does not name. PS1's platform collection does not take `PlayStation`: it is shown as
-  `PlayStation 1` ([Platform name overrides](#platform-name-overrides)).
+  collection the record does not name. PS1's platform collection does not take `PlayStation`, nor the original Xbox's
+  `Xbox`: they are shown as `PlayStation 1` and `Xbox (Original)` ([Platform name overrides](#platform-name-overrides)).
 - **When**: in the same pass as the installed collection (`reconcileInstalledRomsCollection` runs both, serialized), so
   at the end of every library sync, at plugin start and after every install change; and from its setting.
 - **Empty family**: a family with no ROM shortcuts gets no collection, and one that had a recorded collection has it

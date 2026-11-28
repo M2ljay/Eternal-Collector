@@ -84,6 +84,10 @@ class TestPageNamesAndPlayTime:
         _seed(uow, _rom(1, "psx"), names={"psx": "PlayStation"})
         assert service.get_console_games("psx", 0, 30)["name"] == "PlayStation 1"
 
+    def test_the_original_xbox_is_shown_as_xbox_original_on_its_page(self, service, uow):
+        _seed(uow, _rom(1, "xbox"), names={"xbox": "Xbox"})
+        assert service.get_console_games("xbox", 0, 30)["name"] == "Xbox (Original)"
+
     def test_name_falls_back_to_slug_on_a_corrupt_cache(self, service, uow):
         _seed(uow, _rom(1, "gba"))
         with uow:

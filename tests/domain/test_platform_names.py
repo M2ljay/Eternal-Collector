@@ -40,6 +40,15 @@ class TestOverrides:
     def test_ps1_is_shown_as_playstation_1_under_both_romm_slugs(self, slug):
         assert shown_platform_name(slug, "PlayStation") == "PlayStation 1"
 
+    def test_the_original_xbox_is_shown_as_xbox_original(self):
+        assert shown_platform_name("xbox", "Xbox") == "Xbox (Original)"
+
+    @pytest.mark.parametrize(
+        ("slug", "name"), [("xbox360", "Xbox 360"), ("xboxone", "Xbox One"), ("series-x-s", "Xbox Series X/S")]
+    )
+    def test_later_xboxes_keep_romms_names(self, slug, name):
+        assert shown_platform_name(slug, name) == name
+
     def test_matches_the_slug_never_the_name(self):
         assert shown_platform_name("ps2", "PlayStation") == "PlayStation"
         assert shown_platform_name("snes", "Super Nintendo") == "Super Nintendo"
@@ -57,6 +66,9 @@ class TestOverrides:
 class TestPlatformRenames:
     def test_maps_romm_name_to_shown_name(self):
         assert platform_renames({"psx": "PlayStation", "n64": "Nintendo 64"}) == {"PlayStation": "PlayStation 1"}
+
+    def test_maps_the_original_xbox(self):
+        assert platform_renames({"xbox": "Xbox", "xbox360": "Xbox 360"}) == {"Xbox": "Xbox (Original)"}
 
     def test_a_platform_already_named_as_shown_is_no_rename(self):
         assert platform_renames({"psx": "playstation 1"}) == {}

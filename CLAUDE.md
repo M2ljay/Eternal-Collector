@@ -301,8 +301,9 @@ Format: **invariant** — tier — enforced by.
   looks a collection up by name rather than through the record passes both tests unless a case is added. The one-time
   adoption of pre-record collections is the one place a name is consulted, and only with a second proof (the `RomM:`
   prefix, or RomM-only contents). A platform's record follows its shown name (`platform_renames`, for the slugs
-  `domain/platform_names.py` overrides — PS1 is `PlayStation 1`, so `PlayStation` is the family's) by re-recording the
-  same collection id under the new source, never by looking a collection up by name
+  `domain/platform_names.py` overrides — PS1 is `PlayStation 1` and the original Xbox `Xbox (Original)`, so
+  `PlayStation` and `Xbox` are the families') by re-recording the same collection id under the new source, never by
+  looking a collection up by name
   ([Collection management](docs/architecture/steam-non-steam-shortcuts.md#ownership-is-a-record-never-a-name))
 - **Every read-mutate-write of a `RomSaveSyncState` runs under `SyncEngine.rom_lock(rom_id)`** — prompt-only — sync
   paths, `get_save_status`, and the four slot mutations hold the lock; mechanize via a `rom_save_sync_states.save`

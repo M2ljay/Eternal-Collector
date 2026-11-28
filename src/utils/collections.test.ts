@@ -1005,6 +1005,156 @@ describe("PS1 shown as PlayStation 1, freeing PlayStation for the family", () =>
   });
 });
 
+describe("the original Xbox shown as Xbox (Original), freeing Xbox for the family", () => {
+  const game = (app_id: number, platform_slug: string) => ({ app_id, platform_slug });
+
+  /** One sync as index.tsx runs it: the platform collections, then installed + families. */
+  async function syncWithFamilies(platformAppIds: Record<string, number[]>): Promise<void> {
+    await sync(platformAppIds);
+    await reconcileInstalledRomsCollection();
+  }
+
+  beforeEach(() => {
+    vi.spyOn(navigator, "userAgent", "get").mockReturnValue(WINDOWS_UA);
+    backend.installedEnabled = false;
+    backend.platformRenames = { Xbox: "Xbox (Original)" };
+    backend.familyGames = [game(1, "xbox"), game(2, "xbox360")];
+  });
+
+  it("fresh install: the console collection is Xbox (Original) and the family takes Xbox", async () => {
+    await syncWithFamilies({ "Xbox (Original)": [1], "Xbox 360": [2] });
+
+    expect(store.names()).toEqual(["Xbox", "Xbox (Original)", "Xbox 360"]);
+    expect(recordFor("platform", "Xbox (Original)")?.collection_id).toBe(store.named("Xbox (Original)")?.id);
+    expect(recordFor("console_family", "Xbox")).toMatchObject({ display_name: "Xbox", yielded_to: null });
+    expect(appIdsOf(store.named("Xbox"))).toEqual([1, 2]);
+  });
+
+  it("renames the recorded Xbox collection in place, by its record, keeping its id", async () => {
+    const xbox = store.add("Xbox", [1, 3]);
+    own(xbox, "platform", "Xbox");
+
+    await sync({ "Xbox (Original)": [1] });
+
+    expect(xbox.displayName).toBe("Xbox (Original)");
+    expect(xbox.Delete).not.toHaveBeenCalled();
+    expect(appIdsOf(xbox)).toEqual([1]);
+    expect(recordFor("platform", "Xbox")).toBeUndefined();
+    expect(recordFor("platform", "Xbox (Original)")).toMatchObject({
+      collection_id: xbox.id,
+      display_name: "Xbox (Original)",
+    });
+  });
+
+  it("falls back to copy-then-delete when Steam will not rename in place", async () => {
+    store = new FakeStore(false);
+    store.install();
+    const xbox = store.add("Xbox", [1]);
+    own(xbox, "platform", "Xbox");
+
+    await sync({ "Xbox (Original)": [1] });
+
+    const copy = store.named("Xbox (Original)");
+    expect(copy).toBeDefined();
+    expect(xbox.Delete).toHaveBeenCalledTimes(1);
+    expect(recordFor("platform", "Xbox (Original)")?.collection_id).toBe(copy?.id);
+  });
+
+  it("in the same sync, the family claims Xbox once the console collection has moved", async () => {
+    const xbox = store.add("Xbox", [1]);
+    own(xbox, "platform", "Xbox");
+
+    await syncWithFamilies({ "Xbox (Original)": [1], "Xbox 360": [2] });
+
+    expect(store.names()).toEqual(["Xbox", "Xbox (Original)", "Xbox 360"]);
+    expect(xbox.displayName).toBe("Xbox (Original)");
+    expect(recordFor("console_family", "Xbox")).toMatchObject({ display_name: "Xbox", yielded_to: null });
+    expect(appIdsOf(store.named("Xbox"))).toEqual([1, 2]);
+  });
+
+  it("an earlier Xbox (RomM) family collection is renamed, through its record, to Xbox", async () => {
+    const xbox = store.add("Xbox", [1]);
+    own(xbox, "platform", "Xbox");
+    const family = store.add("Xbox (RomM)", [1, 2]);
+    own(family, "console_family", "Xbox", "Xbox");
+
+    await syncWithFamilies({ "Xbox (Original)": [1], "Xbox 360": [2] });
+
+    expect(family.displayName).toBe("Xbox");
+    expect(family.Delete).not.toHaveBeenCalled();
+    expect(store.names()).toEqual(["Xbox", "Xbox (Original)", "Xbox 360"]);
+    expect(recordFor("console_family", "Xbox")).toMatchObject({
+      collection_id: family.id,
+      display_name: "Xbox",
+      yielded_to: null,
+    });
+  });
+
+  it("a user's own Xbox (Original) is never touched; the console collection takes the (RomM) suffix", async () => {
+    const users = store.add("Xbox (Original)", [42]);
+    const xbox = store.add("Xbox", [1]);
+    own(xbox, "platform", "Xbox");
+
+    await syncWithFamilies({ "Xbox (Original)": [1] });
+
+    expect(appIdsOf(users)).toEqual([42]);
+    expect(users.Save).not.toHaveBeenCalled();
+    expect(xbox.displayName).toBe("Xbox (Original) (RomM)");
+    expect(recordFor("platform", "Xbox (Original)")).toMatchObject({ yielded_to: "Xbox (Original)" });
+    expect(recordFor("console_family", "Xbox")?.display_name).toBe("Xbox");
+  });
+
+  it("a user's own Xbox keeps the family on Xbox (RomM)", async () => {
+    const users = store.add("Xbox", [42]);
+
+    await syncWithFamilies({ "Xbox (Original)": [1] });
+
+    expect(appIdsOf(users)).toEqual([42]);
+    expect(users.Save).not.toHaveBeenCalled();
+    expect(recordFor("platform", "Xbox (Original)")?.display_name).toBe("Xbox (Original)");
+    expect(recordFor("console_family", "Xbox")).toMatchObject({
+      display_name: "Xbox (RomM)",
+      yielded_to: "Xbox",
+    });
+  });
+
+  it("never adopts a user's Xbox collection just because RomM once used that name", async () => {
+    const users = store.add("Xbox", [42]);
+
+    await sync({ "Xbox (Original)": [1] });
+
+    expect(users.Save).not.toHaveBeenCalled();
+    expect(backend.records.map((r) => r.collection_id)).not.toContain(users.id);
+  });
+
+  it("Remove platform follows the record to Xbox (Original) before the next sync has run", async () => {
+    const xbox = store.add("Xbox", [1]);
+    own(xbox, "platform", "Xbox");
+
+    await clearPlatformCollection("Xbox (Original)");
+
+    expect(xbox.Delete).toHaveBeenCalledTimes(1);
+    expect(backend.records).toEqual([]);
+  });
+
+  it("PS1 and the original Xbox follow their renames in the same sync", async () => {
+    backend.platformRenames = { PlayStation: "PlayStation 1", Xbox: "Xbox (Original)" };
+    backend.familyGames = [game(1, "xbox"), game(2, "psx")];
+    const xbox = store.add("Xbox", [1]);
+    own(xbox, "platform", "Xbox");
+    const ps1 = store.add("PlayStation", [2]);
+    own(ps1, "platform", "PlayStation");
+
+    await syncWithFamilies({ "Xbox (Original)": [1], "PlayStation 1": [2] });
+
+    expect(store.names()).toEqual(["PlayStation", "PlayStation 1", "Xbox", "Xbox (Original)"]);
+    expect(xbox.displayName).toBe("Xbox (Original)");
+    expect(ps1.displayName).toBe("PlayStation 1");
+    expect(recordFor("console_family", "Xbox")?.display_name).toBe("Xbox");
+    expect(recordFor("console_family", "PlayStation")?.display_name).toBe("PlayStation");
+  });
+});
+
 describe("installed-collection triggers", () => {
   beforeEach(() => {
     vi.useFakeTimers();

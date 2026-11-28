@@ -138,8 +138,8 @@ will be missing.
 
 ### Cover style
 
-**Cover style** sits under the API key and decides what stands on each game's portrait cover in your library and on the
-Home shelf:
+**Cover style** sits under the API key and decides what stands on each game's portrait cover in your library and on
+Steam's Home:
 
 - **Game case (preferred)** — the default. The plugin looks on SteamGridDB for artwork drawn as the console's retail
   case (a GameCube box, a PSP UMD case with its banner, a DS case, …) and uses it where it finds one. Grids by authors
@@ -251,8 +251,13 @@ existing PS1 collection is renamed to `PlayStation 1` on the next sync, and a fa
 `PlayStation (RomM)` becomes `PlayStation` in the same sync. If you have your own collection called `PlayStation 1`,
 it is left alone and the PS1 collection is `PlayStation 1 (RomM)`.
 
-The Collector's Home row opens these collections when you press **A** on a family. They also make good **TabMaster**
-tabs: add a TabMaster tab with a **Collection** filter pointing at the family's collection, and the tab follows the
+The original Xbox has the same clash: RomM calls it just "Xbox", the Xbox family's name, so The Collector calls it
+**Xbox (Original)** everywhere and the family takes `Xbox`. Xbox 360, Xbox One and Xbox Series keep their names. An
+existing original-Xbox collection is renamed to `Xbox (Original)` on the next sync, and a family collection that had to
+be called `Xbox (RomM)` becomes `Xbox` in the same sync. Your own `Xbox (Original)` collection is left alone and The
+Collector's is then `Xbox (Original) (RomM)`.
+
+Core shows these collections as Library tabs. They also make good **TabMaster** tabs: add a TabMaster tab with a **Collection** filter pointing at the family's collection, and the tab follows the
 collection as it changes. The plugin doesn't change TabMaster's settings itself.
 
 Turning the setting off deletes only these collections; nothing else is touched. **Remove all** in the Danger Zone

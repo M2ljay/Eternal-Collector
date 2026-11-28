@@ -123,6 +123,18 @@ class TestGetPlatformsMaterialization:
         assert [p["name"] for p in result["platforms"]] == ["PlayStation 1", "PlayStation 2"]
 
     @pytest.mark.asyncio
+    async def test_lists_the_original_xbox_as_xbox_original(self, plugin, fake_romm_api):
+        _wire_fake(plugin, fake_romm_api)
+        fake_romm_api.platforms = [
+            {"id": 1, "name": "Xbox", "slug": "xbox", "rom_count": 3},
+            {"id": 2, "name": "Xbox 360", "slug": "xbox360", "rom_count": 5},
+        ]
+
+        result = await plugin._sync_service._fetcher.get_platforms()
+
+        assert [p["name"] for p in result["platforms"]] == ["Xbox (Original)", "Xbox 360"]
+
+    @pytest.mark.asyncio
     async def test_excludes_zero_rom_platforms_from_materialized_map(self, plugin, fake_romm_api):
         """A rom_count==0 platform is neither shown nor materialized."""
         _wire_fake(plugin, fake_romm_api)

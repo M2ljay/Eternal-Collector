@@ -15,7 +15,8 @@ The Collector has a page for each console listing its games.
 
 Opening a console shows its games drawn in that console's style — keep cases, jewel cases or cartridges, with the game's
 cover from Steam when it has one. The page is titled with the console's name as RomM gives it, except the original
-PlayStation, which is **PlayStation 1** (RomM calls it just "PlayStation", the family's name).
+PlayStation, which is **PlayStation 1**, and the original Xbox, which is **Xbox (Original)** (RomM calls them just
+"PlayStation" and "Xbox", the families' names).
 
 - **Continue** comes first: the game from this console you played most recently.
 - **All games** follows, alphabetically, in rows of six. Long lists load 100 games at a time; **Show more** at the

@@ -24,6 +24,10 @@ PLATFORM_NAME_OVERRIDES: Final[Mapping[str, str]] = MappingProxyType(
         # universal slug (psx); the PlayStation console family takes that name.
         "ps": "PlayStation 1",
         "psx": "PlayStation 1",
+        # RomM calls the original Xbox "Xbox" (slug xbox, IGDB and universal alike;
+        # xbox360, xboxone and series-x-s are other platforms); the Xbox console
+        # family takes that name.
+        "xbox": "Xbox (Original)",
     }
 )
 """Slug → the name the plugin shows instead of RomM's. Matched on the slug, never the name."""
