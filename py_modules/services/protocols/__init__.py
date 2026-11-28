@@ -77,6 +77,7 @@ from services.protocols.files import (
     DownloadFileStore,
     FirmwareFileStore,
     GameModStore,
+    IconPackStore,
     InstallFileScanner,
     InstallRepairStore,
     MigrationFileStore,
@@ -91,7 +92,6 @@ from services.protocols.files import (
     SgdbArtworkCache,
     SteamRecoveryStore,
     VitaAppLinker,
-    IconPackStore,
     YamlCodec,
 )
 from services.protocols.infra import (

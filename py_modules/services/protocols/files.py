@@ -832,7 +832,7 @@ class IconPackStore(Protocol):
     """Read-only seam over the user's own icon pack (``%APPDATA%\\GamingMode\\icons\\colorgrade``)."""
 
     def read_art(self, parts: tuple[str, ...], limit: int) -> bytes | None:
-        """The file at *parts* under the pack, or ``None`` when there is no pack, no such file, or it exceeds *limit*."""
+        """The file at *parts* under the pack; ``None`` when there is no pack or file, or it exceeds *limit*."""
         ...
 
 
