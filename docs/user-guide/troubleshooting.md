@@ -190,8 +190,8 @@ sync. Re-check the game in RomM (a server database reset re-registers this devic
 
 **Fix**: On Linux, save sync works for RetroArch save files only; games launched with a standalone emulator (PCSX2,
 DuckStation, Dolphin, etc.) are not synced. On Windows with EmuDeck, melonDS, DuckStation, Vita3K, Dolphin, PPSSPP and
-PCSX2 saves sync too ([Windows](windows.md)); when one of those games' saves cannot be synced, its page shows _Saves
-not syncing_ with the reason and how to fix it — for example switching PCSX2's slot 1 to a folder memory card.
+PCSX2 saves sync too ([Windows](windows.md)); when one of those games' saves cannot be synced, its page shows _Saves not
+syncing_ with the reason and how to fix it — for example switching PCSX2's slot 1 to a folder memory card.
 
 Also verify the game actually creates a `.srm` file — some games use in-game passwords instead of battery saves.
 
@@ -275,6 +275,12 @@ The [console shelf](console-shelf.md) sits under Steam's **Recent games** row on
   it, and the plugin log says `Recent games row was not found on Home`; set the log level to **Debug** to also log what
   it saw, and report it. If the row ran into errors three times, it switches itself off until the plugin is reloaded
   (`Home shelf switched off until the plugin reloads` in the log).
+
+### The shelf's tiles show only a family name
+
+The tiles take their artwork from the icon pack in `%APPDATA%\GamingMode\icons\colorgrade\families\` on your PC. A tile
+with only the family's name means that family's folder or its `logo.png` is missing there (the hero alone is not
+enough). Put the files in place and reload the plugin.
 
 ## Shortcuts Appear on Other Devices
 

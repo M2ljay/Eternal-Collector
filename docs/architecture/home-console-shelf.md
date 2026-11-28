@@ -1,34 +1,69 @@
 # The Collector: Home console shelf and console pages
 
-The Collector adds two things to Steam's Big Picture mode: a row of consoles on Home, under Steam's own Recent games
-row, and a page per console listing its games. This page owns how both are built, how the Home row is attached to
+The Collector adds two things to Steam's Big Picture mode: a row of console families on Home, under Steam's own Recent
+games row, and a page per console listing its games. This page owns how both are built, how the Home row is attached to
 Steam's tree, and what keeps a failure from ever breaking Home. The user-facing description is
 [Console Shelf and Console Pages](../user-guide/console-shelf.md).
 
 ## What is drawn
 
-- **Home row** — "The Collector": one portrait capsule per console that has games in Steam, on the lines of Steam's own
-  Recent games row (see [Lining up with Recent games](#lining-up-with-recent-games)). A capsule shows the Steam capsule
-  art of the console's **cover game** — its "Continue" game, else its first game by name (`cover_app_id`) — over a CSS
-  stack of the console's media (DVD keep cases spine-out for PS2, GameCube boxes, jewel cases for CD consoles, SNES and
-  N64 cartridges, small carts for handhelds, a generic keep case for anything else; `src/utils/consoleMedia.ts`), which
-  is what remains visible when the game has no art. A capsule carries no text of its own: the console's name fades in
-  along the bottom only while the capsule has focus, and Home shows **no game count and no "last played" time or date**
-  anywhere (the console page, a separate route, still shows them per game). The focused capsule scales up 5 % with a
-  crimson ring. Colours come from the Core palette in `src/theme/coreTokens.ts` (black, gunmetal, crimson, steel),
-  shared with the QAM panel and the game detail page.
+- **Home row** — "The Collector" (with a cartridge glyph): one wide 16:9 tile per **console family** the library has
+  games in, always in the order PlayStation, Nintendo, Sega, Xbox, Retro (see [Families](#families)). A tile is the
+  family's hero from the user's icon pack at 50% brightness, the family's white logo centred over it (at most 80% of the
+  tile's width and 36% of its height), and a 4px strip in the family tone along the bottom, in a gunmetal card with the
+  float radius (`--core-radius-float`, 10px). Without the pack's art the card is plain gunmetal with the family name in
+  steel. The focused tile lifts 4px with a crimson 3px ring, inside the 16px focus room the scrolling row keeps. Home
+  shows **no game art, no game count and no "last played"**. A opens the family in the Library (see
+  [Opening a family](#opening-a-family)). Colours come from the Core palette in `src/theme/coreTokens.ts`.
 - **Console page** — route `/the-collector/console/:slug`. The console's games in its media style, "Continue" (the most
   recently played game of that console) first, then every other game by name in rows of six, paged 100 at a time with a
   "Show more" button. Each game shows when it was last played, whether it is downloaded, its save-sync chip and its
   RetroAchievements chip. A on a game opens `/library/app/<appId>`, the game page the plugin already owns, so the
   console page never launches anything itself.
 
+## Families
+
+`consoleFamily(platformSlug)` (`src/theme/coreTokens.ts`) puts every RomM platform slug in one of five families, the
+same five as Core's Library tabs and collection tiles: PlayStation, Nintendo (every Nintendo system, Game & Watch and
+Virtual Boy included), Sega, Xbox, and Retro for everything else (arcade, Neo Geo and the Neo Geo Pocket, SNK,
+TurboGrafx / PC Engine, Atari, the home computers). The shelf store derives the families present from the console list
+(`shelfFamilies`), in that fixed order.
+
+### Family art: the icon pack
+
+The art is the user's own ColorGrade icon pack, kept only on their PC at
+`%APPDATA%\GamingMode\icons\colorgrade\families\<family>\{icon,hero,logo}.png` (the folder Core uses too). It has no
+licence for redistribution, so it is never copied into the repository, the release ZIP or the tests; tests use generated
+bytes. `domain/icon_pack.py` holds the layout and the allow-lists (the five families, the three kinds), so nothing the
+frontend sends becomes a path; `adapters/icon_pack_files.py` reads the file under `APPDATA` (taken from the environment
+in `bootstrap/adapters.py`, never a fixed user path) through `safe_join`, refusing anything over 8 MB; with no
+`APPDATA`, no folder or no file it answers `None`. The callable `get_family_art(family, kind)` (`ConsoleShelfService`)
+answers `{success, family, kind, base64}`, `base64` `null` when there is no such art.
+
+The shelf store reads each family's logo, then its hero, once per plugin load, when the family first appears in an
+answer, one file per call (a hero is a 1920×1080 PNG of 2 to 4 MB, so the calls are not run in parallel), and keeps them
+as data URLs. A tile draws nothing over the gunmetal until its logo answer lands, then the art or the name.
+
+The same folder also holds `platforms/<slug>/{icon,hero,logo}.png` for the pack's 83 platforms (EmulationStation names).
+`pack_platform_slug(romm_slug)` in `domain/icon_pack.py` maps a RomM slug to that folder name (`ngc` → `gc`, `dc` →
+`dreamcast`, `arcade` → `mame`, …; `None` where the pack has none, such as PS4 and Xbox 360), and `platform_art_parts`
+gives the path. They are for a later console backdrop; the shelf does not use them.
+
+### Opening a family
+
+A on a family tile (`src/utils/familyNavigation.ts`) opens `/library/collection/<id>` for a Steam collection whose name
+is the family's ("PlayStation", "Nintendo", "Sega", "Xbox", "Retro"; any owner, matched without case, read-only through
+`utils/steamCollectionLookup.ts`). TabMaster's tabs carry the same names but are TabMaster's own state, with no route or
+public API to select one, so they are not reached. Without such a collection, A opens the console page of the family's
+most played console. The lookup runs on the press, never while Home renders.
+
 ## Most played
 
-Consoles are ordered by **recency-weighted play time**: every game's play time counts half as much for each 90 days
-since it was last played (`domain/console_shelf.py`, `HALF_LIFE_DAYS`). A console binged two years ago sinks below one
-played this week. Ties go to the newest last-played instant, then the larger console, then the name; consoles with no
-dated play time come last, by game count. Play time without a last-played instant weighs nothing.
+The console list (and so the fallback console of a family) is ordered by **recency-weighted play time**: every game's
+play time counts half as much for each 90 days since it was last played (`domain/console_shelf.py`, `HALF_LIFE_DAYS`). A
+console binged two years ago sinks below one played this week. Ties go to the newest last-played instant, then the
+larger console, then the name; consoles with no dated play time come last, by game count. Play time without a
+last-played instant weighs nothing.
 
 The inputs are the plugin's own `rom_playtime` rows, already reconciled with RomM's play sessions. Steam's playtime
 fields on the shortcuts are written from the same rows, so they are not read. Play time recorded under an unbound
@@ -46,13 +81,13 @@ Everything the Home row and the console page show is read from this device's own
 | Save-sync chip        | `rom_save_sync_states` through `compute_save_sync_display`, the same cached display the game page shows before its live check       |
 | Downloaded            | `rom_installs`                                                                                                                      |
 | Achievements chip     | the achievement snapshot (`rom_achievement_progress`), see below                                                                    |
-| Home capsule game     | `cover_app_id`: the shortcut of the console's first game in console-page order                                                      |
+| Home families         | the consoles' platform slugs through `consoleFamily`; the art from the user's icon pack (above)                                     |
 | Cover art             | Steam's own capsule URLs for the shortcut (`src/utils/steamCapsuleArt.ts`, below); the title is printed on the case when none loads |
 
 ### Cover art
 
-The Home capsules and the console page's cases load exactly what Steam's library shows for the shortcut, from Steam's
-`appStore`, tried in order (`capsuleArtSources`):
+The console page's cases load exactly what Steam's library shows for the shortcut, from Steam's `appStore`, tried in
+order (`capsuleArtSources`):
 
 1. `appStore.GetCustomVerticalCapsuleURLs(overview)` — the custom grid art with the `?v=<rt_custom_image_mtime>`
    cache-buster Steam's own capsules carry. The plugin's cover lands there through `SetCustomArtworkForApp`.
@@ -125,7 +160,7 @@ load, the shelf measures it:
 
 - **left inset** — the left edge of the row's first image, from the row's own left edge;
 - **capsule height and gap** — the median height of the row's portrait images (ratio 1.2 to 1.8) and the smallest gap
-  between them; the shelf's capsules take that height at a 2:3 ratio;
+  between them; the shelf's family tiles are 82% of that height (the board's 170 to Steam's 206) at 16:9;
 - **vertical rhythm** — the space above the row's title (or its capsules), between title and capsules, and under the
   capsules;
 - **title type** — font family, size, weight, line height, letter spacing and case of the row's title, which is the
@@ -133,15 +168,15 @@ load, the shelf measures it:
 
 The numbers go into CSS variables on the shelf's own section (`--tc-inset`, `--tc-capsule-h`, …). Measuring reads
 bounding boxes and computed styles only and writes nothing to Steam's elements. When nothing can be measured (no
-portrait image found, or an exception) the shelf uses its own fallback geometry, a 240 px 2:3 capsule with a 24 px
+portrait image found, or an exception) the shelf uses its own fallback geometry, a 240 px capsule height with a 24 px
 inset, and `data-geometry="fallback"` on the section says so. Copying Steam's classes was not taken: they are hashed per
 build, and Steam's carousel sizes its tiles in JavaScript, so a class carries neither a stable name nor the size. The
 shelf no longer relies on a CSS Loader theme for its spacing.
 
-Focus follows Steam's: the capsules sit in a `Focusable` with `flow-children="row"`, so the D-pad moves down from Recent
-games into the row and on to the next row. A focused capsule scrolls to the nearest edge, kept clear of the inset by
+Focus follows Steam's: the tiles sit in a `Focusable` with `flow-children="row"`, so the D-pad moves down from Recent
+games into the row and on to the next row. A focused tile scrolls to the nearest edge, kept clear of the inset by
 `scroll-padding-inline`, and the scrolling row carries 16 px of padding (given back by a negative margin) so the focus
-ring and scale are not clipped.
+ring and lift are not clipped.
 
 ### Roads not taken
 
@@ -192,4 +227,7 @@ matchers and the descent depth are adjusted from.
 | `src/utils/consoleShelfStore.ts`                | The Home row's store and its refresh triggers                  |
 | `src/utils/steamCapsuleArt.ts`                  | The capsule art URLs Steam's library uses for a shortcut       |
 | `src/utils/steamRowGeometry.ts`                 | Measures Steam's Recent games row for the shelf's geometry     |
-| `src/components/collector/`                     | Row, tile, media stacks, console page, game cases, stylesheet  |
+| `src/components/collector/`                     | Row, family tile, console page, game cases, stylesheet         |
+| `py_modules/domain/icon_pack.py`                | The icon pack's layout, allow-lists and platform slug mapping  |
+| `py_modules/adapters/icon_pack_files.py`        | Reads the pack under `%APPDATA%` (read only)                   |
+| `src/utils/familyNavigation.ts`                 | Where A on a family tile goes                                  |
