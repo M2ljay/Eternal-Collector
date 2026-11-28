@@ -101,6 +101,8 @@ describe("LibrarySection", () => {
         yieldedCollections={[]}
         installedCollection={true}
         onInstalledCollectionChange={vi.fn()}
+        familyCollections={true}
+        onFamilyCollectionsChange={vi.fn()}
         raWarning={true}
         onRaWarningChange={vi.fn()}
       />,
@@ -126,6 +128,8 @@ describe("LibrarySection", () => {
         yieldedCollections={[]}
         installedCollection={true}
         onInstalledCollectionChange={vi.fn()}
+        familyCollections={true}
+        onFamilyCollectionsChange={vi.fn()}
         raWarning={true}
         onRaWarningChange={vi.fn()}
       />,
@@ -149,6 +153,8 @@ describe("LibrarySection", () => {
         yieldedCollections={[]}
         installedCollection={true}
         onInstalledCollectionChange={vi.fn()}
+        familyCollections={true}
+        onFamilyCollectionsChange={vi.fn()}
         raWarning={true}
         onRaWarningChange={vi.fn()}
       />,
@@ -174,6 +180,8 @@ describe("LibrarySection", () => {
         yieldedCollections={[]}
         installedCollection={true}
         onInstalledCollectionChange={vi.fn()}
+        familyCollections={true}
+        onFamilyCollectionsChange={vi.fn()}
         raWarning={true}
         onRaWarningChange={vi.fn()}
       />,
@@ -197,6 +205,8 @@ describe("LibrarySection", () => {
         yieldedCollections={[]}
         installedCollection={true}
         onInstalledCollectionChange={vi.fn()}
+        familyCollections={true}
+        onFamilyCollectionsChange={vi.fn()}
         raWarning={true}
         onRaWarningChange={vi.fn()}
       />,
@@ -224,6 +234,8 @@ describe("LibrarySection", () => {
         yieldedCollections={[]}
         installedCollection={true}
         onInstalledCollectionChange={vi.fn()}
+        familyCollections={true}
+        onFamilyCollectionsChange={vi.fn()}
         raWarning={true}
         onRaWarningChange={vi.fn()}
       />,
@@ -251,6 +263,8 @@ describe("LibrarySection", () => {
         yieldedCollections={[]}
         installedCollection={true}
         onInstalledCollectionChange={vi.fn()}
+        familyCollections={true}
+        onFamilyCollectionsChange={vi.fn()}
         raWarning={true}
         onRaWarningChange={vi.fn()}
       />,
@@ -277,6 +291,8 @@ describe("LibrarySection", () => {
         yieldedCollections={[]}
         installedCollection={true}
         onInstalledCollectionChange={vi.fn()}
+        familyCollections={true}
+        onFamilyCollectionsChange={vi.fn()}
         raWarning={true}
         onRaWarningChange={vi.fn()}
       />,
@@ -303,6 +319,8 @@ describe("LibrarySection", () => {
         yieldedCollections={[]}
         installedCollection={true}
         onInstalledCollectionChange={vi.fn()}
+        familyCollections={true}
+        onFamilyCollectionsChange={vi.fn()}
         raWarning={true}
         onRaWarningChange={vi.fn()}
       />,
@@ -331,6 +349,8 @@ describe("LibrarySection", () => {
         yieldedCollections={[]}
         installedCollection={true}
         onInstalledCollectionChange={vi.fn()}
+        familyCollections={true}
+        onFamilyCollectionsChange={vi.fn()}
         raWarning={true}
         onRaWarningChange={vi.fn()}
       />,
@@ -359,6 +379,8 @@ describe("LibrarySection", () => {
         yieldedCollections={[]}
         installedCollection={true}
         onInstalledCollectionChange={vi.fn()}
+        familyCollections={true}
+        onFamilyCollectionsChange={vi.fn()}
         raWarning={true}
         onRaWarningChange={onChange}
       />,
@@ -390,6 +412,8 @@ describe("LibrarySection", () => {
         yieldedCollections={yieldedCollections}
         installedCollection={true}
         onInstalledCollectionChange={vi.fn()}
+        familyCollections={true}
+        onFamilyCollectionsChange={vi.fn()}
         raWarning={true}
         onRaWarningChange={vi.fn()}
       />,
@@ -448,6 +472,8 @@ describe("LibrarySection", () => {
         yieldedCollections={[]}
         installedCollection={true}
         onInstalledCollectionChange={onChange}
+        familyCollections={true}
+        onFamilyCollectionsChange={vi.fn()}
         raWarning={true}
         onRaWarningChange={vi.fn()}
       />,

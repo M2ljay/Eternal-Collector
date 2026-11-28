@@ -11,6 +11,7 @@
 import {
   finishSteamCollectionAdoption,
   forgetOwnedSteamCollection,
+  getFamilyCollectionGames,
   getInstalledRomAppIds,
   getOwnedSteamCollections,
   logError,
@@ -20,6 +21,8 @@ import {
 } from "../api/backend";
 import { isRomMAppId } from "../patches/gameDetailPatch";
 import type { CollectionNameStyle, OwnedSteamCollection, SteamCollectionFamily } from "../types";
+import { consoleFamily, FAMILY_NAMES, FAMILY_ORDER, type ConsoleFamily } from "../theme/coreTokens";
+import { familyOfSource, setFamilyCollections } from "./familyCollections";
 
 let _hostname = "";
 
@@ -148,6 +151,7 @@ async function loadOwnership(): Promise<Ownership | null> {
       byId.set(record.collection_id, record);
       byKey.set(sourceKey(record.family, record.source_name), record);
     }
+    setFamilyCollections(answer.collections);
     return {
       style: answer.name_style === "clean" ? "clean" : "classic",
       adoptionDone: answer.adoption_done,
@@ -191,6 +195,7 @@ async function record(
   if (previous && previous.collection_id !== collectionId) ownership.byId.delete(previous.collection_id);
   ownership.byId.set(collectionId, entry);
   ownership.byKey.set(key, entry);
+  setFamilyCollections([...ownership.byId.values()]);
   return true;
 }
 
@@ -207,6 +212,7 @@ async function forget(ownership: Ownership, owned: OwnedSteamCollection): Promis
   }
   ownership.byId.delete(owned.collection_id);
   ownership.byKey.delete(sourceKey(owned.family, owned.source_name));
+  setFamilyCollections([...ownership.byId.values()]);
 }
 
 /**
@@ -422,14 +428,15 @@ async function reconcileSource(
 
 /**
  * Delete the recorded platform and RomM collections a sync no longer has a
- * source for. The installed collection is not a sync source, so it never
- * reads as stale here; its own reconcile and the setting decide its life.
+ * source for. The installed and console-family collections are not sync
+ * sources, so they never read as stale here; their own reconcile and their
+ * settings decide their life.
  */
 async function removeStaleOwned(ownership: Ownership, sources: Source[], signal?: AbortSignal): Promise<void> {
   const active = new Set(sources.map((s) => sourceKey(s.family, s.name)));
   for (const owned of [...ownership.byId.values()]) {
     if (signal?.aborted) return;
-    if (owned.family === "installed") continue;
+    if (owned.family === "installed" || owned.family === "console_family") continue;
     if (active.has(sourceKey(owned.family, owned.source_name))) continue;
     logInfo(`Removing stale collection "${owned.display_name}"`);
     await deleteOwned(ownership, owned, signal);
@@ -603,13 +610,80 @@ async function reconcileInstalled(options: InstalledReconcileOptions): Promise<v
   }
 }
 
+/** The ROM shortcuts of each console family present, in shelf order, with the family's collection name. */
+export function familySources(games: readonly { app_id: number; platform_slug: string }[]): Source[] {
+  const byFamily = new Map<ConsoleFamily, number[]>();
+  for (const game of games) {
+    const family = consoleFamily(game.platform_slug);
+    byFamily.set(family, [...(byFamily.get(family) ?? []), game.app_id]);
+  }
+  return FAMILY_ORDER.filter((f) => byFamily.has(f)).map((f) => ({
+    family: "console_family" as const,
+    name: FAMILY_NAMES[f],
+    appIds: byFamily.get(f) ?? [],
+  }));
+}
+
+async function reconcileFamilies(options: InstalledReconcileOptions): Promise<void> {
+  const { signal } = options;
+  try {
+    if (typeof collectionStore === "undefined") {
+      logWarn("collectionStore not available, skipping the console family collections");
+      return;
+    }
+    const answer = await getFamilyCollectionGames();
+    if (!answer.success) {
+      logWarn(`Family collections left alone: the ROM shortcuts could not be read (${answer.message ?? ""})`);
+      return;
+    }
+    const ownership = await loadOwnership();
+    if (!ownership || signal?.aborted) return;
+    const recorded = [...ownership.byId.values()].filter((o) => o.family === "console_family");
+    const sources = answer.enabled ? familySources(answer.games) : [];
+    const wanted = new Set(sources.map((s) => sourceKey(s.family, s.name)));
+    for (const owned of recorded) {
+      if (signal?.aborted) return;
+      if (wanted.has(sourceKey(owned.family, owned.source_name)) && familyOfSource(owned.source_name)) continue;
+      logInfo(
+        answer.enabled
+          ? `No ${owned.source_name} games any more, deleting "${owned.display_name}"`
+          : `The family collections are switched off, deleting "${owned.display_name}"`,
+      );
+      await deleteOwned(ownership, owned, signal);
+    }
+    if (sources.length === 0) return;
+    if (options.waitForSteam) await waitForStore(recorded[0]?.collection_id, signal);
+    const reserved = new Set<string>();
+    for (const source of sources) {
+      if (signal?.aborted) return;
+      try {
+        await reconcileSource(ownership, source, reserved, signal);
+      } catch (e) {
+        logError(`Failed to save the ${source.name} family collection: ${e}`);
+      }
+    }
+  } catch (e) {
+    logError(`Failed to update the console family collections: ${e}`);
+  }
+}
+
 /**
  * Make the plugin's installed collection hold exactly the shortcuts whose ROM
- * is installed on this device, or delete it (through the record) when the
- * setting is off. Writes only the recorded collection, like every source.
+ * is installed on this device, and each console-family collection exactly the
+ * family's ROM shortcuts; delete them (through the record) when their setting is
+ * off, and a family's when it has no games. Writes only recorded collections,
+ * like every source.
  */
 export function reconcileInstalledRomsCollection(options: InstalledReconcileOptions = {}): Promise<void> {
-  return serialized(() => reconcileInstalled(options));
+  return serialized(async () => {
+    await reconcileInstalled(options);
+    await reconcileFamilies(options);
+  });
+}
+
+/** The console-family collections alone, for their setting. */
+export function reconcileFamilyCollections(options: InstalledReconcileOptions = {}): Promise<void> {
+  return serialized(() => reconcileFamilies(options));
 }
 
 const INSTALLED_UPDATE_DEBOUNCE_MS = 750;

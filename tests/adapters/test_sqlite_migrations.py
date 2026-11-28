@@ -84,8 +84,9 @@ def _set_user_version(db_path: str, version: int) -> None:
 # + 023_add_rom_install_launchable + 024_emulator_override_per_backend
 # + 025_add_selected_exe + 026_add_rom_savestate_sync_states
 # + 027_add_rom_achievement_progress + 028_add_owned_steam_collections
-# + 029_add_ra_game_journals + 030_allow_installed_steam_collection).
-_SHIPPED_VERSION = 30
+# + 029_add_ra_game_journals + 030_allow_installed_steam_collection
+# + 031_allow_console_family_steam_collections).
+_SHIPPED_VERSION = 31
 
 # Tables after every shipped migration: the v1 set plus 006's play-session outbox,
 # 012's per-platform completion stamp, 019's per-collection completion stamp, and
@@ -1992,3 +1993,50 @@ class Test029AddRaGameJournals:
 def test_shipped_migrations_dir_resolves_to_real_schema():
     """The default MIGRATIONS_DIR points at the shipped 001_initial.sql."""
     assert (Path(MIGRATIONS_DIR) / "001_initial.sql").is_file()
+
+
+class Test031AllowConsoleFamilySteamCollections:
+    """031 — owned_steam_collections accepts the "console_family" family; rows carry over."""
+
+    _INSERT = Test028AddOwnedSteamCollections._INSERT
+
+    def test_existing_records_survive_the_rebuild(self, tmp_path: Path):
+        db_path = str(tmp_path / "romm_sync.db")
+        apply_migrations(db_path, str(_only_migrations_through(tmp_path, 30)))
+        conn = sqlite3.connect(db_path, isolation_level=None)
+        try:
+            conn.execute(self._INSERT, ("uc-1", "platform", "Arcade", "arcade", "Arcade", None))
+            conn.execute(self._INSERT, ("uc-2", "installed", "Installed ROMs", "installed roms", "Installed ROMs", None))
+            with pytest.raises(sqlite3.IntegrityError):
+                conn.execute(self._INSERT, ("uc-3", "console_family", "Sega", "sega", "Sega", None))
+        finally:
+            conn.close()
+
+        assert apply_migrations(db_path) == _SHIPPED_VERSION
+
+        conn = sqlite3.connect(db_path)
+        try:
+            rows = conn.execute(
+                "SELECT collection_id, family, source_name, source_key, display_name, yielded_to "
+                "FROM owned_steam_collections ORDER BY collection_id"
+            ).fetchall()
+            assert rows == [
+                ("uc-1", "platform", "Arcade", "arcade", "Arcade", None),
+                ("uc-2", "installed", "Installed ROMs", "installed roms", "Installed ROMs", None),
+            ]
+        finally:
+            conn.close()
+
+    def test_family_collections_and_constraints_kept(self, tmp_path: Path):
+        db_path = str(tmp_path / "romm_sync.db")
+        apply_migrations(db_path)
+        conn = sqlite3.connect(db_path, isolation_level=None)
+        try:
+            conn.execute(self._INSERT, ("uc-1", "console_family", "Sega", "sega", "Sega (RomM)", "Sega"))
+            conn.execute(self._INSERT, ("uc-2", "platform", "Sega", "sega", "Sega", None))
+            with pytest.raises(sqlite3.IntegrityError):
+                conn.execute(self._INSERT, ("uc-3", "console_family", "SEGA", "sega", "x", None))
+            with pytest.raises(sqlite3.IntegrityError):
+                conn.execute(self._INSERT, ("uc-4", "handheld", "x", "x", "x", None))
+        finally:
+            conn.close()

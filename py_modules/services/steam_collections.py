@@ -20,6 +20,7 @@ if TYPE_CHECKING:
 
 NAME_STYLE_SETTING: Final = "collection_name_style"
 INSTALLED_COLLECTION_SETTING: Final = "installed_roms_collection"
+FAMILY_COLLECTIONS_SETTING: Final = "family_collections"
 NAME_STYLES: Final[tuple[str, ...]] = ("classic", "clean")
 DEFAULT_NAME_STYLE: Final = "classic"
 
@@ -40,8 +41,8 @@ class SteamCollectionOwnershipServiceConfig:
 
     Holds the SQLite Unit-of-Work factory (``owned_steam_collections`` and the
     ``kv_config`` adoption marker, plus reads of ``roms`` and ``rom_installs`` for
-    the installed collection), the live settings dict (the name style and the
-    installed-collection toggle), and the debug logger.
+    the installed and console-family collections), the live settings dict (the name
+    style and the two collection toggles), and the debug logger.
     """
 
     uow_factory: UnitOfWorkFactory
@@ -89,6 +90,29 @@ class SteamCollectionOwnershipService:
             "success": True,
             "enabled": bool(self._settings.get(INSTALLED_COLLECTION_SETTING, True)),
             "app_ids": app_ids,
+        }
+
+    def get_family_collection_games(self) -> dict[str, Any]:
+        """Every ROM shortcut with its platform, for the console-family collections.
+
+        One entry per ROM bound to a shortcut (``{app_id, platform_slug}``); the
+        frontend groups them into PlayStation, Nintendo, Sega, Xbox and Retro with the
+        same mapping the Home shelf uses. ``enabled`` is the "Keep console family
+        collections" setting, on unless switched off.
+        """
+        with self._uow_factory() as uow:
+            games = sorted(
+                (
+                    {"app_id": rom.shortcut_app_id, "platform_slug": rom.platform_slug}
+                    for rom in uow.roms.iter_all()
+                    if rom.shortcut_app_id is not None
+                ),
+                key=lambda g: g["app_id"],
+            )
+        return {
+            "success": True,
+            "enabled": bool(self._settings.get(FAMILY_COLLECTIONS_SETTING, True)),
+            "games": games,
         }
 
     def record_owned_steam_collection(

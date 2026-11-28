@@ -88,6 +88,9 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     # filters that need installed ROMs apart from the other shortcuts (Steam
     # counts every non-Steam shortcut as installed).
     "installed_roms_collection": True,
+    # Keep one owned Steam collection per console family (PlayStation, Nintendo,
+    # Sega, Xbox, Retro) of the ROM shortcuts, for the Home shelf and TabMaster.
+    "family_collections": True,
     "preferred_region": "auto",
     # Warn once per launch when the emulator's RetroAchievements is off, signed
     # out, or (PCSX2) failed to log in.

@@ -97,6 +97,7 @@ export interface PluginSettings {
   // Keep a Steam collection of the ROMs installed on this device. Optional:
   // older payloads may omit it, treated as on.
   installed_roms_collection?: boolean;
+  family_collections?: boolean;
   // Preferred sibling-group region (ADR-0021 §3). "auto" = the fixed build-time
   // default order (World > USA > Europe > Japan); any other value heads the
   // ranking with that region on the next sync. Optional: the backend always

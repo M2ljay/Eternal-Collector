@@ -131,6 +131,34 @@ class TestInstalledRomAppIds:
         assert record.family == "installed"
 
 
+class TestFamilyCollectionGames:
+    def test_lists_every_rom_shortcut_with_its_platform(self, service, uow):
+        with uow:
+            uow.roms.save(_rom(2))
+            uow.roms.save(_rom(1))
+            uow.roms.save(_rom(3, bound=False))
+        assert service.get_family_collection_games() == {
+            "success": True,
+            "enabled": True,
+            "games": [{"app_id": 5001, "platform_slug": "snes"}, {"app_id": 5002, "platform_slug": "snes"}],
+        }
+
+    def test_an_empty_library_has_no_games(self, service):
+        assert service.get_family_collection_games()["games"] == []
+
+    def test_reports_the_setting(self, service, settings):
+        settings["family_collections"] = False
+        assert service.get_family_collection_games()["enabled"] is False
+
+    def test_the_console_family_family_can_be_recorded(self, service, uow):
+        assert service.record_owned_steam_collection("uc-7", "console_family", "Sega", "Sega (RomM)", "Sega") == {
+            "success": True
+        }
+        record = uow.owned_steam_collections.get("uc-7")
+        assert record is not None
+        assert (record.family, record.display_name, record.yielded_to) == ("console_family", "Sega (RomM)", "Sega")
+
+
 class TestRecord:
     def test_records_and_logs(self, service, uow, logs):
         result = service.record_owned_steam_collection("uc-1", "romm", "Favourites", "Favourites (RomM)", "Favourites")

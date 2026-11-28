@@ -583,6 +583,22 @@ class TestSaveInstalledRomsCollection:
         assert settings["installed_roms_collection"] is True
 
 
+class TestSaveFamilyCollections:
+    def test_on_by_default(self, service):
+        assert service.get_settings()["family_collections"] is True
+
+    def test_disables(self, service, settings, settings_persister):
+        assert service.save_family_collections(False) == {"success": True}
+        assert settings["family_collections"] is False
+        assert service.get_settings()["family_collections"] is False
+        settings_persister.save_settings.assert_called_once_with()
+
+    def test_enables_and_coerces(self, service, settings):
+        settings["family_collections"] = False
+        service.save_family_collections(1)  # type: ignore[arg-type]
+        assert settings["family_collections"] is True
+
+
 class TestSetCollectionOwnerScope:
     @pytest.mark.parametrize("scope", ["own", "all"])
     def test_valid_scopes_persist(self, service, settings, settings_persister, scope):

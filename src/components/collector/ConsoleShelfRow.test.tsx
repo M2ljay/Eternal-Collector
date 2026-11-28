@@ -4,6 +4,7 @@ import { navigate } from "../../test-utils/collectorUiMock";
 import { ConsoleShelfRow, SHELF_TITLE } from "./ConsoleShelfRow";
 import { getConsoleShelf, getFamilyArt } from "../../api/backend";
 import { refreshConsoleShelf, resetConsoleShelfStore, setHomeShelfEnabled } from "../../utils/consoleShelfStore";
+import { resetFamilyCollections, setFamilyCollections } from "../../utils/familyCollections";
 import type { ShelfConsole } from "../../types";
 
 vi.mock("@decky/ui", async () => (await import("../../test-utils/collectorUiMock")).collectorUiMock());
@@ -45,6 +46,7 @@ async function load(list: ShelfConsole[], enabled = true) {
 
 beforeEach(() => {
   resetConsoleShelfStore();
+  resetFamilyCollections();
   navigate.mockReset();
   packArt([]);
 });
@@ -159,20 +161,30 @@ describe("ConsoleShelfRow", () => {
     expect(css).toMatch(/\.tc-shelf__row\{[^}]*scroll-padding-inline:max\(var\(--tc-inset\),8px\)/);
   });
 
-  it("A opens the Library collection named after the family when there is one", async () => {
+  it("A opens the family's collection the plugin keeps, found by its record and never by its name", async () => {
     vi.stubGlobal("collectionStore", {
       userCollections: [
-        { id: "uc-1", displayName: "PS2" },
-        { id: "uc-7", displayName: "playstation" },
+        { id: "uc-user", displayName: "PlayStation" },
+        { id: "uc-7", displayName: "PlayStation (RomM)" },
       ],
     });
+    setFamilyCollections([{ family: "console_family", source_name: "PlayStation", collection_id: "uc-7" }]);
     render(<ConsoleShelfRow />);
     await load(consoles);
     fireEvent.click(screen.getByLabelText("PlayStation"));
     expect(navigate).toHaveBeenCalledWith("/library/collection/uc-7");
   });
 
-  it("A opens the console page of the family's most played console when there is no such collection", async () => {
+  it("falls back to the console page when the recorded collection is gone from Steam", async () => {
+    vi.stubGlobal("collectionStore", { userCollections: [{ id: "uc-user", displayName: "PlayStation" }] });
+    setFamilyCollections([{ family: "console_family", source_name: "PlayStation", collection_id: "uc-7" }]);
+    render(<ConsoleShelfRow />);
+    await load(consoles);
+    fireEvent.click(screen.getByLabelText("PlayStation"));
+    expect(navigate).toHaveBeenCalledWith("/the-collector/console/ps2");
+  });
+
+  it("A opens the console page of the family's most played console when the plugin keeps no family collection", async () => {
     render(<ConsoleShelfRow />);
     await load(consoles);
     fireEvent.click(screen.getByLabelText("PlayStation"));

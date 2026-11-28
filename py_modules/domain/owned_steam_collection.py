@@ -24,8 +24,8 @@ from typing import Final, Literal
 
 from domain._aggregate import cosmic_aggregate
 
-CollectionFamily = Literal["platform", "romm", "installed"]
-COLLECTION_FAMILIES: Final[tuple[str, ...]] = ("platform", "romm", "installed")
+CollectionFamily = Literal["platform", "romm", "installed", "console_family"]
+COLLECTION_FAMILIES: Final[tuple[str, ...]] = ("platform", "romm", "installed", "console_family")
 
 # kv_config key set once a completed sync has brought this device's pre-record
 # collections under the record. Absent means the one-time adoption is still due.

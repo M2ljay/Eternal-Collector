@@ -34,9 +34,14 @@ interface LibrarySectionProps {
   yieldedCollections: OwnedSteamCollection[];
   installedCollection: boolean;
   onInstalledCollectionChange: (enabled: boolean) => void;
+  familyCollections: boolean;
+  onFamilyCollectionsChange: (enabled: boolean) => void;
   raWarning: boolean;
   onRaWarningChange: (enabled: boolean) => void;
 }
+
+export const FAMILY_COLLECTIONS_DESCRIPTION =
+  "One Steam collection each for PlayStation, Nintendo, Sega, Xbox and Retro, holding your ROM shortcuts of that family. The Collector's Home row opens them, and TabMaster can show them as tabs. Turning this off removes only these collections.";
 
 // The internal sentinel for "no preference — use the fixed build-time order".
 export const AUTO_REGION = "auto";
@@ -99,6 +104,8 @@ export const LibrarySection: FC<LibrarySectionProps> = ({
   yieldedCollections,
   installedCollection,
   onInstalledCollectionChange,
+  familyCollections,
+  onFamilyCollectionsChange,
   raWarning,
   onRaWarningChange,
 }) => {
@@ -155,6 +162,14 @@ export const LibrarySection: FC<LibrarySectionProps> = ({
           description={INSTALLED_COLLECTION_DESCRIPTION}
           checked={installedCollection}
           onChange={onInstalledCollectionChange}
+        />
+      </PanelSectionRow>
+      <PanelSectionRow>
+        <ToggleField
+          label="Keep console family collections"
+          description={FAMILY_COLLECTIONS_DESCRIPTION}
+          checked={familyCollections}
+          onChange={onFamilyCollectionsChange}
         />
       </PanelSectionRow>
       <PanelSectionRow>

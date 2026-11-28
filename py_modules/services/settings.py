@@ -111,6 +111,7 @@ class SettingsService:
             "collection_naming_mode": self._settings.get("collection_naming_mode", "merge"),
             "collection_name_style": self._settings.get("collection_name_style", "classic"),
             "installed_roms_collection": self._settings.get("installed_roms_collection", True),
+            "family_collections": self._settings.get("family_collections", True),
             "preferred_region": self._settings.get("preferred_region", AUTO_REGION),
             "retroachievements_warning": self._settings.get("retroachievements_warning", True),
             "collector_home_shelf": self._settings.get("collector_home_shelf", True),
@@ -271,6 +272,12 @@ class SettingsService:
     def save_installed_roms_collection(self, enabled: bool) -> dict[str, Any]:
         """Persist whether the plugin keeps a Steam collection of the ROMs installed on this device."""
         self._settings["installed_roms_collection"] = bool(enabled)
+        self._settings_persister.save_settings()
+        return {"success": True}
+
+    def save_family_collections(self, enabled: bool) -> dict[str, Any]:
+        """Persist whether the plugin keeps one Steam collection per console family."""
+        self._settings["family_collections"] = bool(enabled)
         self._settings_persister.save_settings()
         return {"success": True}
 

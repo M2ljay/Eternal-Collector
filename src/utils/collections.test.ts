@@ -6,7 +6,10 @@ import {
   reconcileInstalledRomsCollection,
   requestInstalledRomsCollectionUpdate,
   watchInstalledRomsCollection,
+  reconcileFamilyCollections,
+  familySources,
 } from "./collections";
+import { familyCollectionId, resetFamilyCollections } from "./familyCollections";
 import type { OwnedSteamCollection } from "../types";
 
 // The real module pulls in @decky/ui + the route patch; only RomM-shortcut
@@ -27,6 +30,8 @@ const backend = vi.hoisted(() => ({
   installedEnabled: true,
   installedAppIds: [] as number[],
   installedReadFails: false,
+  familyEnabled: true,
+  familyGames: [] as { app_id: number; platform_slug: string }[],
 }));
 vi.mock("../api/backend", () => ({
   logInfo: vi.fn(),
@@ -47,7 +52,7 @@ vi.mock("../api/backend", () => ({
   recordOwnedSteamCollection: vi.fn(
     (
       collection_id: string,
-      family: "platform" | "romm" | "installed",
+      family: "platform" | "romm" | "installed" | "console_family",
       source_name: string,
       display_name: string,
       yielded_to,
@@ -72,6 +77,13 @@ vi.mock("../api/backend", () => ({
         ? { success: false, enabled: false, app_ids: [], reason: "boom", message: "boom" }
         : { success: true, enabled: backend.installedEnabled, app_ids: [...backend.installedAppIds] },
     ),
+  ),
+  getFamilyCollectionGames: vi.fn(() =>
+    Promise.resolve({
+      success: true,
+      enabled: backend.familyEnabled,
+      games: backend.familyGames.map((g) => ({ ...g })),
+    }),
   ),
   finishSteamCollectionAdoption: vi.fn(() => {
     backend.adoptionDone = true;
@@ -167,7 +179,7 @@ let store: FakeStore;
 
 function own(
   collection: FakeCollection,
-  family: "platform" | "romm" | "installed",
+  family: "platform" | "romm" | "installed" | "console_family",
   source: string,
   yieldedTo: string | null = null,
 ) {
@@ -180,7 +192,10 @@ function own(
   });
 }
 
-function recordFor(family: "platform" | "romm" | "installed", source: string): OwnedSteamCollection | undefined {
+function recordFor(
+  family: "platform" | "romm" | "installed" | "console_family",
+  source: string,
+): OwnedSteamCollection | undefined {
   return backend.records.find((r) => r.family === family && r.source_name.toLowerCase() === source.toLowerCase());
 }
 
@@ -202,6 +217,9 @@ beforeEach(() => {
   backend.installedEnabled = true;
   backend.installedAppIds = [];
   backend.installedReadFails = false;
+  backend.familyEnabled = true;
+  backend.familyGames = [];
+  resetFamilyCollections();
   rommAppIds.clear();
   [1, 2, 3, 4, 5].forEach((id) => rommAppIds.add(id));
   store = new FakeStore();
@@ -743,6 +761,127 @@ describe("reconcileInstalledRomsCollection", () => {
       expect(store.names()).toEqual(["Installed ROMs"]);
       expect(recordFor("installed", "Installed ROMs")?.collection_id).toBe(store.named("Installed ROMs")?.id);
     });
+  });
+});
+
+describe("console family collections", () => {
+  const game = (app_id: number, platform_slug: string) => ({ app_id, platform_slug });
+
+  beforeEach(() => {
+    vi.spyOn(navigator, "userAgent", "get").mockReturnValue(WINDOWS_UA);
+  });
+
+  it("groups ROM shortcuts into the five families in shelf order, Retro catching the rest", () => {
+    expect(
+      familySources([game(1, "snes"), game(2, "arcade"), game(3, "psx"), game(4, "virtualboy"), game(5, "tg16")]),
+    ).toEqual([
+      { family: "console_family", name: "PlayStation", appIds: [3] },
+      { family: "console_family", name: "Nintendo", appIds: [1, 4] },
+      { family: "console_family", name: "Retro", appIds: [2, 5] },
+    ]);
+  });
+
+  it("keeps one recorded collection per family with games, filled with exactly its shortcuts", async () => {
+    backend.familyGames = [game(1, "snes"), game(2, "n64"), game(3, "dc")];
+
+    await reconcileFamilyCollections();
+
+    expect(store.names()).toEqual(["Nintendo", "Sega"]);
+    expect(appIdsOf(store.named("Nintendo"))).toEqual([1, 2]);
+    expect(appIdsOf(store.named("Sega"))).toEqual([3]);
+    expect(recordFor("console_family", "Nintendo")?.collection_id).toBe(store.named("Nintendo")?.id);
+    expect(familyCollectionId("sega")).toBe(store.named("Sega")?.id);
+  });
+
+  it("runs with the installed collection on every install change and sync pass", async () => {
+    backend.familyGames = [game(1, "xbox")];
+    await reconcileInstalledRomsCollection();
+    expect(store.names()).toEqual(["Installed ROMs", "Xbox"]);
+  });
+
+  it("never merges into the user's own collection of a family name; its own gets the (RomM) suffix", async () => {
+    const users = store.add("Sega", [42]);
+    backend.familyGames = [game(1, "genesis-slash-megadrive")];
+
+    await reconcileFamilyCollections();
+
+    expect(appIdsOf(users)).toEqual([42]);
+    expect(users.Save).not.toHaveBeenCalled();
+    expect(appIdsOf(store.named("Sega (RomM)"))).toEqual([1]);
+    expect(recordFor("console_family", "Sega")).toMatchObject({ display_name: "Sega (RomM)", yielded_to: "Sega" });
+  });
+
+  it("empties out a family: its recorded collection is deleted and forgotten, a user's collection is not", async () => {
+    const owned = store.add("Xbox", [1]);
+    own(owned, "console_family", "Xbox");
+    const users = store.add("Xbox (mine)", [1]);
+    backend.familyGames = [game(2, "psx")];
+
+    await reconcileFamilyCollections();
+
+    expect(owned.Delete).toHaveBeenCalledTimes(1);
+    expect(users.Delete).not.toHaveBeenCalled();
+    expect(recordFor("console_family", "Xbox")).toBeUndefined();
+    expect(store.names()).toEqual(["PlayStation", "Xbox (mine)"]);
+    expect(familyCollectionId("xbox")).toBeNull();
+  });
+
+  it("a family with no games and no record gets no collection", async () => {
+    backend.familyGames = [];
+    await reconcileFamilyCollections();
+    expect(store.collections).toEqual([]);
+    expect(backend.records).toEqual([]);
+  });
+
+  it("switched off, deletes only the recorded family collections, never a same-named one of the user's", async () => {
+    const owned = store.add("Nintendo (RomM)", [1]);
+    own(owned, "console_family", "Nintendo", "Nintendo");
+    const users = store.add("Nintendo", [1]);
+    const platform = store.add("SNES", [1]);
+    own(platform, "platform", "SNES");
+    backend.familyEnabled = false;
+    backend.familyGames = [game(1, "snes")];
+
+    await reconcileFamilyCollections();
+
+    expect(owned.Delete).toHaveBeenCalledTimes(1);
+    expect(users.Delete).not.toHaveBeenCalled();
+    expect(platform.Delete).not.toHaveBeenCalled();
+    expect(store.names()).toEqual(["Nintendo", "SNES"]);
+    expect(backend.records.map((r) => r.family)).toEqual(["platform"]);
+  });
+
+  it("a sync's stale cleanup never deletes a family collection", async () => {
+    const owned = store.add("Retro", [1]);
+    own(owned, "console_family", "Retro");
+
+    await sync({ "Nintendo 64": [1] });
+
+    expect(owned.Delete).not.toHaveBeenCalled();
+    expect(recordFor("console_family", "Retro")).toBeDefined();
+  });
+
+  it("Remove all clears the family collections through their records", async () => {
+    const owned = store.add("PlayStation", [1]);
+    own(owned, "console_family", "PlayStation");
+    const users = store.add("Nintendo", [1]);
+
+    await clearAllRomMCollections();
+
+    expect(owned.Delete).toHaveBeenCalled();
+    expect(users.Delete).not.toHaveBeenCalled();
+    expect(backend.records).toEqual([]);
+  });
+
+  it("learns the family collections from the record on any read, for the Home shelf", async () => {
+    const owned = store.add("Sega", [1]);
+    own(owned, "console_family", "Sega");
+    backend.familyGames = [game(1, "dc")];
+
+    await reconcileInstalledRomsCollection();
+
+    expect(familyCollectionId("sega")).toBe(owned.id);
+    expect(familyCollectionId("nintendo")).toBeNull();
   });
 });
 
