@@ -15,9 +15,13 @@ no logo), and a transparent play bar sits along the bottom above the footer. Mea
 `utils/corePageStyles.ts`): an 80px play bar over a 40px footer, so Steam's `TopCapsule` is `100vh - 120px` tall and the
 play bar row is 120px with 40px of bottom padding. Nothing else is drawn over the art.
 
-**Screen two**, one D-pad press down from the play bar, is black with the stars: the platform and The Collector chips,
-the tab row and the active tab's content. Focus entering it from above scrolls it to the top (`scrollToScreenTwo`); Y
-(`onOptionsButton`) scrolls back and puts focus on the play button (`scrollToScreenOne`).
+**Screen two**, one D-pad press down from the play bar, is the Core page: black with the stars, the platform chip, the
+tab row and the active tab's content (no "The Collector" chip; Core's Steam pages carry none either). The page moves a
+whole screen at a time, never part-way (`utils/scrollHelpers.ts`): focus entering screen two from the play bar puts it
+at the top of the view (`scrollToScreenTwo`), focus coming back up into the play bar puts the page back at screen one
+(`snapToScreenOne`, a `focusin` listener on the play bar), and Y (`onOptionsButton`) does the same and focuses the play
+button (`scrollToScreenOne`). Each jump is instant and made once more on the next animation frame, because Steam scrolls
+a newly focused element into view itself (animated, to the nearest edge), which is what left the page half-scrolled.
 
 ### The play bar
 
@@ -45,7 +49,7 @@ that holds `RomMPlaySection` and `RomMGameInfoPanel`. Steam keeps drawing the he
 
 | Part           | Module                                                  | Owns                                                                             |
 | -------------- | ------------------------------------------------------- | -------------------------------------------------------------------------------- |
-| Chips          | `components/RomPageChips.tsx`                           | Platform chip (family tone) and The Collector chip at the top of screen two      |
+| Chips          | `components/RomPageChips.tsx`                           | The platform chip (family tone) at the top of screen two                         |
 | Play bar       | `components/RomMPlaySection.tsx`, `CustomPlayButton`    | Play/Download states, pickers, meta cells, the square buttons                    |
 | Tabs           | `components/PanelTabBar.tsx`                            | Overview, Achievements, extension tabs, Saves, Media, Details, BIOS              |
 | Overview cards | `components/RomOverviewCards.tsx`, `GamePageExtensions` | RetroAchievements (order 10) and Save sync (30) among registered cards, by order |
@@ -53,21 +57,21 @@ that holds `RomMPlaySection` and `RomMGameInfoPanel`. Steam keeps drawing the he
 | Core styles    | `utils/corePageStyles.ts`                               | The one stylesheet for the Core page                                             |
 | Family tones   | `theme/coreTokens.ts` (`consoleFamily`, `familyTones`)  | RomM platform slug to PlayStation / Nintendo / Sega / Xbox / retro               |
 
-The two-screen layout, the chips and the play bar's square buttons render only under the Windows look (`nativeLook()`),
-where the wrapper is also the Core page (`.romm-core-page`). The tabs, cards and panes are the same on every platform;
-the Steam Deck keeps its older play row.
+The two-screen layout, the chip and the play bar's square buttons render only under the Windows look (`nativeLook()`),
+where the wrapper is the game view (`.romm-game-view`) and the info panel's screen-two root is the Core page
+(`.romm-core-page`). The tabs, cards and panes are the same on every platform; the Steam Deck keeps its older play row.
 
 ## The Core page's styles
 
 `ensureCorePageStyles()` injects one stylesheet into Big Picture's document the first time a ROM page renders. Every
-rule is scoped under `.romm-core-page`; the ones that reach Steam's header go through
-`InnerContainer:has(>
-.romm-core-page)`, so a Steam game page is never touched:
+rule is scoped under `.romm-game-view`; the ones that reach Steam's header go through
+`InnerContainer:has(> .romm-game-view)`, so a Steam game page is never touched:
 
 - `InnerContainer` is black; `TopCapsule` is screen one's height; `HeaderBackgroundImage` is `100vh`, so the art runs
   under the transparent play bar; `ImgSrc` is cover and dimmed; `TopGradient` is cleared; `BoxSizer` (the logo) is
   locked bottom-left.
-- The wrapper is transparent for its first 120px (the play bar) and black below.
+- The game view is transparent for its first 120px (the play bar) and black below; the Core page (screen two) has a
+  black `background-color` of its own.
 - Tabs carry one crimson underline (an inset shadow, so it never shifts the row); a focused tab is gunmetal.
 - Cards are gunmetal with `var(--core-radius-float, 10px)`; focus is gunmetal raised plus a crimson outline, no glow.
 
@@ -75,15 +79,18 @@ A class map Steam renames leaves its rule out; the rest still applies.
 
 ### Stars
 
-Core UI's design rule is that a black surface gets the Core Starfield. Core UI attaches its animated canvas only to the
-surfaces in its own host list, which does not include this page yet. Until it does, the wrapper's first child
-(`.romm-core-stars`, from the end of screen one down) paints a still, seeded field (`starfieldSvg`, no star above 24%
-opacity, Core UI's ceiling) and shows only under `html[data-core-ui]`. Without Core UI the page is plain black. When
-Core UI takes the page as a host it sets `data-core-ui-host="1"` on it, and the still field steps aside.
+Core UI's design rule is that a black surface gets the Core Starfield. Core UI (3.3.7 and later) lists `.romm-core-page`
+as a host from another plugin ("collector-rom-page", CORE-UI.md "Hosts from other plugins"): while Core UI is on, it
+sets `data-core-ui-host="1"` on the element and puts its animated canvas first inside it, covering the part on screen.
+Two things on this side keep that contract: the Core page is screen two only, so it holds no art and the stars never
+reach the hero; and it keeps a painted, non-transparent `background-color`, which is how Core tells the plugin still
+draws the page (a transparent page is treated as left behind). While Core UI is on but has not attached (an older Core),
+a still, seeded field (`.romm-core-stars`, `starfieldSvg`, no star above 24% opacity) shows instead; without Core UI the
+page is plain black.
 
 ## Rules kept
 
-- **ROM identity.** The play bar renders from the play section's `useGameDetail` state; the chips and the Overview cards
+- **ROM identity.** The play bar renders from the play section's `useGameDetail` state; the chip and the Overview cards
   render from the panel's state (`raId`, `achievements`, `saveSyncEnabled`, `saveStatus`, `conflicts`) and read nothing
   themselves. `achievements` is written only alongside `raId`, at the two identity writes (`loadData` and the version
   switch), so a switch re-renders the cards with the switched-to version's answers. Card and tab presses only set

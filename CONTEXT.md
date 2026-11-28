@@ -413,11 +413,12 @@ mod backup first.
 
 ### Core page
 
-The **Core page** is a ROM's game page drawn in the Core design on Windows (`.romm-core-page`,
+The **Core page** is a ROM's game page drawn in the Core design on Windows (`.romm-game-view`,
 `utils/corePageStyles.ts`), laid out like Steam's own game page under Core. **Screen one** is the hero art filling the
-view, the locked logo and the transparent play bar; **screen two**, one scroll down, is black with the chips (a platform
-chip in its **family tone**: PlayStation, Nintendo, Sega, Xbox, or retro for the rest), the tabs and the Overview's
-cards. Its stars are Core UI's: shown only while Core UI is on.
+view, the locked logo and the transparent play bar; **screen two**, one scroll down, is the Core page proper
+(`.romm-core-page`, the Starfield host Core UI knows): black, with the platform chip in its **family tone**
+(PlayStation, Nintendo, Sega, Xbox, or retro for the rest), the tabs and the Overview's cards. The page moves a whole
+screen at a time. Its stars are Core UI's: shown only while Core UI is on.
 
 ### Game page extension / mods bridge
 

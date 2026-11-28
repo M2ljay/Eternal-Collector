@@ -59,7 +59,7 @@ afterEach(() => {
  * landscape hero, then portrait capsules) with The Collector inserted right after
  * it, then another Steam row. Every box is given by `data-rect="left,top,width,height"`.
  */
-function SteamHome({ withTitle = true }: { withTitle?: boolean }) {
+function SteamHome({ withTitle = true, artHero = false }: { withTitle?: boolean; artHero?: boolean }) {
   return (
     <div className="steam-home">
       <div className="steam-recents" data-rect="0,100,1920,400">
@@ -69,6 +69,7 @@ function SteamHome({ withTitle = true }: { withTitle?: boolean }) {
           </div>
         )}
         <div className="steam-carousel">
+          {artHero ? <img alt="" data-rect="0,0,1920,700" /> : null}
           <img alt="" data-rect="48,160,560,300" />
           <img alt="" data-rect="624,160,200,300" />
           <img alt="" data-rect="840,160,200,300" />
@@ -154,7 +155,8 @@ describe("ConsoleShelfRow", () => {
       /\.tc-family\.tc-focus \.tc-family__card[^{]*\{\s*transform:translateY\(-4px\);box-shadow:0 0 0 3px #D7263D\}/,
     );
     expect(css).toMatch(/\.tc-family__card\{[^}]*border-radius:var\(--core-radius-float,10px\)/);
-    expect(css).toMatch(/\.tc-shelf__row\{[^}]*padding:16px var\(--tc-inset\)/);
+    expect(css).toMatch(/\.tc-shelf__row\{[^}]*padding:16px max\(var\(--tc-inset\),8px\)/);
+    expect(css).toMatch(/\.tc-shelf__row\{[^}]*scroll-padding-inline:max\(var\(--tc-inset\),8px\)/);
   });
 
   it("A opens the Library collection named after the family when there is one", async () => {
@@ -208,6 +210,14 @@ describe("ConsoleShelfRow on Steam's Home", () => {
     expect(style.getPropertyValue("--tc-title-size")).toBe("26px");
     expect(style.getPropertyValue("--tc-title-weight")).toBe("700");
     expect(style.getPropertyValue("--tc-title-tt")).toBe("uppercase");
+  });
+
+  it("lines up with Steam's content, not with full-bleed art under Core's Art Hero Home", async () => {
+    stubBoxes();
+    render(<SteamHome artHero />);
+    await load(consoles);
+    expect(document.querySelector(".tc-shelf")?.previousElementSibling).toHaveClass("steam-recents");
+    expect(shelfStyle().getPropertyValue("--tc-inset")).toBe("48px");
   });
 
   it("borrows the title type from a later Steam row when Recent games has no title", async () => {

@@ -280,18 +280,20 @@ export const RomMGameInfoPanel: FC<RomMGameInfoPanelProps> = ({ appId }) => {
 
   if (!corePage) return <div data-romm="true">{body}</div>;
 
-  // Screen two of the Core page: entering it from the play bar brings it to the
-  // top of the view, and Y goes back to screen one.
+  // Screen two is the Core page (`.romm-core-page`, the Starfield host Core UI
+  // knows): entering it from the play bar snaps it to the top of the view, and Y
+  // snaps back to screen one.
   return (
     <div
       data-romm="true"
-      className="romm-core-below"
+      className="romm-core-page romm-core-below"
       ref={belowRef}
       onFocusCapture={(e) => {
         const root = belowRef.current;
         if (root && !(e.relatedTarget instanceof Node && root.contains(e.relatedTarget))) scrollToScreenTwo(root);
       }}
     >
+      <div className="romm-core-stars" aria-hidden="true" />
       <Focusable
         flow-children="down"
         onOptionsButton={() => {

@@ -11,7 +11,7 @@ import { routerHook } from "@decky/api";
 import { afterPatch, findInReactTree, createReactTreePatcher } from "@decky/ui";
 import { appDetailsClasses, missingDeckyUiLookups } from "../utils/deckyUiInternals";
 import { nativeLook } from "../utils/nativeLook";
-import { CORE_PAGE_CLASS } from "../utils/corePageStyles";
+import { GAME_VIEW_CLASS } from "../utils/corePageStyles";
 import { RomMPlaySection } from "../components/RomMPlaySection";
 import { RomMGameInfoPanel } from "../components/RomMGameInfoPanel";
 import { debugLog, logWarn } from "../api/backend";
@@ -76,16 +76,16 @@ export function findNativeOverviewIndex(children: any[]): number {
  * The element put in place of Steam's overview panel. It carries the native
  * panel's class so it takes part in InnerContainer's flex layout and scroll
  * system the way the native panel does. Under the Windows look it is also the
- * Core page (`utils/corePageStyles.ts`), with the still-starfield layer first.
+ * game view (`utils/corePageStyles.ts`): screen one's play bar, then screen two,
+ * the black Core page the info panel draws.
  */
 export function rommPageWrapper(appId: number, panelClass: string, corePage: boolean) {
   return (
     <div
       key="romm-play-section"
-      className={corePage ? `${panelClass} ${CORE_PAGE_CLASS}`.trim() : panelClass}
+      className={corePage ? `${panelClass} ${GAME_VIEW_CLASS}`.trim() : panelClass}
       data-romm="true"
     >
-      {corePage ? <div className="romm-core-stars" aria-hidden="true" /> : null}
       <RomMPlaySection key="romm-play-section" appId={appId} />
       <RomMGameInfoPanel key="romm-info-panel" appId={appId} />
     </div>

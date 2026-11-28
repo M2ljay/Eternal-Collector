@@ -148,24 +148,41 @@ export function scrollElementToTop(el: HTMLElement | null): void {
 
 /**
  * The Core game page's two screens: screen one is the art and the play bar
- * (`.romm-core-playbar`, which reaches down to the footer), screen two
- * everything after it. Scrolls the page's scroll parent so screen two starts at
- * the top of the view.
+ * (`.romm-core-playbar`, which reaches down to the footer), screen two everything
+ * after it. Each move lands on a screen at once, never part-way: Steam scrolls a
+ * newly focused element into view by itself (nearest edge, animated), so the jump
+ * is made instantly and made again on the next frame, after Steam's own.
  */
-export function scrollToScreenTwo(from: HTMLElement): void {
-  const bar = from.closest(".romm-core-page")?.querySelector<HTMLElement>(".romm-core-playbar");
-  if (!bar) return;
+function snap(bar: HTMLElement, top: (parent: HTMLElement) => number): void {
   const parent = findOutermostScrollParent(bar);
   if (!parent) return;
-  const top = parent.scrollTop + bar.getBoundingClientRect().bottom - parent.getBoundingClientRect().top;
-  parent.scrollTo({ top, behavior: "smooth" });
+  const jump = () => parent.scrollTo({ top: top(parent), behavior: "instant" });
+  jump();
+  const view = parent.ownerDocument.defaultView;
+  view?.requestAnimationFrame(jump);
 }
 
-/** Back to screen one: the page scrolled to the top and focus on the play button. */
-export function scrollToScreenOne(from: HTMLElement): void {
-  const page = from.closest(".romm-core-page");
-  const bar = page?.querySelector<HTMLElement>(".romm-core-playbar");
+function playBarOf(from: HTMLElement): HTMLElement | null {
+  return from.closest(".romm-game-view")?.querySelector<HTMLElement>(".romm-core-playbar") ?? null;
+}
+
+/** Screen two at the top of the view: the page scrolled to just under the play bar and footer. */
+export function scrollToScreenTwo(from: HTMLElement): void {
+  const bar = playBarOf(from);
   if (!bar) return;
-  findOutermostScrollParent(bar)?.scrollTo({ top: 0, behavior: "smooth" });
+  snap(bar, (parent) => parent.scrollTop + bar.getBoundingClientRect().bottom - parent.getBoundingClientRect().top);
+}
+
+/** Screen one: the page scrolled to the top, focus left where it is. */
+export function snapToScreenOne(from: HTMLElement): void {
+  const bar = playBarOf(from);
+  if (bar) snap(bar, () => 0);
+}
+
+/** Back to screen one with focus on the play button (Y on screen two). */
+export function scrollToScreenOne(from: HTMLElement): void {
+  const bar = playBarOf(from);
+  if (!bar) return;
+  snap(bar, () => 0);
   bar.querySelector<HTMLElement>(".romm-native-play, .romm-btn-play, .romm-btn-download, button")?.focus();
 }

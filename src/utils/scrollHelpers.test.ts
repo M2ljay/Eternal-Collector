@@ -8,6 +8,7 @@ import {
   scrollElementToTop,
   scrollToScreenOne,
   scrollToScreenTwo,
+  snapToScreenOne,
 } from "./scrollHelpers";
 
 /**
@@ -363,7 +364,7 @@ describe("the Core page's two screens", () => {
     scroller.scrollTop = 0;
     scroller.scrollTo = vi.fn() as unknown as typeof scroller.scrollTo;
     const wrapper = makeElement({});
-    wrapper.className = "romm-core-page";
+    wrapper.className = "romm-game-view";
     const bar = makeElement({ rect: { top: 638, height: 120 } });
     bar.className = "romm-core-playbar";
     const play = document.createElement("div");
@@ -379,14 +380,24 @@ describe("the Core page's two screens", () => {
   it("brings screen two (everything after the play bar and the footer under it) to the top", () => {
     const { scroller, below } = page();
     scrollToScreenTwo(below);
-    expect(scroller.scrollTo).toHaveBeenCalledWith({ top: 758, behavior: "smooth" });
+    expect(scroller.scrollTo).toHaveBeenCalledWith({ top: 758, behavior: "instant" });
   });
 
   it("goes back to screen one with focus on the play button", () => {
     const { scroller, below, play } = page();
     scrollToScreenOne(below);
-    expect(scroller.scrollTo).toHaveBeenCalledWith({ top: 0, behavior: "smooth" });
+    expect(scroller.scrollTo).toHaveBeenCalledWith({ top: 0, behavior: "instant" });
     expect(document.activeElement).toBe(play);
+  });
+
+  it("lands on a screen at once and again after Steam's own focus scroll, never part-way", async () => {
+    const { scroller, bar } = page();
+    snapToScreenOne(bar);
+    expect(scroller.scrollTo).toHaveBeenCalledTimes(1);
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+    expect(scroller.scrollTo).toHaveBeenCalledTimes(2);
+    for (const call of vi.mocked(scroller.scrollTo).mock.calls)
+      expect(call[0]).toEqual({ top: 0, behavior: "instant" });
   });
 
   it("does nothing outside a Core page", () => {

@@ -10,7 +10,7 @@
  * Save Sync and BIOS items only appear when relevant.
  */
 
-import { useState, useEffect, FC, Fragment, type ReactElement } from "react";
+import { useState, useEffect, useRef, FC, Fragment, type ReactElement } from "react";
 import { showToast } from "../utils/toast";
 import { ConfirmModal, Focusable, Menu, MenuItem, MenuSeparator, showContextMenu, showModal } from "@decky/ui";
 import { basicAppDetailsSectionStylerClasses, playSectionClasses } from "../utils/deckyUiInternals";
@@ -29,7 +29,7 @@ import { applyCaseArt } from "../utils/caseArt";
 import { CaseArtPickerModalContent } from "./CaseArtPickerModal";
 import { hasAnySaveConflict } from "../utils/saveStatus";
 import { saveSyncToastBody } from "../utils/saveSyncToast";
-import { scrollToScreenTwo, scrollToTop } from "../utils/scrollHelpers";
+import { scrollToScreenTwo, scrollToTop, snapToScreenOne } from "../utils/scrollHelpers";
 import { getEventTarget } from "../utils/events";
 import {
   testConnection,
@@ -191,6 +191,18 @@ export const RomMPlaySection: FC<RomMPlaySectionProps> = ({ appId }) => { // NOS
   // save sync, BIOS, core selection — comes from the per-appId store, which owns
   // the reads and the romm_data_changed fold for all of them (#993).
   const detail = useGameDetail(appId);
+  // Core page: focus arriving on the play bar from screen two snaps back to
+  // screen one (its buttons' own scrollToTop is animated, and lands part-way).
+  const playBarRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    const bar = playBarRef.current;
+    if (!bar) return;
+    const onFocusIn = (e: FocusEvent) => {
+      if (!(e.relatedTarget instanceof Node && bar.contains(e.relatedTarget))) snapToScreenOne(bar);
+    };
+    bar.addEventListener("focusin", onFocusIn);
+    return () => bar.removeEventListener("focusin", onFocusIn);
+  });
   const [playtimeInfo, setPlaytimeInfo] = useState<PlaytimeState>({
     lastPlayed: initialLastPlayed,
     restoredLastPlayed: null,
@@ -1015,6 +1027,7 @@ export const RomMPlaySection: FC<RomMPlaySectionProps> = ({ appId }) => { // NOS
   const playSectionRow = nativeLook() ? (
     <Focusable
       key="play-row"
+      ref={playBarRef}
       data-romm="true"
       className={joinCls(
         "romm-play-section-row",

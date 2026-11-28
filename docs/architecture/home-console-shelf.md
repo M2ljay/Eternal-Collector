@@ -166,6 +166,9 @@ load, the shelf measures it:
 - **title type** — font family, size, weight, line height, letter spacing and case of the row's title, which is the
   first short text before its first image; when Recent games has no title, the same is read from the next rows on Home.
 
+An image at least 60% as wide as the row is not counted for the inset: under Core's Art Hero Home the focused game's art
+spreads across the whole row from its left edge, and it says nothing about where Steam's content starts.
+
 The numbers go into CSS variables on the shelf's own section (`--tc-inset`, `--tc-capsule-h`, …). Measuring reads
 bounding boxes and computed styles only and writes nothing to Steam's elements. When nothing can be measured (no
 portrait image found, or an exception) the shelf uses its own fallback geometry, a 240 px capsule height with a 24 px
@@ -175,8 +178,10 @@ shelf no longer relies on a CSS Loader theme for its spacing.
 
 Focus follows Steam's: the tiles sit in a `Focusable` with `flow-children="row"`, so the D-pad moves down from Recent
 games into the row and on to the next row. A focused tile scrolls to the nearest edge, kept clear of the inset by
-`scroll-padding-inline`, and the scrolling row carries 16 px of padding (given back by a negative margin) so the focus
-ring and lift are not clipped.
+`scroll-padding-inline`, and the scrolling row carries 16 px of padding top and bottom (given back by a negative margin)
+so the lift and the ring are not clipped. At the ends the row's padding is the inset, but never under 8 px
+(`max(var(--tc-inset), 8px)`), so the first and last tiles' 3 px ring always has room inside the row even when the
+measured inset is 0.
 
 ### Roads not taken
 
@@ -203,7 +208,10 @@ ring and lift are not clipped.
    render time and by the row itself, so switching it off takes effect at once.
 6. `onDismount` removes the route patch, the console page route and the store's listeners; a plugin reload or uninstall
    restores Steam's Home.
-7. No Steam class names are used: the stylesheet is the plugin's own, `tc-` prefixed, rendered by the row and the page
+7. The row sits after Recent games whatever Home's layout around it: Core's Art Hero Home (the focused game's art
+   filling the first screen, the shelves and Home's tabs below on black with stars) keeps Steam's Recent games section,
+   which is what the matchers find.
+8. No Steam class names are used: the stylesheet is the plugin's own, `tc-` prefixed, rendered by the row and the page
    themselves. Steam's row geometry is read from its rendered boxes, never by writing to them.
 
 ### Diagnostics

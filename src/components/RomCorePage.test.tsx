@@ -7,7 +7,7 @@ import { ExtensionOverviewCards } from "./GamePageExtensions";
 import { RomMediaTab } from "./RomMediaTab";
 import { SaveSyncIcon } from "./icons";
 import { consoleFamily, core, familyTones } from "../theme/coreTokens";
-import { corePageCss, starfieldSvg, CORE_PAGE_CLASS, GAME_VIEW } from "../utils/corePageStyles";
+import { corePageCss, starfieldSvg, CORE_PAGE_CLASS, GAME_VIEW, GAME_VIEW_CLASS } from "../utils/corePageStyles";
 import type { SaveStatus } from "../types";
 
 function status(display?: "synced" | "pending" | "conflict" | "none"): SaveStatus {
@@ -37,20 +37,19 @@ describe("consoleFamily", () => {
 });
 
 describe("RomPageChips", () => {
-  it("shows the platform chip in its family tone and The Collector chip", () => {
+  it("shows the platform chip in its family tone, and no The Collector chip", () => {
     const { container } = render(<RomPageChips platformName="Super Nintendo" platformSlug="snes" />);
     const chip = container.querySelector<HTMLElement>(".romm-core-chip-tone")!;
     expect(chip.textContent).toBe("Super Nintendo");
     expect(chip.dataset.coreFamily).toBe("nintendo");
     expect(chip.style.background.toLowerCase()).toBe(familyTones.nintendo.toLowerCase());
     expect(chip.style.color.toLowerCase()).toBe(core.black.toLowerCase());
-    expect(container.textContent).toContain("The Collector");
+    expect(container.textContent).not.toContain("The Collector");
   });
 
-  it("leaves the platform chip out until the platform is known", () => {
+  it("draws nothing until the platform is known", () => {
     const { container } = render(<RomPageChips platformName="" platformSlug="" />);
-    expect(container.querySelector(".romm-core-chip-tone")).toBeNull();
-    expect(container.textContent).toBe("The Collector");
+    expect(container).toBeEmptyDOMElement();
   });
 });
 
@@ -187,13 +186,19 @@ describe("corePageCss", () => {
     expect(css).toContain(`html[data-core-ui] .${CORE_PAGE_CLASS}:not([data-core-ui-host="1"]) > .romm-core-stars`);
   });
 
+  it("keeps screen two, the Core UI host, painted black and holding no art", () => {
+    const css = corePageCss();
+    expect(css).toMatch(new RegExp(`\\.${CORE_PAGE_CLASS} \\{[^}]*background-color: #000000`));
+    expect(css).toMatch(/\.romm-core-stars \{[^}]*top: 0;/);
+  });
+
   it("scopes every rule to the ROM page", () => {
     const rules = corePageCss()
       .split("\n")
       .map((line) => line.trim())
       .filter((line) => line.includes("{"));
     for (const rule of rules) {
-      expect(rule.includes(`.${CORE_PAGE_CLASS}`)).toBe(true);
+      expect(rule.includes(`.${GAME_VIEW_CLASS}`) || rule.includes(`.${CORE_PAGE_CLASS}`)).toBe(true);
     }
   });
 

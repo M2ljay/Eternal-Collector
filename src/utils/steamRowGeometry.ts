@@ -134,7 +134,9 @@ export function measureRecentsRow(row: Element, later: Element[] = []): RowGeome
     .filter((g) => g >= 0 && g < capsuleWidth);
   const gap = gaps.length > 0 ? Math.round(Math.min(...gaps)) : FALLBACK_GEOMETRY.gap;
 
-  const visible = images.filter((b) => b.left >= rowBox.left - 0.5);
+  // Full-bleed art (Core's Art Hero Home spreads the focused game's art across the
+  // row) starts at the row's edge and says nothing about where the content starts.
+  const visible = images.filter((b) => b.left >= rowBox.left - 0.5 && b.width < rowBox.width * 0.6);
   const firstLeft = Math.min(...(visible.length > 0 ? visible : capsules).map((b) => b.left));
   const inset = Math.max(0, Math.round(firstLeft - rowBox.left));
 

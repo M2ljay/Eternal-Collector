@@ -62,9 +62,10 @@ On Windows a ROM's page is laid out like a Steam game page under Core (after the
 
 **Screen two** is one press of the D-pad down from the play bar. It is black (with stars when Core UI is on) and holds
 the platform chip in its console family's colour (PlayStation blue, Nintendo rose, Sega teal, Xbox green, everything
-else violet), a **The Collector** chip, the tabs, and the Overview's cards in a grid (RetroAchievements, Forge's Mods
-card, Save sync, and a Club card when Core adds one). Press **Y** to go back to the top. Warnings about save sync appear
-at the top of screen two.
+else violet), the tabs, and the Overview's cards in a grid (RetroAchievements, Forge's Mods card, Save sync, and a Club
+card when Core adds one). The page always moves a whole screen at a time: down from the play bar lands on screen two
+with the tabs at the top, and up from the tabs (or **Y** anywhere on screen two) goes straight back to screen one.
+Warnings about save sync appear at the top of screen two.
 
 With Core UI off, or without Core, screen two is plain black and everything works the same.
 

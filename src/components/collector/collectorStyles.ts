@@ -16,15 +16,18 @@ import { core } from "../../theme/coreTokens";
 
 /** Room inside the scrolling row for the focus ring and scale, given back by a negative margin. */
 const FOCUS_ROOM = 16;
+/** The least room at either end of the row for a tile's 3px ring, even when Steam's inset measures 0. */
+const EDGE_ROOM = 8;
 
 export const COLLECTOR_CSS = `
 .tc-shelf{--tc-inset:24px;--tc-capsule-h:240px;--tc-gap:12px;--tc-pad-top:12px;--tc-title-gap:12px;--tc-pad-bottom:24px;
   box-sizing:border-box;padding:var(--tc-pad-top) 0 var(--tc-pad-bottom);color:${core.steel};min-width:0}
-.tc-shelf__title{display:flex;align-items:center;gap:10px;margin:0 var(--tc-inset) var(--tc-title-gap);color:${core.white};font-family:var(--tc-title-font,inherit);
+.tc-shelf__title{display:flex;align-items:center;gap:10px;margin:0 max(var(--tc-inset),${EDGE_ROOM}px) var(--tc-title-gap);color:${core.white};font-family:var(--tc-title-font,inherit);
   font-size:var(--tc-title-size,20px);font-weight:var(--tc-title-weight,600);line-height:var(--tc-title-lh,1.3);
   letter-spacing:var(--tc-title-ls,normal);text-transform:var(--tc-title-tt,none)}
 .tc-shelf__row{display:flex;gap:var(--tc-gap);overflow-x:auto;overflow-y:hidden;box-sizing:border-box;
-  padding:${FOCUS_ROOM}px var(--tc-inset);margin:-${FOCUS_ROOM}px 0;scroll-padding-inline:var(--tc-inset);scrollbar-width:none}
+  padding:${FOCUS_ROOM}px max(var(--tc-inset),${EDGE_ROOM}px);margin:-${FOCUS_ROOM}px 0;
+  scroll-padding-inline:max(var(--tc-inset),${EDGE_ROOM}px);scrollbar-width:none}
 .tc-shelf__row::-webkit-scrollbar{display:none}
 
 .tc-family{flex:0 0 auto;height:calc(var(--tc-capsule-h) * .82);aspect-ratio:16/9;cursor:pointer;outline:none}
