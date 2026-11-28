@@ -414,9 +414,10 @@ mod backup first.
 ### Core page
 
 The **Core page** is a ROM's game page drawn in the Core design on Windows (`.romm-core-page`,
-`utils/corePageStyles.ts`): hero art fading to black, a header with the name and a platform chip in its **family tone**
-(the console family's colour: PlayStation, Nintendo, Sega, Xbox, or retro for the rest), a glass play bar, and the
-Overview's cards. Its stars are Core UI's: shown only while Core UI is on.
+`utils/corePageStyles.ts`), laid out like Steam's own game page under Core. **Screen one** is the hero art filling the
+view, the locked logo and the transparent play bar; **screen two**, one scroll down, is black with the chips (a platform
+chip in its **family tone**: PlayStation, Nintendo, Sega, Xbox, or retro for the rest), the tabs and the Overview's
+cards. Its stars are Core UI's: shown only while Core UI is on.
 
 ### Game page extension / mods bridge
 

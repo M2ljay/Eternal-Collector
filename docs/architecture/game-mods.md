@@ -284,9 +284,10 @@ type RomPageContext = {
   registration order. Labels are shown as the extension gives them (Title Case, like the built-in tabs); a tab between
   Achievements and Saves, where the Core board puts Mods, takes an order from 21 to 29. An extension tab that
   unregisters or stops being available while open leaves the page on the Overview.
-- **Overview cards** render on the Overview only, in one grid after The Collector's own RetroAchievements and Save sync
-  cards, in `order`. Each sits in a gunmetal tile with the float radius; a card's own control can call
-  `ctx.openTab("forge.mods")` to open its tab.
+- **Overview cards** render on the Overview only, in one grid with The Collector's own cards, by `order`:
+  RetroAchievements is 10 and Save sync 30, so a Mods card at 20 sits between them and a Club card at 40 after them.
+  Each sits in a gunmetal tile with the float radius; a card's own control can call `ctx.openTab("forge.mods")` to open
+  its tab.
 - **Isolation.** Every extension renders inside its own error boundary, keyed by extension, registration and ROM: a
   throw from `render` (or from a component it returns) hides that extension and is written to the plugin log, and the
   page and every other extension carry on. A throwing `isAvailable` counts as unavailable; a throwing `label` shows the

@@ -8,8 +8,8 @@ Loader for Windows (Playhub), launching games through EmuDeck for Windows instea
 - **Launcher.** Shortcuts run `bin\rom-launcher.exe`. It starts the emulator EmuDeck uses for the system directly (not
   through EmuDeck's PowerShell launcher scripts, which run a `git pull` and EmuDeck Cloud Sync on every launch), and
   brings Big Picture back to the front when the emulator exits. Each launch is logged to `bin\rom-launcher.log`.
-- **Game page.** A ROM's page is drawn in the Core design, like a Steam game page under Core: hero art fading to black,
-  the name and chips over it, a translucent play bar with a crimson Play, and Overview cards in a grid. See
+- **Game page.** A ROM's page is laid out like a Steam game page under Core: the first screen is the art, the logo and a
+  see-through play bar; the chips, tabs and Overview cards are one scroll down. See
   [The Core design](managing-games.md#the-core-design-windows).
 - **Quitting a game.** Quit with Steam's **Exit Game**. The launcher is the process Steam starts and watches, and it
   stays up exactly as long as the emulator does — including anything the emulator starts on its own — so Steam shows the

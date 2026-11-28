@@ -43,23 +43,30 @@ A plugin such as Forge can add its own tab (Mods) and Overview cards. Pressing a
 ### The options button
 
 The cog in the play bar opens **Options**: Refresh Artwork, Refresh Metadata, Sync Save Files, Download BIOS, Choose
-artwork…, Steam properties…, Delete Local Saves and Uninstall. The chip button next to it (only when the system has more
-than one emulator) picks the emulator or core.
+artwork…, Steam properties…, Delete Local Saves and Uninstall. The chip button (only when the system has more than one
+emulator) picks the emulator or core.
 
 ### The Core design (Windows)
 
-On Windows the page looks like a Steam game page under Core:
+On Windows a ROM's page is laid out like a Steam game page under Core (after the Clean Gameview theme), in two screens.
 
-- The game's hero art at the top fades into black, and the page below it is black.
-- Over the bottom of the art: the game's name, a platform chip in its console family's colour (PlayStation blue,
-  Nintendo rose, Sega teal, Xbox green, everything else violet), a **The Collector** chip, and the last-played and
-  playtime line.
-- A translucent play bar: a crimson **Play** (white ring when selected), the emulator and core with Installed or Not
-  installed, then the options, emulator and Mods buttons.
-- The Overview's cards sit in a grid with rounded corners; selected cards, tabs and buttons are gunmetal with a crimson
-  edge.
-- When Core UI is on, stars show behind the black page. With Core UI off, or without Core, the page is plain black and
-  everything works the same.
+**Screen one is for the art.** The game's hero art fills the screen, dimmed a little, with the logo at the bottom left
+(or the game's name, when there is no logo). Along the bottom, above Steam's button hints, a see-through play bar holds:
+
+- **Play**, in crimson (a white ring shows when it is selected), or the Download button and its progress;
+- **LAST PLAYED**, **PLAY TIME** and **EMULATOR** (the emulator or core the game starts with);
+- square buttons on the right: the emulator picker (when the system has more than one), Mods (unless Forge's Mods tab is
+  there), **save sync** (a cloud: a tick when synced, an arrow when waiting, crimson when there is a conflict, crossed
+  out when save sync is off; it opens the Saves tab), **controller layout** (Steam's controller configurator for the
+  game) and **options** (the cog). The **≡** (Start) button opens the options from anywhere on the play bar.
+
+**Screen two** is one press of the D-pad down from the play bar. It is black (with stars when Core UI is on) and holds
+the platform chip in its console family's colour (PlayStation blue, Nintendo rose, Sega teal, Xbox green, everything
+else violet), a **The Collector** chip, the tabs, and the Overview's cards in a grid (RetroAchievements, Forge's Mods
+card, Save sync, and a Club card when Core adds one). Press **Y** to go back to the top. Warnings about save sync appear
+at the top of screen two.
+
+With Core UI off, or without Core, screen two is plain black and everything works the same.
 
 ## Versions
 
