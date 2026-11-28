@@ -2006,7 +2006,9 @@ class Test031AllowConsoleFamilySteamCollections:
         conn = sqlite3.connect(db_path, isolation_level=None)
         try:
             conn.execute(self._INSERT, ("uc-1", "platform", "Arcade", "arcade", "Arcade", None))
-            conn.execute(self._INSERT, ("uc-2", "installed", "Installed ROMs", "installed roms", "Installed ROMs", None))
+            conn.execute(
+                self._INSERT, ("uc-2", "installed", "Installed ROMs", "installed roms", "Installed ROMs", None)
+            )
             with pytest.raises(sqlite3.IntegrityError):
                 conn.execute(self._INSERT, ("uc-3", "console_family", "Sega", "sega", "Sega", None))
         finally:
