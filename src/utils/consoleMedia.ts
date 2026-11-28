@@ -1,8 +1,8 @@
 /**
  * Which physical media a console's games came on, keyed by RomM platform slug.
  *
- * The Collector draws every console as a stack of its media in CSS — generic
- * shapes, no logos — and lays a console page out in the same style. An unknown
+ * A console page lays its games out as the console's media in CSS — generic
+ * shapes, no logos. An unknown
  * slug gets the generic keep case, so a platform added to RomM later still has
  * a sensible look without a code change.
  */
@@ -62,12 +62,6 @@ const MEDIA_BY_SLUG: Readonly<Record<string, MediaKind>> = {
 
 export function mediaKindFor(platformSlug: string): MediaKind {
   return MEDIA_BY_SLUG[platformSlug.toLowerCase()] ?? "keep-case";
-}
-
-/** How many pieces of media a Home tile stacks for a console with `gameCount` games. */
-export function stackSize(kind: MediaKind, gameCount: number): number {
-  const most = kind === "dvd-case" || kind === "keep-case" ? 6 : 4;
-  return Math.max(1, Math.min(most, gameCount));
 }
 
 /** Path of the console page route for one console. */

@@ -3,7 +3,9 @@ import { Focusable } from "@decky/ui";
 import { useConsoleShelf } from "../../utils/consoleShelfStore";
 import { FALLBACK_GEOMETRY, measureRecentsRow, type RowGeometry } from "../../utils/steamRowGeometry";
 import { COLLECTOR_CSS } from "./collectorStyles";
-import { ConsoleTile } from "./ConsoleTile";
+import { CartridgeIcon } from "../icons";
+import { openFamily } from "../../utils/familyNavigation";
+import { FamilyTile } from "./FamilyTile";
 
 export const SHELF_TITLE = "The Collector";
 
@@ -81,15 +83,16 @@ function geometryStyle(g: RowGeometry): CSSProperties {
 }
 
 /**
- * The Home row: one capsule per console that has games in Steam, most played
- * first, on the lines of Steam's own Recent games row. Reads the shelf store and
- * Steam's own stores and DOM only — nothing here calls the backend — and renders
- * nothing until the store holds at least one console with the row switched on.
+ * The Home row: one wide tile per console family the library has games in
+ * (PlayStation, Nintendo, Sega, Xbox, Retro), on the lines of Steam's own Recent
+ * games row. Reads the shelf store and Steam's DOM only — nothing here calls the
+ * backend — and renders nothing until the store holds at least one family with the
+ * row switched on.
  */
 export const ConsoleShelfRow: FC = () => {
-  const { status, enabled, consoles } = useConsoleShelf();
+  const { status, enabled, consoles, families, art } = useConsoleShelf();
   const ref = useRef<HTMLElement>(null);
-  const visible = enabled && status === "ready" && consoles.length > 0;
+  const visible = enabled && status === "ready" && families.length > 0;
   const geometry = useSteamRowGeometry(ref, visible);
   if (!visible) return null;
   return (
@@ -102,10 +105,13 @@ export const ConsoleShelfRow: FC = () => {
       style={geometryStyle(geometry)}
     >
       <style>{COLLECTOR_CSS}</style>
-      <h2 className="tc-shelf__title">{SHELF_TITLE}</h2>
+      <h2 className="tc-shelf__title">
+        <CartridgeIcon size="1.1em" />
+        {SHELF_TITLE}
+      </h2>
       <Focusable className="tc-shelf__row" flow-children="row">
-        {consoles.map((c) => (
-          <ConsoleTile key={c.platform_slug} console={c} />
+        {families.map((family) => (
+          <FamilyTile key={family} family={family} art={art[family]} onOpen={() => openFamily(family, consoles)} />
         ))}
       </Focusable>
     </section>

@@ -11,7 +11,7 @@ import { core } from "../../theme/coreTokens";
  * fallback when that row cannot be measured.
  *
  * Colours come from the Core palette (`theme/coreTokens.ts`). The fixed greys left
- * in the `tc-media` and `tc-case` shapes draw the physical cases and cartridges.
+ * in the `tc-case` shapes draw the physical cases and cartridges.
  */
 
 /** Room inside the scrolling row for the focus ring and scale, given back by a negative margin. */
@@ -20,58 +20,24 @@ const FOCUS_ROOM = 16;
 export const COLLECTOR_CSS = `
 .tc-shelf{--tc-inset:24px;--tc-capsule-h:240px;--tc-gap:12px;--tc-pad-top:12px;--tc-title-gap:12px;--tc-pad-bottom:24px;
   box-sizing:border-box;padding:var(--tc-pad-top) 0 var(--tc-pad-bottom);color:${core.steel};min-width:0}
-.tc-shelf__title{margin:0 var(--tc-inset) var(--tc-title-gap);color:${core.white};font-family:var(--tc-title-font,inherit);
+.tc-shelf__title{display:flex;align-items:center;gap:10px;margin:0 var(--tc-inset) var(--tc-title-gap);color:${core.white};font-family:var(--tc-title-font,inherit);
   font-size:var(--tc-title-size,20px);font-weight:var(--tc-title-weight,600);line-height:var(--tc-title-lh,1.3);
   letter-spacing:var(--tc-title-ls,normal);text-transform:var(--tc-title-tt,none)}
 .tc-shelf__row{display:flex;gap:var(--tc-gap);overflow-x:auto;overflow-y:hidden;box-sizing:border-box;
   padding:${FOCUS_ROOM}px var(--tc-inset);margin:-${FOCUS_ROOM}px 0;scroll-padding-inline:var(--tc-inset);scrollbar-width:none}
 .tc-shelf__row::-webkit-scrollbar{display:none}
 
-.tc-tile{flex:0 0 auto;height:var(--tc-capsule-h);aspect-ratio:2/3;cursor:pointer;outline:none}
-.tc-tile__capsule{position:relative;width:100%;height:100%;overflow:hidden;border-radius:4px;background:${core.gunmetal};
-  box-shadow:0 4px 10px rgba(0,0,0,.5);transition:transform .14s ease-out,box-shadow .14s ease-out}
-.tc-tile.tc-focus .tc-tile__capsule,.tc-tile.gpfocus .tc-tile__capsule,.tc-tile:focus-visible .tc-tile__capsule{
-  transform:scale(1.05);box-shadow:0 0 0 3px ${core.crimson},0 8px 18px rgba(0,0,0,.6)}
-.tc-tile__media{position:absolute;inset:12px 8px 56px;display:flex;align-items:flex-end;justify-content:center;overflow:hidden}
-.tc-tile__art{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
-.tc-tile__label{position:absolute;left:0;right:0;bottom:0;padding:28px 10px 9px;opacity:0;transition:opacity .14s ease-out;
-  background:linear-gradient(180deg,rgba(0,0,0,0),rgba(0,0,0,.85) 55%)}
-.tc-tile.tc-focus .tc-tile__label,.tc-tile.gpfocus .tc-tile__label,.tc-tile:focus-visible .tc-tile__label{opacity:1}
-.tc-tile__name{font-size:15px;font-weight:600;color:${core.white};white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-
-.tc-media{display:flex;align-items:flex-end;justify-content:center;gap:3px;height:100%}
-.tc-media__item{box-sizing:border-box;flex:0 0 auto;position:relative;border:1px solid ${core.gunmetalRaised}}
-.tc-media--dvd-case .tc-media__item{width:20px;height:128px;background:linear-gradient(90deg,#14171b,${core.gunmetal} 45%,#101215);border-radius:2px}
-.tc-media--dvd-case .tc-media__item::before{content:"";position:absolute;left:0;right:0;top:8px;height:16px;background:${core.steel};opacity:.18}
-.tc-media--dvd-case .tc-media__item:nth-child(3n+2){height:122px}
-.tc-media--gc-box{gap:0}
-.tc-media--gc-box .tc-media__item{width:78px;height:100px;background:linear-gradient(160deg,#20242a,#121418);border-radius:3px;
-  margin-left:-44px;box-shadow:-3px 0 6px rgba(0,0,0,.6)}
-.tc-media--gc-box .tc-media__item:first-child{margin-left:0}
-.tc-media--gc-box .tc-media__item::before{content:"";position:absolute;left:0;right:0;top:0;height:14px;background:${core.steel};opacity:.16}
-.tc-media--jewel-case{flex-direction:column-reverse;align-items:center;justify-content:flex-start;gap:2px}
-.tc-media--jewel-case .tc-media__item{width:112px;height:16px;background:linear-gradient(180deg,#2a3038,#14171b);border-radius:2px;border-color:#5b6470}
-.tc-media--jewel-case .tc-media__item::before{content:"";position:absolute;left:8px;top:3px;bottom:3px;width:3px;background:${core.steel};opacity:.35}
-.tc-media--jewel-case .tc-media__item:nth-child(even){transform:translateX(5px)}
-.tc-media--snes-cart{gap:6px}
-.tc-media--snes-cart .tc-media__item{width:44px;height:96px;background:#8a8f96;border-color:#5f646b;border-radius:4px 4px 2px 2px}
-.tc-media--snes-cart .tc-media__item::before{content:"";position:absolute;left:6px;right:6px;top:16px;bottom:22px;background:${core.gunmetal};border-radius:2px}
-.tc-media--snes-cart .tc-media__item::after{content:"";position:absolute;left:4px;right:4px;top:5px;height:5px;
-  background:repeating-linear-gradient(90deg,#6d7279 0 3px,transparent 3px 6px)}
-.tc-media--n64-cart{gap:6px}
-.tc-media--n64-cart .tc-media__item{width:46px;height:88px;background:#2b2f35;border-color:#454b53;border-radius:12px 12px 3px 3px}
-.tc-media--n64-cart .tc-media__item::before{content:"";position:absolute;left:7px;right:7px;top:14px;height:38px;background:${core.steel};opacity:.22;border-radius:2px}
-.tc-media--nes-cart{gap:6px}
-.tc-media--nes-cart .tc-media__item{width:40px;height:104px;background:#3a3f46;border-color:#555b63;border-radius:3px}
-.tc-media--nes-cart .tc-media__item::before{content:"";position:absolute;left:6px;right:6px;top:10px;height:50px;background:${core.steel};opacity:.2}
-.tc-media--small-cart{gap:8px}
-.tc-media--small-cart .tc-media__item{width:34px;height:40px;background:#4a5058;border-color:#666d76;border-radius:3px 8px 3px 3px}
-.tc-media--small-cart .tc-media__item::before{content:"";position:absolute;left:5px;right:5px;top:6px;height:18px;background:${core.steel};opacity:.3}
-.tc-media--umd{gap:8px}
-.tc-media--umd .tc-media__item{width:46px;height:50px;background:${core.gunmetal};border-radius:6px 6px 22px 22px;border-color:#4a515a}
-.tc-media--umd .tc-media__item::before{content:"";position:absolute;left:9px;top:12px;width:26px;height:26px;border-radius:50%;
-  border:2px solid ${core.steel};opacity:.35}
-.tc-media--keep-case .tc-media__item{width:22px;height:118px;background:linear-gradient(90deg,#15181c,#1f2328);border-radius:2px}
+.tc-family{flex:0 0 auto;height:calc(var(--tc-capsule-h) * .82);aspect-ratio:16/9;cursor:pointer;outline:none}
+.tc-family__card{position:relative;width:100%;height:100%;overflow:hidden;border-radius:var(--core-radius-float,10px);
+  background:${core.gunmetal};transition:transform .14s ease-out,box-shadow .14s ease-out}
+.tc-family.tc-focus .tc-family__card,.tc-family.gpfocus .tc-family__card,.tc-family:focus-visible .tc-family__card{
+  transform:translateY(-4px);box-shadow:0 0 0 3px ${core.crimson}}
+.tc-family__hero{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;filter:brightness(.5)}
+.tc-family__logo{position:absolute;left:50%;top:calc(50% - 2px);transform:translate(-50%,-50%);max-width:80%;max-height:36%;
+  object-fit:contain}
+.tc-family__name{position:absolute;inset:0 0 4px;display:flex;align-items:center;justify-content:center;padding:0 12px;
+  text-align:center;font-size:calc(var(--tc-capsule-h) * .14);font-weight:700;color:${core.steel}}
+.tc-family__tone{position:absolute;left:0;right:0;bottom:0;height:4px}
 
 .tc-page{position:absolute;inset:0;overflow-y:auto;background:${core.black};color:${core.steel};padding:64px 48px 48px;box-sizing:border-box}
 .tc-page__head{display:flex;align-items:baseline;gap:16px;margin-bottom:22px}

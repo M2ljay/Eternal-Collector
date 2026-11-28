@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { consolePagePath, mediaKindFor, stackSize } from "./consoleMedia";
+import { consolePagePath, mediaKindFor } from "./consoleMedia";
 
 describe("mediaKindFor", () => {
   it.each([
@@ -14,15 +14,6 @@ describe("mediaKindFor", () => {
     ["some-new-platform", "keep-case"],
   ])("%s draws as %s", (slug, kind) => {
     expect(mediaKindFor(slug)).toBe(kind);
-  });
-});
-
-describe("stackSize", () => {
-  it("follows the game count up to the media's limit, never below one", () => {
-    expect(stackSize("dvd-case", 14)).toBe(6);
-    expect(stackSize("jewel-case", 14)).toBe(4);
-    expect(stackSize("snes-cart", 2)).toBe(2);
-    expect(stackSize("n64-cart", 0)).toBe(1);
   });
 });
 

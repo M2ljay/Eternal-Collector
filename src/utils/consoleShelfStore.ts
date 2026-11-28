@@ -7,6 +7,12 @@
  * shows can have changed — a sync run ending, a session's playtime landing, a
  * save-status answer.
  *
+ * The row shows one tile per console family with games in the library. Each
+ * family's hero and logo come from the user's icon pack through `get_family_art`,
+ * read once per family when the family first appears and kept as data URLs, so
+ * the row never waits on them: a tile draws its plain fallback until its art
+ * lands, and keeps it when the pack has none.
+ *
  * Every write installs a new state object, so {@link getConsoleShelfState} is a
  * valid `useSyncExternalStore` snapshot. Each read takes a sequence number when
  * it is issued and an answer older than the last one applied is dropped, so a
@@ -15,23 +21,34 @@
 
 import { useSyncExternalStore } from "react";
 import { addEventListener, removeEventListener } from "@decky/api";
-import { getConsoleShelf, logWarn } from "../api/backend";
+import { getConsoleShelf, getFamilyArt, logWarn } from "../api/backend";
+import { consoleFamily, FAMILY_ORDER, type ConsoleFamily } from "../theme/coreTokens";
 import type { ShelfConsole, SyncProgress } from "../types";
+
+/** A family's art: a data URL, `null` when the icon pack has none, `undefined` while it is being read. */
+export interface FamilyArt {
+  hero?: string | null;
+  logo?: string | null;
+}
 
 export interface ConsoleShelfState {
   status: "idle" | "ready" | "error";
   /** The "Show The Collector on Home" setting; on until the backend says otherwise. */
   enabled: boolean;
   consoles: ShelfConsole[];
+  /** The families with at least one console in `consoles`, in shelf order. */
+  families: ConsoleFamily[];
+  art: Partial<Record<ConsoleFamily, FamilyArt>>;
 }
 
-const INITIAL: ConsoleShelfState = { status: "idle", enabled: true, consoles: [] };
+const INITIAL: ConsoleShelfState = { status: "idle", enabled: true, consoles: [], families: [], art: {} };
 const REFRESH_DEBOUNCE_MS = 1500;
 
 let state: ConsoleShelfState = INITIAL;
 let listeners: Array<() => void> = [];
 let issued = 0;
 let applied = 0;
+let artRequested = new Set<ConsoleFamily>();
 
 function publish(next: ConsoleShelfState): void {
   state = next;
@@ -47,6 +64,39 @@ export function onConsoleShelfChange(fn: () => void): () => void {
   return () => {
     listeners = listeners.filter((l) => l !== fn);
   };
+}
+
+/** The families present among `consoles`, in shelf order. */
+export function shelfFamilies(consoles: readonly ShelfConsole[]): ConsoleFamily[] {
+  const present = new Set(consoles.map((c) => consoleFamily(c.platform_slug)));
+  return FAMILY_ORDER.filter((f) => present.has(f));
+}
+
+async function readArt(family: ConsoleFamily, kind: "hero" | "logo"): Promise<string | null> {
+  try {
+    const answer = await getFamilyArt(family, kind);
+    return answer.success && answer.base64 ? `data:image/png;base64,${answer.base64}` : null;
+  } catch (e) {
+    logWarn(`The Collector: ${family} ${kind} read failed: ${e instanceof Error ? e.message : String(e)}`);
+    return null;
+  }
+}
+
+function setArt(family: ConsoleFamily, part: FamilyArt): void {
+  publish({ ...state, art: { ...state.art, [family]: { ...state.art[family], ...part } } });
+}
+
+/**
+ * Read the art of every family not read yet, one file at a time: a hero is a few
+ * megabytes, and one callable answer at a time keeps Decky's bridge clear.
+ */
+async function loadFamilyArt(families: readonly ConsoleFamily[]): Promise<void> {
+  const fresh = families.filter((f) => !artRequested.has(f));
+  fresh.forEach((f) => artRequested.add(f));
+  for (const family of fresh) {
+    setArt(family, { logo: await readArt(family, "logo") });
+    setArt(family, { hero: await readArt(family, "hero") });
+  }
 }
 
 export function useConsoleShelf(): ConsoleShelfState {
@@ -65,7 +115,9 @@ export async function refreshConsoleShelf(): Promise<void> {
     const answer = await getConsoleShelf();
     if (ticket < applied) return;
     applied = ticket;
-    publish({ status: "ready", enabled: answer.enabled, consoles: answer.consoles });
+    const families = shelfFamilies(answer.consoles);
+    publish({ ...state, status: "ready", enabled: answer.enabled, consoles: answer.consoles, families });
+    void loadFamilyArt(families);
   } catch (e) {
     if (ticket < applied) return;
     applied = ticket;
@@ -112,4 +164,5 @@ export function resetConsoleShelfStore(): void {
   listeners = [];
   issued = 0;
   applied = 0;
+  artRequested = new Set();
 }

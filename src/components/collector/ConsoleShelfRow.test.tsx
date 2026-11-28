@@ -2,12 +2,12 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { act, render, screen, fireEvent } from "@testing-library/react";
 import { navigate } from "../../test-utils/collectorUiMock";
 import { ConsoleShelfRow, SHELF_TITLE } from "./ConsoleShelfRow";
-import { getConsoleShelf } from "../../api/backend";
+import { getConsoleShelf, getFamilyArt } from "../../api/backend";
 import { refreshConsoleShelf, resetConsoleShelfStore, setHomeShelfEnabled } from "../../utils/consoleShelfStore";
 import type { ShelfConsole } from "../../types";
 
 vi.mock("@decky/ui", async () => (await import("../../test-utils/collectorUiMock")).collectorUiMock());
-vi.mock("../../api/backend", () => ({ getConsoleShelf: vi.fn(), logWarn: vi.fn() }));
+vi.mock("../../api/backend", () => ({ getConsoleShelf: vi.fn(), getFamilyArt: vi.fn(), logWarn: vi.fn() }));
 
 const consoles: ShelfConsole[] = [
   {
@@ -20,18 +20,33 @@ const consoles: ShelfConsole[] = [
   },
   { platform_slug: "ngc", name: "GameCube", game_count: 1, last_played: null, play_seconds: 0, cover_app_id: 9002 },
   { platform_slug: "psx", name: "PlayStation", game_count: 3, last_played: null, play_seconds: 0, cover_app_id: 9003 },
+  { platform_slug: "arcade", name: "Arcade", game_count: 2, last_played: null, play_seconds: 0, cover_app_id: 9004 },
 ];
+
+/** Generated stand-ins for the pack's files: a family's logo only where `withLogo` says so. */
+function packArt(withLogo: readonly string[]) {
+  vi.mocked(getFamilyArt).mockImplementation((family, kind) =>
+    Promise.resolve({
+      success: true,
+      family,
+      kind,
+      base64: withLogo.includes(family) ? btoa(`${family}-${kind}`) : null,
+    }),
+  );
+}
 
 async function load(list: ShelfConsole[], enabled = true) {
   vi.mocked(getConsoleShelf).mockResolvedValue({ success: true, enabled, consoles: list });
   await act(async () => {
     await refreshConsoleShelf();
+    for (let i = 0; i < 20; i++) await Promise.resolve();
   });
 }
 
 beforeEach(() => {
   resetConsoleShelfStore();
   navigate.mockReset();
+  packArt([]);
 });
 
 afterEach(() => {
@@ -92,37 +107,76 @@ describe("ConsoleShelfRow", () => {
     expect(container).toBeEmptyDOMElement();
   });
 
-  it("renders one tile per console in the backend's order, with the name only and no count or last played", async () => {
+  it("renders one wide tile per family present, in shelf order, and no game art, counts or last played", async () => {
     render(<ConsoleShelfRow />);
     await load(consoles);
     expect(screen.getByText(SHELF_TITLE)).toBeInTheDocument();
-    const tiles = document.querySelectorAll(".tc-tile");
-    expect([...tiles].map((t) => t.getAttribute("data-platform"))).toEqual(["ps2", "ngc", "psx"]);
-    expect(tiles[0]).toHaveTextContent("PlayStation 2");
-    for (const tile of tiles) {
-      expect(tile.textContent).not.toMatch(/\bgames?\b|played|ago|tonight|today|yesterday|week|month|year/i);
-      expect(tile.querySelector(".tc-tile__meta")).toBeNull();
-    }
-    expect(document.querySelector(".tc-shelf")?.textContent).not.toMatch(/\d+ games?/);
-    expect(tiles[0]!.querySelector("[data-media-kind]")?.getAttribute("data-media-kind")).toBe("dvd-case");
-    expect(tiles[0]!.querySelectorAll(".tc-media__item")).toHaveLength(6);
-    expect(tiles[1]!.querySelector("[data-media-kind]")?.getAttribute("data-media-kind")).toBe("gc-box");
+    expect(document.querySelector(".tc-shelf__title svg")).not.toBeNull();
+    const tiles = document.querySelectorAll(".tc-family");
+    expect([...tiles].map((t) => t.getAttribute("data-family"))).toEqual(["playstation", "nintendo", "retro"]);
+    expect(document.querySelector(".tc-shelf")?.textContent).not.toMatch(/\d+ games?|played|ago|yesterday/i);
+    expect(document.querySelector(".tc-tile, .tc-media, .tc-tile__art")).toBeNull();
     expect(document.querySelector(".tc-shelf__row")?.getAttribute("data-flow")).toBe("row");
+    expect(document.querySelector("style")?.textContent).toContain("aspect-ratio:16/9");
   });
 
-  it("A on a tile opens that console's page", async () => {
+  it("shows the pack's hero, dimmed, and the logo centred over it, with the family tone along the bottom", async () => {
+    packArt(["nintendo"]);
     render(<ConsoleShelfRow />);
     await load(consoles);
-    fireEvent.click(screen.getByLabelText("GameCube"));
-    expect(navigate).toHaveBeenCalledWith("/the-collector/console/ngc");
+    const tile = document.querySelector('[data-family="nintendo"]')!;
+    expect(tile.querySelector("img.tc-family__hero")).toHaveAttribute(
+      "src",
+      `data:image/png;base64,${btoa("nintendo-hero")}`,
+    );
+    expect(tile.querySelector("img.tc-family__logo")).toHaveAttribute("alt", "Nintendo");
+    expect(tile.querySelector(".tc-family__name")).toBeNull();
+    expect((tile.querySelector(".tc-family__tone") as HTMLElement).style.background.toLowerCase()).toBe("#b07a84");
+    const css = document.querySelector("style")?.textContent ?? "";
+    expect(css).toMatch(/\.tc-family__hero\{[^}]*filter:brightness\(\.5\)/);
+    expect(css).toMatch(/\.tc-family__logo\{[^}]*max-width:80%;max-height:36%/);
   });
 
-  it("shows the console's name only while its capsule has focus", async () => {
+  it("without the pack's art, draws a gunmetal tile with the family name and the tone strip", async () => {
+    render(<ConsoleShelfRow />);
+    await load(consoles);
+    const tile = document.querySelector('[data-family="retro"]')!;
+    expect(tile.querySelector("img")).toBeNull();
+    expect(tile.querySelector(".tc-family__name")).toHaveTextContent("Retro");
+    expect(tile.querySelector(".tc-family__tone")).not.toBeNull();
+  });
+
+  it("focus is a crimson ring with a lift the row has room for, inside the 10px card", async () => {
     render(<ConsoleShelfRow />);
     await load(consoles);
     const css = document.querySelector("style")?.textContent ?? "";
-    expect(css).toMatch(/\.tc-tile__label\{[^}]*opacity:0/);
-    expect(css).toContain(".tc-tile.tc-focus .tc-tile__label");
+    expect(css).toMatch(
+      /\.tc-family\.tc-focus \.tc-family__card[^{]*\{\s*transform:translateY\(-4px\);box-shadow:0 0 0 3px #D7263D\}/,
+    );
+    expect(css).toMatch(/\.tc-family__card\{[^}]*border-radius:var\(--core-radius-float,10px\)/);
+    expect(css).toMatch(/\.tc-shelf__row\{[^}]*padding:16px var\(--tc-inset\)/);
+  });
+
+  it("A opens the Library collection named after the family when there is one", async () => {
+    vi.stubGlobal("collectionStore", {
+      userCollections: [
+        { id: "uc-1", displayName: "PS2" },
+        { id: "uc-7", displayName: "playstation" },
+      ],
+    });
+    render(<ConsoleShelfRow />);
+    await load(consoles);
+    fireEvent.click(screen.getByLabelText("PlayStation"));
+    expect(navigate).toHaveBeenCalledWith("/library/collection/uc-7");
+  });
+
+  it("A opens the console page of the family's most played console when there is no such collection", async () => {
+    render(<ConsoleShelfRow />);
+    await load(consoles);
+    fireEvent.click(screen.getByLabelText("PlayStation"));
+    expect(navigate).toHaveBeenCalledWith("/the-collector/console/ps2");
+    fireEvent.click(screen.getByLabelText("Retro"));
+    expect(navigate).toHaveBeenLastCalledWith("/the-collector/console/arcade");
   });
 
   it("renders nothing when switched off or when there are no consoles", async () => {
@@ -137,36 +191,6 @@ describe("ConsoleShelfRow", () => {
 });
 
 describe("ConsoleShelfRow on Steam's Home", () => {
-  it("shows Steam's own capsule art for each console's cover game", async () => {
-    vi.stubGlobal("appStore", {
-      GetAppOverviewByAppID: (id: number) => ({ appid: id, rt_custom_image_mtime: 42 }),
-      GetCustomVerticalCapsuleURLs: (o: { appid: number }) => [`/customimages/${o.appid}p.png?v=42`],
-      GetVerticalCapsuleURLForApp: () => "",
-    });
-    render(<ConsoleShelfRow />);
-    await load(consoles);
-    const art = [...document.querySelectorAll("img.tc-tile__art")].map((i) => i.getAttribute("src"));
-    expect(art).toEqual([
-      "/customimages/9001p.png?v=42",
-      "/customimages/9002p.png?v=42",
-      "/customimages/9003p.png?v=42",
-    ]);
-  });
-
-  it("keeps the console's media stack under the art and drops an image that fails to load", async () => {
-    render(<ConsoleShelfRow />);
-    await load(consoles);
-    const tile = document.querySelector('[data-platform="ngc"]')!;
-    const img = () => tile.querySelector("img.tc-tile__art");
-    expect(img()).toHaveAttribute("src", "/customimages/9002p.png");
-    fireEvent.error(img()!);
-    expect(img()).toHaveAttribute("src", "/customimages/9002p.jpg");
-    fireEvent.error(img()!);
-    expect(img()).toBeNull();
-    expect(tile.querySelector("[data-media-kind]")?.getAttribute("data-media-kind")).toBe("gc-box");
-    expect(tile.querySelector(".tc-tile__name")).toHaveTextContent("GameCube");
-  });
-
   it("takes inset, capsule height, gap, spacing and title type from Steam's Recent games row", async () => {
     stubBoxes();
     render(<SteamHome />);
@@ -197,12 +221,12 @@ describe("ConsoleShelfRow on Steam's Home", () => {
     expect(style.getPropertyValue("--tc-title-ls")).toBe("1px");
   });
 
-  it("falls back to its own 2:3 geometry when there is no Steam row to measure", async () => {
+  it("falls back to its own geometry when there is no Steam row to measure", async () => {
     render(<ConsoleShelfRow />);
     await load(consoles);
     expect(document.querySelector(".tc-shelf")).toHaveAttribute("data-geometry", "fallback");
     expect(shelfStyle().getPropertyValue("--tc-capsule-h")).toBe("240px");
-    expect(document.querySelector("style")?.textContent).toContain("aspect-ratio:2/3");
+    expect(document.querySelector("style")?.textContent).toContain("height:calc(var(--tc-capsule-h) * .82)");
   });
 
   it("never writes to Steam's elements", async () => {

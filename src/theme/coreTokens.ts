@@ -76,6 +76,10 @@ const FAMILY_SLUGS: Record<Exclude<ConsoleFamily, "retro">, readonly string[]> =
     "satellaview",
     "sufami-turbo",
     "64dd",
+    "new-nintendo-3ds",
+    "g-and-w",
+    "game-and-watch",
+    "wiiware",
   ],
   sega: [
     "genesis",
@@ -94,7 +98,21 @@ const FAMILY_SLUGS: Record<Exclude<ConsoleFamily, "retro">, readonly string[]> =
   xbox: ["xbox", "xbox360", "xboxone"],
 };
 
-/** The console family a RomM platform slug belongs to. */
+/** The families in the order the Home shelf shows them, with their names. */
+export const FAMILY_ORDER: readonly ConsoleFamily[] = ["playstation", "nintendo", "sega", "xbox", "retro"];
+export const FAMILY_NAMES: Record<ConsoleFamily, string> = {
+  playstation: "PlayStation",
+  nintendo: "Nintendo",
+  sega: "Sega",
+  xbox: "Xbox",
+  retro: "Retro",
+};
+
+/**
+ * The console family a RomM platform slug belongs to. Everything outside the four
+ * makers is Retro (arcade, Neo Geo and the Neo Geo Pocket, SNK, TurboGrafx and
+ * PC Engine, Atari, the home computers), as in Core's Library tabs.
+ */
 export function consoleFamily(platformSlug: string): ConsoleFamily {
   const slug = platformSlug.toLowerCase();
   for (const [family, slugs] of Object.entries(FAMILY_SLUGS) as [ConsoleFamily, readonly string[]][]) {
